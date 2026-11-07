@@ -1,0 +1,9 @@
+node_modules/
+target/
+*.wasm
+.env
+.deploy.env
+.account
+tools/node_modules/
+tools/*.tgz
+.DS_Store

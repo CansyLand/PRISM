@@ -1,0 +1,16 @@
+{
+  "name": "near-lev-demo",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Minimal intent-based leveraged position prototype on NEAR",
+  "main": "demo.js",
+  "scripts": {
+    "deploy": "node deploy.js",
+    "demo": "node demo.js",
+    "quote": "node intent.js"
+  },
+  "dependencies": {
+    "dotenv": "^18.0.9",
+    "near-api-js": "^7.4.0"
+  }
+}
