@@ -7,6 +7,7 @@
   "scripts": {
     "deploy": "node deploy.js",
     "demo": "node demo.js",
+    "liquidate": "node liquidate-demo.js",
     "quote": "node intent.js"
   },
   "dependencies": {

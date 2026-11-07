@@ -19,7 +19,7 @@ swapped or added without rewriting the rest.
 | 3 | **Solver / Execution Adapter** | ✅ | `demo/intent.js` (`quote`, `status`) + `demo/demo.js` (fill feedback) | intent → quote/depositAddress/status → **fill price written back to ledger via `settle_entry`** |
 | 4 | **Risk Engine** | ✅ (folded into ledger) | `contract/src/lib.rs` (liquidation threshold 50%) | position + price → healthy / liquidatable |
 | 5 | **Price Feed** | 🟡 | `demo/intent.js` (`tokenPrice`) | 1Click `/v0/tokens` → live $/token. **Gap:** single source, no index vs mark distinction |
-| 6 | **Liquidation Module** | 🟡 | `contract/src/lib.rs` (`liquidate`) | anyone closes underwater position. **Gap:** not demonstrated in demo, no intent/penalty flow |
+| 6 | **Liquidation Module** | ✅ | `liquidate` in contract + `demo/liquidate-demo.js` | stranger force-closes underwater position on NEAR; healthy positions refused (verified). **Gap:** no intent/penalty flow yet |
 | 7 | **Funding & Settlement Engine** | ⬜ | — | schedule → funding Δ on positions (needs mark vs index) |
 | 8 | **Cross-Chain Controller (Chain Signatures)** | ⬜ | — | commands → signed foreign-chain txs (collateral on ETH/BTC etc.) |
 | 9 | **UI / Agent Interface** | 🟡 | `demo/demo.js` (CLI script) | user actions → open/close/show. **Gap:** no single-page UI yet |
@@ -54,12 +54,18 @@ in §4 — the step that turns modeled leverage into actual leverage.
 - Deploy made idempotent: redeploy keeps existing state (`#[init]` trap caught).
 - With real funds the same code uses the actual fill amounts, not the quote.
 
-### B. Liquidation demo  ⬜ **NEXT PIECE**
-- Extend `demo.js` with a 3rd scenario: open a position, move price underwater, call
-  `liquidate` from a *second* account, show the position closed. Proves the
-  "no one can freeze, but the system self-defends" claim on-chain.
+### B. Liquidation demo  ✅ **BUILT & VERIFIED**
+- `demo/liquidate-demo.js` — two-account scenario, verified on testnet:
+  1. owner opens an underwater position (10×, margin coverage 20% < 50% threshold)
+  2. stranger (`liquidator-8842.testnet`, second key, no admin role) attempts
+     liquidation at a healthy mark price → **rejected by contract**
+  3. same stranger liquidates at the live mark price → **position closed on NEAR**
+- Second testnet account created via faucet; creds in `../.deploy.env`
+  (LIQUIDATOR_ACCOUNT_ID / LIQUIDATOR_PRIVATE_KEY).
+- This demonstrates the core "unstoppable" claim: risk rule + state live in the
+  contract; no operator/order book/external sequencer is the source of truth.
 
-### C. Price feed hardening  ⬜
+### C. Price feed hardening  ⬜ **NEXT PIECE**
 - Second source (NEAR DEX via RPC) → median of two, store `mark_price` + `timestamp`
   in the ledger via an `update_price` method anyone may call (with deviation guard).
   This also creates the mark/index split funding needs later.

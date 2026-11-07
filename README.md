@@ -137,6 +137,23 @@ LOOP COMPLETE ✓
 > The PnL can be **negative** — it's the honest spread between two live quotes,
 > not a simulated gain. That's the point: no fake prices anywhere in the loop.
 
+### Liquidation demo (the "unstoppable" proof)
+
+`liquidate-demo.js` shows why the state can't be seized or censored:
+
+1. owner opens an **underwater** position (10× long, margin coverage 20% < 50% threshold)
+2. the contract **refuses to liquidate** the position when the mark price is healthy
+3. a **completely different account** (second testnet key, no admin role anywhere)
+   force-closes it on NEAR using the live mark price
+
+```bash
+node liquidate-demo.js
+```
+
+This is the 30-second demo of the core claim: *the risk rule and the position
+state live in the contract — no operator, order book, or external sequencer is
+the source of truth.* A stranger can liquidate; an owner cannot be frozen.
+
 ---
 
 ## 4) Use the intent wrapper directly
