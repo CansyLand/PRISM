@@ -49,15 +49,20 @@ async function main() {
   await provider.sendTransaction(signed.signedTransaction);
   console.log("Wasm deployed.");
 
-  // 2) Initialize via #[init] new()
-  await account.callFunction({
-    contractId: accountId,
-    methodName: "new",
-    args: {},
-    gas: teraToGas("200"),
-    deposit: nearToYocto("0"),
-  });
-  console.log("Contract initialized (new()).");
+  // 2) Initialize via #[init] new() — on redeploy, state already exists and
+  //    #[init] traps by design; that's a success (contract already initialized).
+  try {
+    await account.callFunction({
+      contractId: accountId,
+      methodName: "new",
+      args: {},
+      gas: teraToGas("200"),
+      deposit: nearToYocto("0"),
+    });
+    console.log("Contract initialized (new()).");
+  } catch (e) {
+    console.log("Contract already has state (redeploy) — keeping existing state.");
+  }
 
   // 3) Open: long 1000 @ $20.00, margin $100.00 (USDC 6dp)
   await account.callFunction({
@@ -74,7 +79,22 @@ async function main() {
   });
   console.log("Position after open:", JSON.stringify(pos));
 
-  // 4) Close at $21.00 => PnL +$10,000.00
+  // 4) Settle entry with the "actual" solver fill price ($20.50)
+  await account.callFunction({
+    contractId: accountId,
+    methodName: "settle_entry",
+    args: { fill_price: 205_000_000 },
+    gas: teraToGas("100"),
+    deposit: nearToYocto("0"),
+  });
+  const posFill = await provider.callFunction({
+    contractId: accountId,
+    method: "get_position",
+    args: { account_id: accountId },
+  });
+  console.log("Position after settle_entry($20.50):", JSON.stringify(posFill));
+
+  // 5) Close at $21.00 => PnL +$750.00 (based on the settled fill price)
   await account.callFunction({
     contractId: accountId,
     methodName: "close_position",

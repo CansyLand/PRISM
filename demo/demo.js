@@ -49,17 +49,27 @@ async function main() {
     gas: teraToGas("100"),
     deposit: nearToYocto("0"),
   });
+  // The intent's quoted fill IS the real entry: USDC-in per wNEAR-out
+  // price_6dp = USDCraw(6dp) * 1e24 / wNEARraw(24dp)
+  const fillPriceIn = Number(
+    (BigInt(openQ.quote.amountIn) * 10n ** 24n) / BigInt(openQ.quote.amountOut),
+  );
+  await account.callFunction({
+    contractId: accountId,
+    methodName: "settle_entry",
+    args: { fill_price: Number(fillPriceIn) },
+    gas: teraToGas("100"),
+    deposit: nearToYocto("0"),
+  });
   let pos = await provider.callFunction({ contractId: accountId, method: "get_position", args: { account_id: accountId } });
   console.log(`  open_position(size=${size}, price=${entryPrice}, margin=${margin})`);
+  console.log(`  settle_entry(${fillPriceIn})  <- real 1Click fill: ${openQ.quote.amountInFormatted} USDC / ${openQ.quote.amountOutFormatted} wNEAR`);
   console.log(`  position: ${JSON.stringify(pos)}`);
   console.log(`  notional $${notionalUsd.toFixed(2)}  margin $${marginUsd.toFixed(2)}  (10x leverage)`);
 
   line("4) SHOW CURRENT POSITION (view call)");
   console.log(`  get_position => ${JSON.stringify(pos)}`);
 
-  // Simulate a price move: exit at +5% (long wins)
-  const exitPrice = Math.round(entryPrice * 1.05);
-  const pnlUsd = (size * (exitPrice - entryPrice)) / USDC;
   line("5) CLOSE INTENT (dry-run): settle  wNEAR -> USDC");
   // Realize: swap the wNEAR position value back to USDC
   const wNearToSettle = BigInt(Math.round(size)); // 1 wNEAR per unit
@@ -67,7 +77,11 @@ async function main() {
   console.log(`  intent: wNEAR -> USDC, EXACT_INPUT, slippage 1%`);
   console.log(`  quote:  ${closeQ.quote.amountInFormatted} wNEAR => ${closeQ.quote.amountOutFormatted} USDC  (est ${closeQ.quote.timeEstimate}s)`);
 
-  line("6) CLOSE POSITION ON-CHAIN");
+  line("6) CLOSE POSITION ON-CHAIN (exit = real 1Click fill)");
+  // price_6dp = USDCraw(6dp) * 1e24 / wNEARraw(24dp)
+  const exitPrice = Number(
+    (BigInt(closeQ.quote.amountOut) * 10n ** 24n) / BigInt(closeQ.quote.amountIn),
+  );
   await account.callFunction({
     contractId: accountId,
     methodName: "close_position",
@@ -76,9 +90,9 @@ async function main() {
     deposit: nearToYocto("0"),
   });
   pos = await provider.callFunction({ contractId: accountId, method: "get_position", args: { account_id: accountId } });
-  console.log(`  close_position(exit_price=${exitPrice})  [simulated +5% price move]`);
+  console.log(`  close_position(exit_price=${exitPrice})  <- real 1Click fill`);
   console.log(`  position: ${JSON.stringify(pos)}`);
-  console.log(`  PnL = ${size} * ($${(exitPrice / USDC).toFixed(2)} - $${(entryPrice / USDC).toFixed(2)}) = $${pnlUsd.toFixed(2)}`);
+  console.log(`  PnL = ${size} * ($${(exitPrice / USDC).toFixed(2)} - $${(fillPriceIn / USDC).toFixed(2)}) = $${(size * (exitPrice - fillPriceIn) / USDC).toFixed(2)}`);
 
   line("LOOP COMPLETE  ✓");
   console.log("  open -> position visible via view call -> close, on NEAR testnet.");

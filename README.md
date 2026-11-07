@@ -75,6 +75,7 @@ ls target/wasm32-unknown-unknown/release/leveraged_positions.wasm
 |---|---|---|---|
 | `new` | init | – | contract |
 | `open_position` | state | `size: i128` (±base units), `price: u128`, `margin: u128` (USDC 6dp) | – |
+| `settle_entry` | state | `fill_price: u128` (USDC 6dp) — actual solver fill | – |
 | `close_position` | state | `exit_price: u128` (USDC 6dp) | `I128` PnL |
 | `liquidate` | state | `account_id`, `mark_price: u128` | `I128` PnL |
 | `get_position` | view | `account_id` | `Position?` |
@@ -118,17 +119,23 @@ npm run demo
 
 This pulls a **live wNEAR price** from the 1Click tokens endpoint, requests
 **dry-run 1Click quotes** for the funding (open) and settlement (close)
-intents, and drives the testnet contract through the full loop:
+intents, and drives the testnet contract through the full loop — with the
+**quoted fill prices written back into the position** so PnL comes from real
+market data, not a mock:
 
 ```
-1) LIVE MARKET PRICE ...  wNEAR price = $3.65
-2) OPEN INTENT (dry-run): fund margin USDC -> wNEAR ... 3.65 USDC => 0.999 wNEAR
-3) OPEN POSITION ON-CHAIN (testnet) ... {"...","is_open":true}
-4) SHOW CURRENT POSITION (view call) ... {"...","is_open":true}
-5) CLOSE INTENT (dry-run): settle wNEAR -> USDC ... 10.0 wNEAR => 36.35 USDC
-6) CLOSE POSITION ON-CHAIN ... {"...","is_open":false}  PnL = $1.83
+1) LIVE MARKET PRICE ...  wNEAR price = $3.66
+2) OPEN INTENT (dry-run): fund margin USDC -> wNEAR ... 3.66 USDC => 0.995 wNEAR
+3) OPEN POSITION ON-CHAIN (testnet) ...
+   settle_entry(3675674) <- real 1Click fill
+4) SHOW CURRENT POSITION (view call) ... entry_price = 3675674 (the real fill)
+5) CLOSE INTENT (dry-run): settle wNEAR -> USDC ... 10.0 wNEAR => 36.56 USDC
+6) CLOSE POSITION ON-CHAIN (exit = real 1Click fill) ... PnL from real prices
 LOOP COMPLETE ✓
 ```
+
+> The PnL can be **negative** — it's the honest spread between two live quotes,
+> not a simulated gain. That's the point: no fake prices anywhere in the loop.
 
 ---
 

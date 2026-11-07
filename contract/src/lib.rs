@@ -5,7 +5,9 @@ use std::collections::HashMap;
 
 /// Amounts/prices are USDC raw units (6 decimals), u128.
 /// `size` is signed base units: positive = long, negative = short.
-#[derive(BorshSerialize, BorshDeserialize, serde::Serialize, serde::Deserialize, Clone, PartialEq)]
+#[derive(
+    BorshSerialize, BorshDeserialize, serde::Serialize, serde::Deserialize, Clone, PartialEq,
+)]
 pub struct Position {
     pub owner: AccountId,
     pub size: i128,
@@ -50,6 +52,20 @@ impl LeveragedPositions {
                 is_open: true,
             },
         );
+    }
+
+    /// Record the ACTUAL solver fill price for the caller's position
+    /// (e.g. from a 1Click intent quote: USDC-in / wNEAR-out).
+    /// Only the position owner, while the position is open.
+    /// PnL on close is then computed from this real fill price.
+    pub fn settle_entry(&mut self, fill_price: u128) {
+        let caller: AccountId = env::predecessor_account_id();
+        let pos = self.positions.get(&caller).expect("no position");
+        require!(pos.is_open, "position not open");
+        require!(fill_price > 0, "fill price must be > 0");
+        self.positions
+            .entry(caller)
+            .and_modify(|p| p.entry_price = fill_price);
     }
 
     /// Close the caller's position at `exit_price` (USDC raw 6dp).
@@ -123,6 +139,28 @@ mod tests {
     }
 
     #[test]
+    fn settle_entry_uses_real_fill_price() {
+        ctx("bob.testnet", "bob.testnet");
+        let mut c = LeveragedPositions::new();
+        c.open_position(10, 3_650_000, 3_650_000); // mock entry $3.65
+        c.settle_entry(3_660_000); // actual solver fill was $3.66
+        let p = c.get_position("bob.testnet".parse().unwrap()).unwrap();
+        assert_eq!(p.entry_price, 3_660_000);
+        let pnl = c.close_position(3_831_000).0; // close @ $3.831
+        assert_eq!(pnl, 10 * (3_831_000 - 3_660_000)); // based on REAL fill
+    }
+
+    #[test]
+    #[should_panic(expected = "position not open")]
+    fn settle_entry_rejected_when_closed() {
+        ctx("bob.testnet", "bob.testnet");
+        let mut c = LeveragedPositions::new();
+        c.open_position(10, 3_650_000, 3_650_000);
+        c.close_position(3_650_000);
+        c.settle_entry(4_000_000);
+    }
+
+    #[test]
     #[should_panic(expected = "margin below minimum")]
     fn rejects_tiny_margin() {
         ctx("bob.testnet", "bob.testnet");
@@ -136,9 +174,7 @@ mod tests {
         let mut c = LeveragedPositions::new();
         c.open_position(1_000, 200_000_000, 20_000_000); // coverage 10% < 50%
         ctx("carol.testnet", "carol.testnet");
-        let pnl = c
-            .liquidate("alice.testnet".parse().unwrap(), 200_000_000)
-            .0;
+        let pnl = c.liquidate("alice.testnet".parse().unwrap(), 200_000_000).0;
         assert_eq!(pnl, 0);
         let p = c
             .get_position("alice.testnet".parse().unwrap())
