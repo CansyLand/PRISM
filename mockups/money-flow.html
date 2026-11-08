@@ -13,12 +13,13 @@
   .wrap{max-width:1000px;margin:0 auto;padding:26px 20px 56px}
   h1{font-size:22px;margin:0 0 4px}
   .sub{color:var(--muted);font-size:13.5px;margin:0 0 18px}
-  .tabs{display:flex;gap:10px;margin-bottom:18px}
+  .tabs{display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap}
   .tab{background:var(--panel);border:1px solid var(--border);color:var(--fg);
     padding:10px 16px;border-radius:10px;cursor:pointer;font-size:14px;font-weight:600}
   .tab.active{border-color:var(--blue);background:#0f1e30}
   .tab.win.active{border-color:var(--green);background:#0f2417}
   .tab.loss.active{border-color:var(--red);background:#2a1414}
+  .tab.fill.active{border-color:var(--blue);background:#0f1e30}
   .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:6px}
   svg{width:100%;height:auto;display:block}
   .grid2{display:grid;grid-template-columns:1.35fr 1fr;gap:16px;margin-top:16px;align-items:start}
@@ -33,43 +34,88 @@
   .note{color:var(--muted);font-size:12.5px;margin-top:12px}
   .callout{border-left:3px solid var(--blue);background:#0f1a2b;padding:12px 14px;border-radius:0 8px 8px 0;
     font-size:13.5px;margin-top:14px}
+  .callout:first-child{margin-top:0}
   .legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12.5px;color:var(--muted)}
   .legend span{display:inline-flex;align-items:center;gap:6px}
   .legend i{width:14px;height:4px;border-radius:2px;display:inline-block}
+  .win-tag{display:inline-block;font-size:11px;font-weight:700;color:var(--green);border:1px solid var(--green);
+    border-radius:20px;padding:1px 8px;margin-left:6px}
+  .stepper{display:flex;margin-top:14px}
+  .step{flex:1;text-align:center;position:relative;padding-top:16px;font-size:11px;color:var(--muted)}
+  .step::before{content:"";position:absolute;top:5px;left:0;right:0;height:2px;background:var(--line)}
+  .step:first-child::before{left:50%}.step:last-child::before{right:50%}
+  .step::after{content:"";position:absolute;top:2px;left:50%;transform:translateX(-50%);width:9px;height:9px;border-radius:50%;background:var(--line)}
+  .step.done::before{background:var(--green)}.step.done::after{background:var(--green)}
   .footer{margin-top:26px;padding-top:16px;border-top:1px solid var(--border);color:var(--muted);font-size:12px;text-align:center}
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>PRISM — where the money actually goes</h1>
-  <p class="sub">A 10× long on $100,000 notional ($10,000 margin). Perps are ~zero-sum: the winner's P&L is paid by the other side. PRISM and 1Click just skim fees. Watch the flows.</p>
+  <p class="sub">A 10× long on $100,000 notional ($10,000 margin). Perps are ~zero-sum: the winner's P&L is paid by the other side. PRISM and 1Click just skim fees. Tab ③ shows how the fill itself happens — the intent auction across competing solvers.</p>
 
   <div class="tabs">
     <button class="tab win active" id="tab-win" onclick="show('win')">① Trader WINS big</button>
     <button class="tab loss" id="tab-loss" onclick="show('loss')">② Trader LOSES → liquidated</button>
+    <button class="tab fill" id="tab-fill" onclick="show('fill')">③ The fill: 1Click + competing solvers</button>
   </div>
 
-  <div class="card">
-    <svg id="svg" viewBox="0 0 960 540" preserveAspectRatio="xMidYMid meet"></svg>
-  </div>
-
-  <div class="legend">
-    <span><i style="background:var(--green)"></i>P&L (who won / lost the trade)</span>
-    <span><i style="background:var(--gold)"></i>PRISM taker fee</span>
-    <span><i style="background:var(--blue)"></i>1Click swap fee</span>
-    <span><i style="background:var(--purple)"></i>Liquidator reward</span>
-  </div>
-
-  <div class="grid2">
-    <div>
-      <div class="callout" id="callout"></div>
-      <p class="note" id="footnote"></p>
+  <!-- main P&L diagram (win / loss) -->
+  <div id="mainArea">
+    <div class="card">
+      <svg id="svg" viewBox="0 0 960 540" preserveAspectRatio="xMidYMid meet"></svg>
     </div>
-    <div>
-      <table id="ledger">
-        <tr><th>Party</th><th class="num">Net $</th></tr>
-      </table>
-      <div class="check" id="check"></div>
+
+    <div class="legend">
+      <span><i style="background:var(--green)"></i>P&L (who won / lost the trade)</span>
+      <span><i style="background:var(--gold)"></i>PRISM taker fee</span>
+      <span><i style="background:var(--blue)"></i>1Click swap fee</span>
+      <span><i style="background:var(--purple)"></i>Liquidator reward</span>
+    </div>
+
+    <div class="grid2">
+      <div>
+        <div class="callout" id="callout"></div>
+        <p class="note" id="footnote"></p>
+      </div>
+      <div>
+        <table id="ledger">
+          <tr><th>Party</th><th class="num">Net $</th></tr>
+        </table>
+        <div class="check" id="check"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- fill / solver auction (fill) -->
+  <div id="fillArea" style="display:none">
+    <div class="card">
+      <svg id="svgFill" viewBox="0 0 960 520" preserveAspectRatio="xMidYMid meet"></svg>
+    </div>
+
+    <div class="legend">
+      <span><i style="background:var(--blue)"></i>intent (what the trader asks for)</span>
+      <span><i style="background:var(--muted)"></i>quote request → / ← quote</span>
+      <span><i style="background:var(--green)"></i>winning fill</span>
+      <span><i style="background:var(--red)"></i>P&L absorbed by the other side</span>
+    </div>
+
+    <div class="grid2">
+      <div>
+        <div class="callout">There is <b>no limit-order book</b>. The trader's order is an <b>intent</b>: "buy $100k of wNEAR at 10×, best price." 1Click fans that intent out to competing <b>solvers</b> (market makers who already hold the liquidity). Each solver returns a price + fee; <b>the best all-in price wins</b> and executes. That winning fill <i>is</i> the other side of the trade — and the P&amp;L of the position is absorbed by whoever is net short (the vault/shorts, tabs ①/②).</div>
+        <p class="note">Tokens: the winner sends the trader wNEAR and receives the trader's USDC (the swap the intent describes). 1Click takes a small cut of the solver's fee for routing. The whole auction ran in ~380ms, off-chain; only the final fill is settled on NEAR.</p>
+      </div>
+      <div>
+        <table id="qtable">
+          <tr><th>Solver</th><th class="num">Price</th><th class="num">Fee</th><th class="num">All-in</th></tr>
+        </table>
+        <div class="stepper" id="fstepper">
+          <div class="step done">intent</div>
+          <div class="step done">3 quote</div>
+          <div class="step done">best</div>
+          <div class="step done">filled</div>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -85,7 +131,6 @@ const NODES = {
   liq:       {x:820, y:470, label:"LIQUIDATOR", sub:"50% of equity left"},
 };
 
-// Scenario definitions: flows = {from,to,amount,label,color,kind}
 const S = {
   win: {
     title:"Trader WINS big",
@@ -115,85 +160,154 @@ const S = {
 };
 
 const SVGNS="http://www.w3.org/2000/svg";
-const svg=document.getElementById("svg");
 function el(tag,attrs){const e=document.createElementNS(SVGNS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);return e;}
+function cssVar(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim();}
+function edgePoint(a,b,t,rIn){rIn=rIn||64;const dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy);
+  const sx=a.x+dx/len*rIn, sy=a.y+dy/len*rIn, ex=b.x-dx/len*rIn, ey=b.y-dy/len*rIn;
+  return {sx,sy,ex,ey,len,ux:dx/len,uy:dy/len};}
 
-function edgePoint(a,b,t){ // point t along a->b, stopped short of node circle
-  const dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy);const r=64;
-  const sx=a.x+dx/len*r, sy=a.y+dy/len*r, ex=b.x-dx/len*r, ey=b.y-dy/len*r;
-  return {sx,sy,ex,ey,len,ux:dx/len,uy:dy/len};
-}
-function offLine(p,px,py,sign){ // offset a label to one side of the line
-  const nx=-p.uy, ny=p.ux; return {x:p.sx+(p.ex-p.sx)/2+nx*px*sign, y:p.sy+(p.ey-p.sy)/2+ny*py*sign};
-}
-
-function show(key){
-  document.getElementById("tab-win").classList.toggle("active",key==="win");
-  document.getElementById("tab-loss").classList.toggle("active",key==="loss");
-  svg.innerHTML="";
-  const d=S[key];
-
-  // arrowhead markers per color
+function addMarkers(svg,colors){
   const defs=el("defs",{});
-  ["green","gold","blue","purple"].forEach(c=>{
+  colors.forEach(c=>{
     const m=el("marker",{id:"ah-"+c,viewBox:"0 0 10 10",refX:"8",refY:"5",markerWidth:"6",markerHeight:"6",orient:"auto-start-reverse"});
-    m.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:getComputedStyle(document.documentElement).getPropertyValue("--"+c)}));
+    m.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:cssVar("--"+c)}));
     defs.appendChild(m);
   });
   svg.appendChild(defs);
+}
+function arrow(svg,a,b,color,w,dash,motion,markerId){
+  const p=edgePoint(a,b);
+  const line=el("line",{x1:p.sx,y1:p.sy,x2:p.ex,y2:p.ey,stroke:color,"stroke-width":w,
+    "stroke-dasharray":dash||"1 0",opacity:"0.85","marker-end":markerId?`url(#ah-${markerId})`:null});
+  svg.appendChild(line);
+  if(motion){
+    const dot=el("circle",{r:5,fill:color,opacity:"0.95"});
+    const am=el("animateMotion",{dur:"1.6s",repeatCount:"indefinite",path:`M${p.sx},${p.sy} L${p.ex},${p.ey}`});
+    dot.appendChild(am); svg.appendChild(dot);
+  }
+  return p;
+}
+function label(svg,mx,my,amount,sub,dy){
+  dy=dy==null?0:dy;
+  // halo: paint a background-colored stroke behind the glyphs so lines
+  // don't punch through the text (fixes quote-label / dashed-line overlap)
+  const halo={"paint-order":"stroke",stroke:"var(--panel)","stroke-width":"3.5","stroke-linejoin":"round"};
+  const t1=el("text",Object.assign({x:mx,y:my-4+dy,"text-anchor":"middle","font-size":"14","font-weight":"700",fill:"var(--fg)"},halo));
+  t1.textContent=amount; svg.appendChild(t1);
+  if(sub){const t2=el("text",Object.assign({x:mx,y:my+12+dy,"text-anchor":"middle","font-size":"10.5",fill:"var(--muted)"},halo));t2.textContent=sub;svg.appendChild(t2);}
+}
+function node(svg,n,r){
+  r=r||60;
+  const g=el("g",{});
+  g.appendChild(el("circle",{cx:n.x,cy:n.y,r:r,fill:"var(--panel)",stroke:"var(--border)","stroke-width":"2"}));
+  const words=n.label.split(" ");
+  const lines=words.length>2?[words.slice(0,Math.ceil(words.length/2)).join(" "),words.slice(Math.ceil(words.length/2)).join(" ")]:[n.label];
+  lines.forEach((ln,i)=>{
+    const t=el("text",{x:n.x,y:n.y-4+i*16-r+8,"text-anchor":"middle","font-size":"12","font-weight":"700",fill:"var(--fg)"});
+    t.textContent=ln; g.appendChild(t);
+  });
+  const st=el("text",{x:n.x,y:n.y+lines.length*16-4-r+8,"text-anchor":"middle","font-size":"10",fill:"var(--muted)"});
+  st.textContent=n.sub; g.appendChild(st);
+  svg.appendChild(g);
+}
 
-  // flows first (under nodes)
+// ── win / loss main diagram ──
+function showMain(key){
+  const svg=document.getElementById("svg");
+  svg.innerHTML="";
+  const d=S[key];
+  addMarkers(svg,["green","gold","blue","purple"]);
   const showLiq = key==="loss";
-  d.flows.forEach((f,i)=>{
+  d.flows.forEach((f)=>{
     const a=NODES[f.from], b=NODES[f.to];
     const p=edgePoint(a,b);
-    // avoid overlap: stagger parallel lines
-    const color = f.color;
-    const base = p;
-    // draw line
-    const line=el("line",{x1:base.sx,y1:base.sy,x2:base.ex,y2:base.ey,stroke:color,"stroke-width":f.w,"stroke-dasharray":"1 0",opacity:"0.85","marker-end":"url(#ah-"+(color.match(/--(\w+)/)||[])[1]+")"});
+    const cname=(f.color.match(/--(\w+)/)||[])[1];
+    const line=el("line",{x1:p.sx,y1:p.sy,x2:p.ex,y2:p.ey,stroke:f.color,"stroke-width":f.w,opacity:"0.85","marker-end":`url(#ah-${cname})`});
     svg.appendChild(line);
-    // moving dot
-    const dot=el("circle",{r:6,fill:color,opacity:"0.95"});
-    const am=el("animateMotion",{dur:"1.6s",repeatCount:"indefinite",
-      path:`M${base.sx},${base.sy} L${base.ex},${base.ey}`});
-    dot.appendChild(am); svg.appendChild(dot);
-    // label
-    const mid={x:(base.sx+base.ex)/2,y:(base.sy+base.ey)/2};
-    const sign = (f.from==="trader"&&f.to==="prism")?-1:1;
-    const lx=mid.x, ly=mid.y + (f.to==="prism"?-14:(f.to==="click"?20:(f.to==="vault"?-12:14)));
-    const t1=el("text",{x:lx,y:ly-4,"text-anchor":"middle","font-size":"15","font-weight":"700",fill:"var(--fg)"});
-    t1.textContent=f.amount; svg.appendChild(t1);
-    const t2=el("text",{x:lx,y:ly+12,"text-anchor":"middle","font-size":"11",fill:"var(--muted)"});
-    t2.textContent=f.label; svg.appendChild(t2);
+    const dot=el("circle",{r:6,fill:f.color,opacity:"0.95"});
+    dot.appendChild(el("animateMotion",{dur:"1.6s",repeatCount:"indefinite",path:`M${p.sx},${p.sy} L${p.ex},${p.ey}`}));
+    svg.appendChild(dot);
+    const mid={x:(p.sx+p.ex)/2,y:(p.sy+p.ey)/2};
+    const ly=mid.y + (f.to==="prism"?-14:(f.to==="click"?20:(f.to==="vault"?-12:14)));
+    label(svg,mid.x,ly,f.amount,f.label);
   });
-
-  // nodes
-  const order=["trader","vault","prism","click","liq"];
-  order.forEach(id=>{
+  ["trader","vault","prism","click","liq"].forEach(id=>{
     if(id==="liq"&&!showLiq)return;
-    const n=NODES[id];
-    const g=el("g",{});
-    g.appendChild(el("circle",{cx:n.x,cy:n.y,r:60,fill:"var(--panel)",stroke:"var(--border)","stroke-width":"2"}));
-    // two-line label
-    const words=n.label.split(" ");
-    const lines=words.length>2?[words.slice(0,Math.ceil(words.length/2)).join(" "),words.slice(Math.ceil(words.length/2)).join(" ")]:[n.label];
-    lines.forEach((ln,i)=>{
-      const t=el("text",{x:n.x,y:n.y-4+i*16,"text-anchor":"middle","font-size":"12","font-weight":"700",fill:"var(--fg)"});
-      t.textContent=ln; g.appendChild(t);
-    });
-    const st=el("text",{x:n.x,y:n.y+lines.length*16-4,"text-anchor":"middle","font-size":"10",fill:"var(--muted)"});
-    st.textContent=n.sub; g.appendChild(st);
-    svg.appendChild(g);
+    node(svg,NODES[id]);
   });
-
-  // ledger
   const led=document.getElementById("ledger");
   led.innerHTML="<tr><th>Party</th><th class='num'>Net $</th></tr>"+
     d.ledger.map(r=>`<tr><td>${r[0]}</td><td class="num ${r[2]}">${r[1]}</td></tr>`).join("");
   document.getElementById("callout").innerHTML=d.callout;
   document.getElementById("footnote").textContent=d.footnote;
   document.getElementById("check").innerHTML="Conservation check: "+d.check;
+}
+
+// ── fill / solver auction diagram ──
+function showFill(){
+  const svg=document.getElementById("svgFill");
+  svg.innerHTML="";
+  addMarkers(svg,["blue","green","red","muted"]);
+  const N={
+    trader:{x:120,y:250,label:"TRADER",sub:"intent: buy $100k 10×"},
+    click:{x:470,y:250,label:"1CLICK",sub:"intent router / auction"},
+    alpha:{x:820,y:110,label:"SOLVER ALPHA",sub:"has wNEAR + USDC"},
+    beta:{x:820,y:250,label:"SOLVER BETA",sub:"has wNEAR + USDC"},
+    gamma:{x:820,y:390,label:"SOLVER GAMMA",sub:"has wNEAR + USDC"},
+    vault:{x:120,y:450,label:"VAULT / SHORTS",sub:"other side (P&L sink)"},
+  };
+  // intent out
+  let p=arrow(svg,N.trader,N.click,"var(--blue)",4,null,true,"blue");
+  label(svg,(p.sx+p.ex)/2,(p.sy+p.ey)/2-16,"buy $100,000 wNEAR","intent · best price",-8);
+  // fan-out quote requests (thin, muted)
+  [N.alpha,N.beta,N.gamma].forEach((s)=>{
+    const q=arrow(svg,N.click,s,"var(--muted)",1.6,"4 4",false,null);
+    label(svg,(q.sx+q.ex)/2+8,(q.sy+q.ey)/2,"quote?",null,-8);
+  });
+  // quotes back
+  const qb=arrow(svg,N.alpha,N.click,"var(--muted)",1.6,"4 4",false,null);
+  label(svg,(qb.sx+qb.ex)/2-6,(qb.sy+qb.ey)/2,"3.6520","1bp",10);
+  const qg=arrow(svg,N.gamma,N.click,"var(--muted)",1.6,"4 4",false,null);
+  label(svg,(qg.sx+qg.ex)/2-6,(qg.sy+qg.ey)/2,"3.6530","1bp",10);
+  // winning fill (green, thick) beta -> click -> trader
+  arrow(svg,N.beta,N.click,"var(--green)",4,null,true,"green");
+  const win=arrow(svg,N.click,N.trader,"var(--green)",4,null,true,"green");
+  label(svg,(win.sx+win.ex)/2,(win.sy+win.ey)/2+22,"FILLED @ 3.6490","wNEAR → trader · USDC → beta",0);
+  // P&L absorbed by the other side (vault)
+  arrow(svg,N.vault,N.trader,"var(--red)",2.5,"6 5",false,"red");
+  label(svg,205,330,"P&L sink","net-short side absorbs wins",-6);
+
+  // nodes
+  Object.values(N).forEach(n=>node(svg,n,n.label.length>8?54:60));
+  // highlight beta as winner
+  svg.appendChild(el("circle",{cx:N.beta.x,cy:N.beta.y,r:58,fill:"none",stroke:"var(--green)","stroke-width":"2","stroke-dasharray":"5 4"}));
+
+  // quote table
+  const rows=[
+    ["Solver Alpha","3.6520","1bp","3.6524",""],
+    ["Solver Beta","3.6490","2bp","3.6497","win"],
+    ["Solver Gamma","3.6530","1bp","3.6534",""],
+  ];
+  document.getElementById("qtable").innerHTML=
+    "<tr><th>Solver</th><th class='num'>Price</th><th class='num'>Fee</th><th class='num'>All-in</th></tr>"+
+    rows.map(r=>`<tr><td>${r[0]} ${r[4]?'<span class="win-tag">✓ winner</span>':''}</td>
+      <td class="num">${r[1]}</td><td class="num">${r[2]}</td><td class="num ${r[4]?'pos':''}">${r[3]}</td></tr>`).join("");
+}
+
+function show(key){
+  ["win","loss","fill"].forEach(k=>{
+    const t=document.getElementById("tab-"+k);
+    if(t) t.classList.toggle("active",k===key);
+  });
+  if(key==="fill"){
+    document.getElementById("mainArea").style.display="none";
+    document.getElementById("fillArea").style.display="block";
+    showFill();
+  }else{
+    document.getElementById("fillArea").style.display="none";
+    document.getElementById("mainArea").style.display="block";
+    showMain(key);
+  }
 }
 show("win");
 </script>

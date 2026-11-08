@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PRISM — Trading Terminal (mockup)</title>
+<style>
+  :root{
+    --bg:#0b0e14; --panel:#121722; --panel2:#0e131d; --line:#1e2635;
+    --fg:#e6ebf2; --muted:#7d8aa0; --dim:#4c5a72;
+    --green:#22c55e; --red:#ef4444; --blue:#38bdf8; --amber:#fbbf24; --violet:#a78bfa;
+    --accent:#38bdf8;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;padding:14px}
+  .badge-mock{position:fixed;top:0;left:0;right:0;background:#7c2d12;color:#fed7aa;text-align:center;font-size:11px;font-weight:600;letter-spacing:.06em;padding:3px;z-index:50}
+  .top{display:flex;align-items:center;gap:18px;padding:8px 14px;background:var(--panel);border:1px solid var(--line);border-radius:10px;margin-top:20px;flex-wrap:wrap}
+  .sym{font-weight:700;font-size:15px}
+  .sym span{color:var(--muted);font-weight:500;font-size:12px}
+  .px{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums}
+  .up{color:var(--green)} .dn{color:var(--red)}
+  .stat{color:var(--muted);font-size:12px}
+  .stat b{color:var(--fg);font-variant-numeric:tabular-nums}
+  .sp{flex:1}
+  .acct{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-size:12px}
+  .acct b{font-variant-numeric:tabular-nums}
+
+  .grid{display:grid;grid-template-columns:1fr 340px;gap:12px;margin-top:12px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px}
+  .card h3{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:10px;display:flex;align-items:center;gap:8px}
+  .tf{display:flex;gap:4px}
+  .tf b{font-size:11px;padding:2px 7px;border-radius:5px;color:var(--muted);cursor:pointer}
+  .tf b.on{background:var(--panel2);color:var(--fg)}
+  #chart{width:100%;height:340px;display:block}
+  .legend{display:flex;gap:14px;margin-top:8px;font-size:11px;color:var(--muted);flex-wrap:wrap}
+  .legend i{display:inline-block;width:14px;height:0;border-top:2px solid;vertical-align:middle;margin-right:5px}
+
+  .tabs{display:flex;gap:6px;margin-bottom:12px}
+  .tabs button{flex:1;padding:8px 0;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--muted);font-weight:700;cursor:pointer;font-size:13px}
+  .tabs button.long.on{background:rgba(34,197,94,.14);border-color:var(--green);color:var(--green)}
+  .tabs button.short.on{background:rgba(239,68,68,.14);border-color:var(--red);color:var(--red)}
+  .lbl{font-size:11px;color:var(--muted);margin:10px 0 4px}
+  input[type=number]{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--fg);padding:9px 10px;font-size:15px;font-variant-numeric:tabular-nums}
+  input[type=number]:focus{outline:none;border-color:var(--accent)}
+  .row{display:flex;justify-content:space-between;font-size:12px;padding:3px 0}
+  .row span{color:var(--muted)} .row b{font-variant-numeric:tabular-nums}
+  .liq{border:1px dashed var(--red);border-radius:8px;padding:8px 10px;margin-top:10px;font-size:12px;display:flex;justify-content:space-between;align-items:center}
+  .liq b{color:var(--red);font-variant-numeric:tabular-nums;font-size:14px}
+  .liq .warn{font-size:10px;color:var(--dim);text-align:right}
+  input[type=range]{width:100%;accent-color:var(--accent);margin:6px 0}
+  .lev-scale{display:flex;justify-content:space-between;font-size:10px;color:var(--dim)}
+  .big-lev{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:2px}
+  .big-lev b{font-size:22px;color:var(--accent);font-variant-numeric:tabular-nums}
+  .submit{width:100%;padding:12px 0;border-radius:9px;border:none;font-weight:700;font-size:14px;cursor:pointer;margin-top:12px}
+  .submit.long{background:var(--green);color:#04140a}
+  .submit.short{background:var(--red);color:#1a0505}
+  .submit:hover{filter:brightness(1.08)}
+
+  .rail{display:flex;flex-direction:column;gap:12px}
+  .fund{display:flex;align-items:center;gap:12px}
+  .fund .rate{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+  .pill{font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px}
+  .pill.lp{background:rgba(239,68,68,.15);color:var(--red)}
+  .pill.sp{background:rgba(34,197,94,.15);color:var(--green)}
+  .countdown{font-variant-numeric:tabular-nums;color:var(--fg)}
+
+  .quote{display:grid;grid-template-columns:1fr auto auto auto;gap:8px;align-items:center;padding:7px 9px;border:1px solid var(--line);border-radius:8px;margin-bottom:6px;font-size:12px}
+  .quote .name{font-weight:600}
+  .quote .price{font-variant-numeric:tabular-nums;text-align:right}
+  .quote .fee{color:var(--muted);font-variant-numeric:tabular-nums;text-align:right}
+  .quote .tot{font-variant-numeric:tabular-nums;text-align:right;font-weight:600}
+  .quote.best{border-color:var(--green);background:rgba(34,197,94,.08)}
+  .quote.best .name::after{content:" ✓ best";color:var(--green);font-size:10px}
+  .stepper{display:flex;align-items:center;margin-top:10px;font-size:10px;color:var(--muted)}
+  .step{flex:1;text-align:center;position:relative;padding-top:14px}
+  .step::before{content:"";position:absolute;top:4px;left:0;right:0;height:2px;background:var(--line)}
+  .step:first-child::before{left:50%}.step:last-child::before{right:50%}
+  .step::after{content:"";position:absolute;top:1px;left:50%;transform:translateX(-50%);width:8px;height:8px;border-radius:50%;background:var(--line)}
+  .step.done::before{background:var(--green)}.step.done::after{background:var(--green)}
+  .step.active::after{background:var(--accent);box-shadow:0 0 0 4px rgba(56,189,248,.2)}
+
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th{text-align:right;color:var(--muted);font-weight:500;padding:4px 6px;font-size:10px;text-transform:uppercase;letter-spacing:.04em}
+  th:first-child,td:first-child{text-align:left}
+  td{text-align:right;padding:6px;border-top:1px solid var(--line);font-variant-numeric:tabular-nums}
+  .side-tag{font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px}
+  .side-tag.long{background:rgba(34,197,94,.15);color:var(--green)}
+  .side-tag.short{background:rgba(239,68,68,.15);color:var(--red)}
+
+  .feed{max-height:150px;overflow-y:auto;display:flex;flex-direction:column;gap:5px}
+  .feed div{font-size:11px;color:var(--muted);padding:5px 8px;background:var(--panel2);border-radius:6px;border-left:2px solid var(--line)}
+  .feed div b{color:var(--fg)}
+  .feed div.g{border-left-color:var(--green)} .feed div.r{border-left-color:var(--red)}
+  .hint{font-size:11px;color:var(--dim);margin-top:8px}
+  .bottom{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:12px;margin-top:12px}
+  @media(max-width:1000px){.grid{grid-template-columns:1fr}.bottom{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="badge-mock">MOCKUP — ILLUSTRATIVE DATA · PRISM trading terminal · intent-based (no limit-order book)</div>
+
+<div class="top">
+  <div class="sym">wNEAR / USDC <span>PERP</span></div>
+  <div class="px up" id="mark">3.6500</div>
+  <div class="stat">24h <b class="up" id="chg24">+1.24%</b></div>
+  <div class="stat">Mark <b id="mark2">3.6500</b></div>
+  <div class="stat">Funding <b id="fundTop" style="color:var(--red)">+0.0100%/h</b></div>
+  <div class="sp"></div>
+  <div class="acct">Wallet <b>near-wallet-…8842</b> · USDC <b id="bal">10,000.00</b></div>
+</div>
+
+<div class="grid">
+  <!-- CHART -->
+  <div class="card">
+    <h3>Price <span class="tf"><b>1m</b><b>5m</b><b class="on">15m</b><b>1h</b><b>4h</b><b>1D</b></span>
+      <span class="sp"></span><span style="text-transform:none;letter-spacing:0">Candles · entry & liquidation overlay</span>
+    </h3>
+    <svg id="chart" viewBox="0 0 900 340" preserveAspectRatio="none"></svg>
+    <div class="legend">
+      <span><i style="border-color:var(--green)"></i>bullish</span>
+      <span><i style="border-color:var(--red)"></i>bearish</span>
+      <span><i style="border-color:var(--blue);border-top-style:dashed"></i>mark</span>
+      <span><i style="border-color:var(--green)"></i>your entry</span>
+      <span><i style="border-color:var(--red);border-top-style:dashed"></i>liquidation</span>
+    </div>
+  </div>
+
+  <!-- TICKET -->
+  <div class="card">
+    <h3>Open position</h3>
+    <div class="tabs">
+      <button class="long on" id="tb-long" onclick="setSide('long')">Buy / Long</button>
+      <button class="short" id="tb-short" onclick="setSide('short')">Sell / Short</button>
+    </div>
+    <div class="lbl">Order size (notional, USDC)</div>
+    <input type="number" id="size" value="10000" min="100" step="100" oninput="recompute()">
+    <div class="big-lev"><span style="color:var(--muted);font-size:12px">Leverage</span><b id="levShow">10×</b></div>
+    <input type="range" id="lev" min="1" max="10" value="10" oninput="recompute()">
+    <div class="lev-scale"><span>1×</span><span>5×</span><span>10× (max)</span></div>
+    <div style="margin-top:10px">
+      <div class="row"><span>Units</span><b id="units">—</b></div>
+      <div class="row"><span>Required margin</span><b id="margin">—</b></div>
+      <div class="row"><span>Maintenance (5%)</span><b id="maint">—</b></div>
+      <div class="row"><span>Est. taker fee (open)</span><b id="fee">—</b></div>
+    </div>
+    <div class="liq"><div>LIQUIDATION PRICE<div class="warn">≈ when equity &lt; maintenance</div></div><b id="liq">—</b></div>
+    <button class="submit long" id="submit" onclick="submitOrder()">Buy wNEAR · Long</button>
+  </div>
+</div>
+
+<div class="bottom">
+  <!-- FUNDING -->
+  <div class="card">
+    <h3>Funding rate</h3>
+    <div class="fund">
+      <div class="rate dn" id="fundRate">+0.0100%</div>
+      <div>
+        <div class="pill lp">longs pay shorts</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:4px">per hour · next in <span class="countdown" id="cd">00:42:13</span></div>
+      </div>
+    </div>
+    <div style="margin-top:10px">
+      <div class="row"><span>Your hourly funding (this pos)</span><b class="dn" id="fundPay">−$0.37</b></div>
+      <div class="row"><span>24h avg rate</span><b>+0.0083%</b></div>
+      <div class="row"><span>Mark − index (premium)</span><b class="dn">+0.42%</b></div>
+    </div>
+    <div class="hint">Rate = 0.01% × sign(mark − index), pushed by the oracle each interval. Positive → crowded longs pay the vault.</div>
+  </div>
+
+  <!-- INTENT BOOK -->
+  <div class="card">
+    <h3>Intent book · solver quotes <span style="text-transform:none;color:var(--dim);font-weight:400">for your order</span></h3>
+    <div id="quotes"></div>
+    <div class="stepper" id="stepper">
+      <div class="step done">intent</div>
+      <div class="step done">3 solvers quote</div>
+      <div class="step active">best selected</div>
+      <div class="step">filled</div>
+    </div>
+    <div class="hint">No limit-order book: your intent is auctioned to competing 1Click solvers; the best price fills. That fill IS the other side.</div>
+  </div>
+
+  <!-- POSITIONS + ACTIVITY -->
+  <div class="card">
+    <h3>Open positions</h3>
+    <table>
+      <thead><tr><th>Pos</th><th>Entry</th><th>Mark</th><th>PnL</th><th>Liq</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="side-tag long">LONG 10×</span><br><span style="color:var(--dim);font-size:11px">$10,000</span></td>
+          <td>3.6000</td><td id="posMark">3.6500</td>
+          <td class="up" id="posPnl">+$138.89</td>
+          <td style="color:var(--red)">3.4090</td>
+        </tr>
+      </tbody>
+    </table>
+    <h3 style="margin-top:14px">Intent activity</h3>
+    <div class="feed" id="feed"></div>
+  </div>
+</div>
+
+<script>
+const MARK0 = 3.65;
+let mark = MARK0;
+let state = { side:'long', size:10000, lev:10 };
+const maint = 0.05;
+const pos = { side:'long', units:10000/3.60, entry:3.60, lev:10, notional:10000 };
+
+// ---------- candlestick data ----------
+function genCandles(n, start){
+  const c=[]; let p=start;
+  for(let i=0;i<n;i++){
+    const o=p;
+    const drift=(MARK0-start)/n;
+    let ch=(Math.random()-0.48)*0.02+drift;
+    const cl=o+ch;
+    const hi=Math.max(o,cl)+Math.random()*0.008;
+    const lo=Math.min(o,cl)-Math.random()*0.008;
+    c.push({o,h:hi,l:lo,c:cl}); p=cl;
+  }
+  c[c.length-1].c=MARK0; c[c.length-1].h=Math.max(c[c.length-1].h,MARK0);
+  return c;
+}
+const candles = genCandles(64, 3.60);
+
+function drawChart(){
+  const svg=document.getElementById('chart');
+  const W=900,H=340,pl=8,pr=52,pt=10,pb=18;
+  const cw=W-pl-pr, ch=H-pt-pb;
+  const lo=Math.min(...candles.map(x=>x.l))-0.01;
+  const hi=Math.max(...candles.map(x=>x.h),MARK0)+0.01;
+  const y=v=>pt+ch*(1-(v-lo)/(hi-lo));
+  const xw=cw/candles.length;
+  let s='';
+  // grid
+  for(let i=0;i<=4;i++){
+    const gy=pt+ch*i/4, gv=hi-(hi-lo)*i/4;
+    s+=`<line x1="${pl}" y1="${gy}" x2="${W-pr}" y2="${gy}" stroke="#1e2635" stroke-width="1"/>`;
+    s+=`<text x="${W-pr+6}" y="${gy+4}" fill="#4c5a72" font-size="10">${gv.toFixed(2)}</text>`;
+  }
+  // candles
+  candles.forEach((k,i)=>{
+    const x=pl+i*xw+xw/2, bw=Math.max(2,xw*0.62);
+    const up=k.c>=k.o, col=up?'#22c55e':'#ef4444';
+    s+=`<line x1="${x}" y1="${y(k.h)}" x2="${x}" y2="${y(k.l)}" stroke="${col}" stroke-width="1"/>`;
+    const yo=y(k.o),yc=y(k.c), top=Math.min(yo,yc), hgt=Math.max(1,Math.abs(yc-yo));
+    s+=`<rect x="${x-bw/2}" y="${top}" width="${bw}" height="${hgt}" fill="${col}" rx="1"/>`;
+  });
+  // mark line
+  s+=`<line x1="${pl}" y1="${y(MARK0)}" x2="${W-pr}" y2="${y(MARK0)}" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="5 4"/>`;
+  s+=`<rect x="${W-pr+2}" y="${y(MARK0)-9}" width="50" height="18" rx="3" fill="#0ea5e9"/>`;
+  s+=`<text x="${W-pr+27}" y="${y(MARK0)+4}" fill="#04263a" font-size="10" font-weight="700" text-anchor="middle">mark</text>`;
+  // entry + liquidation for open position
+  const eY=y(pos.entry), liq=pos.lev?pos.entry*(1-1/pos.lev)/(1-maint):pos.entry*0.947;
+  const lY=y(liq);
+  s+=`<line x1="${pl}" y1="${eY}" x2="${W-pr}" y2="${eY}" stroke="#22c55e" stroke-width="1.2"/>`;
+  s+=`<text x="${pl+4}" y="${eY-4}" fill="#22c55e" font-size="10">entry ${pos.entry.toFixed(2)}</text>`;
+  s+=`<line x1="${pl}" y1="${lY}" x2="${W-pr}" y2="${lY}" stroke="#ef4444" stroke-width="1.2" stroke-dasharray="5 4"/>`;
+  s+=`<text x="${pl+4}" y="${lY-4}" fill="#ef4444" font-size="10">liq ${liq.toFixed(2)}</text>`;
+  svg.innerHTML=s;
+}
+
+function liqPrice(side, ref, lev){
+  return side==='long' ? ref*(1-1/lev)/(1-maint) : ref*(1+1/lev)/(1+maint);
+}
+const fmt=n=>n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+function recompute(){
+  state.size=+document.getElementById('size').value||0;
+  state.lev=+document.getElementById('lev').value;
+  document.getElementById('levShow').textContent=state.lev+'×';
+  const u=state.size/mark;
+  const margin=state.size/state.lev;
+  const fee=state.size*2/10000;
+  document.getElementById('units').textContent=u.toLocaleString('en-US',{maximumFractionDigits:1})+' wNEAR';
+  document.getElementById('margin').textContent='$'+fmt(margin);
+  document.getElementById('maint').textContent='$'+fmt(state.size*maint);
+  document.getElementById('fee').textContent='$'+fmt(fee);
+  document.getElementById('liq').textContent=liqPrice(state.side,mark,state.lev).toFixed(4);
+  const sub=document.getElementById('submit');
+  sub.className='submit '+state.side;
+  sub.textContent=state.side==='long'?'Buy wNEAR · Long':'Sell wNEAR · Short';
+  renderQuotes();
+}
+function setSide(s){
+  state.side=s;
+  document.getElementById('tb-long').classList.toggle('on',s==='long');
+  document.getElementById('tb-short').classList.toggle('on',s==='short');
+  recompute();
+}
+
+// ---------- solver quotes (the "intent book") ----------
+function renderQuotes(){
+  const dir=state.side==='long'?1:-1; // buy pays a little over mark; sells bid a little under
+  const q=[
+    {n:'Solver Alpha',  off: +1, fee:1},
+    {n:'Solver Beta',   off: -1, fee:2},
+    {n:'Solver Gamma',  off: +2, fee:1},
+  ].map(x=>{
+    const px=mark+x.off*0.0001*dir;
+    const cost=px*(1+(x.fee/10000));
+    return {...x, px, cost, allin:cost};
+  });
+  // best = lowest all-in for a buy, highest for a sell
+  q.sort((a,b)=> state.side==='long' ? a.allin-b.allin : b.allin-a.allin);
+  document.getElementById('quotes').innerHTML=q.map((r,i)=>`
+    <div class="quote ${i===0?'best':''}">
+      <span class="name">${r.n}</span>
+      <span class="price">${r.px.toFixed(4)}</span>
+      <span class="fee">${r.fee}bp</span>
+      <span class="tot">${r.allin.toFixed(4)}</span>
+    </div>`).join('')
+    +`<div class="hint">price · fee · all-in ${state.side==='long'?'(you pay)':'(you receive)'} for $${fmt(state.size)}</div>`;
+}
+
+// ---------- activity feed ----------
+const feedEl=document.getElementById('feed');
+function pushFeed(txt,cls){
+  const d=document.createElement('div');
+  d.className=cls||'';
+  d.innerHTML=txt;
+  feedEl.prepend(d);
+  while(feedEl.children.length>6) feedEl.lastChild.remove();
+}
+pushFeed(`<b>Solver Beta</b> filled 2,777 wNEAR long @ 3.649 (2bp) <b>+$138.89 PnL</b>`,'g');
+pushFeed(`funding applied · <b>−$0.37</b> (longs pay)`, 'r');
+pushFeed(`<b>Solver Alpha</b> filled 1,204 wNEAR short @ 3.652 (1bp)`,'r');
+pushFeed(`intent #4471 → <b>3 solvers quoted</b> → filled in 380ms`);
+pushFeed(`mark updated by oracle: <b>3.6500</b> (+0.04%)`);
+
+function submitOrder(){
+  const best=document.querySelector('.quote.best .name').textContent.replace(' ✓ best','').trim();
+  pushFeed(`your intent → <b>${best}</b> selected → <b>${state.side} $${fmt(state.size)}</b> filled`,'g');
+  const st=document.querySelectorAll('#stepper .step');
+  st.forEach(x=>{x.classList.remove('active');x.classList.add('done');});
+  setTimeout(()=>st.forEach(x=>x.classList.remove('done')),400);
+}
+
+// ---------- live tick ----------
+let cd=42*60+13;
+setInterval(()=>{
+  mark=MARK0+(Math.random()-0.5)*0.004; // tiny live wiggle
+  const chg=((mark-MARK0)/MARK0*100);
+  document.getElementById('mark').textContent=mark.toFixed(4);
+  document.getElementById('mark2').textContent=mark.toFixed(4);
+  document.getElementById('posMark').textContent=mark.toFixed(4);
+  const pnl=pos.units*(mark-pos.entry);
+  const pe=document.getElementById('posPnl');
+  pe.textContent=(pnl>=0?'+$':'-$')+fmt(Math.abs(pnl));
+  pe.className=pnl>=0?'up':'dn';
+  const fp=pos.units*mark*0.0001/10000;
+  const fe=document.getElementById('fundPay'); fe.textContent='−$'+fp.toFixed(2);
+  document.getElementById('bal').textContent=fmt(10000+pnl);
+  recompute();
+  // countdown
+  cd=Math.max(0,cd-1);
+  const h=String(Math.floor(cd/3600)).padStart(2,'0'),m=String(Math.floor(cd%3600/60)).padStart(2,'0'),s=String(cd%60).padStart(2,'0');
+  document.getElementById('cd').textContent=`${h}:${m}:${s}`;
+  if(cd===0) cd=3600;
+},1500);
+
+drawChart();
+recompute();
+</script>
+</body>
+</html>
