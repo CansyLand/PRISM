@@ -7,7 +7,11 @@
   "scripts": {
     "deploy": "node deploy.js",
     "demo": "node demo.js",
+    "full": "node full-loop.js",
+    "pricefeed": "node pricefeed.js",
     "liquidate": "node liquidate-demo.js",
+    "funding": "node funding-demo.js",
+    "e2e": "node e2e-test.js",
     "quote": "node intent.js"
   },
   "dependencies": {

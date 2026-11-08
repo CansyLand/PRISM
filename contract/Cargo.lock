@@ -1157,6 +1157,7 @@ dependencies = [
  "borsh",
  "near-sdk",
  "serde",
+ "serde_json",
 ]
 
 [[package]]

@@ -1,19 +1,31 @@
-// Liquidation demo — the "unstoppable" moment.
+// Liquidation demo — the "unstoppable" moment, fully on-chain-priced.
 //
-// A STRANGER (second testnet account, different key) force-closes an
-// underwater position ON NEAR. No external sequencer, order book, or
-// operator is involved: the risk rule and the state live in the contract.
-//
-// Flow:
-//   owner  : open_position(size, live price, SMALL margin)  -> underwater
-//   anyone : liquidate(owner, live mark price)              -> closed
+// A REALISTIC liquidation under the max-leverage cap:
+//   1. price feed pushes a live mark on-chain (2 sources, median)
+//   2. OWNER opens a LEGAL 10x long (10% margin) at the mark — healthy
+//   3. LIQUIDATOR opens a 1x position on itself (100% margin) — healthy
+//   4. GUARD: stranger tries to liquidate the liquidator's healthy position
+//      → REJECTED by the contract
+//   5. PRICE CRASH: feed pushes a mark 7% lower (within the 20% fresh
+//      deviation guard). Owner's equity erodes from 10% → 3.2% of notional,
+//      below the 5% maintenance floor.
+//   6. RISK ENGINE → LIQUIDATION THROUGH AN INTENT: the off-chain risk
+//      engine expresses the liquidation as a 1Click intent (dry-run; the
+//      solver hedges the exposure in the market). If the intent route is
+//      down, we degrade — the loop does not stop.
+//   7. SETTLE ON-CHAIN AT THE MARK: liquidator calls liquidate_on_mark —
+//      no price argument, no external feed. The liquidator earns 50% of the
+//      remaining equity as reward. If 1Click, CoinGecko and every chain were
+//      congested right now, this tx would still work.
 const { Account, JsonRpcProvider, teraToGas, nearToYocto } = require("near-api-js");
 const fs = require("fs");
 const path = require("path");
-const { tokenPrice } = require("./intent");
+const { pushMark, updateMark } = require("./pricefeed");
+const { quote } = require("./intent");
 
-const NODE_URL = "https://rpc.testnet.near.org";
+const NODE_URL = "https://test.rpc.fastnear.com";
 const USDC = 1e6;
+const CRASH_BPS = 700; // price falls 7% between step 2 and step 7
 
 function loadCreds() {
   const txt = fs.readFileSync(path.join(__dirname, "..", ".deploy.env"), "utf8");
@@ -24,7 +36,9 @@ function loadCreds() {
   };
 }
 
-function line(t) { console.log("\n" + "─".repeat(66) + "\n" + t + "\n" + "─".repeat(66)); }
+function line(t) {
+  console.log("\n" + "─".repeat(66) + "\n" + t + "\n" + "─".repeat(66));
+}
 
 async function main() {
   const { owner, liquidator } = loadCreds();
@@ -32,40 +46,61 @@ async function main() {
   const ownerAcc = new Account(owner.accountId, provider, owner.privateKey);
   const liqAcc = new Account(liquidator.accountId, provider, liquidator.privateKey);
 
-  line("1) LIVE MARK PRICE (1Click tokens endpoint)");
-  const markUsd = await tokenPrice("wNEAR");
-  const mark = Math.round(markUsd * USDC);
-  console.log(`  mark price = $${markUsd} => ${mark} (USDC 6dp)`);
+  line("1) PRICE FEED PUSHES THE MARK ON-CHAIN (2 sources, median)");
+  const feed = await pushMark();
+  const mark = feed.onChain[0];
+  console.log(`  pushed $${feed.pushed} -> on-chain mark now ${JSON.stringify(feed.onChain)}`);
+  console.log(`  from here on, NOTHING external is consulted for risk.`);
 
-  line("2) OWNER OPENS AN UNDERWATER POSITION (10x long, tiny margin)");
-  const size = 10;
-  const notionalUsd = size * markUsd;
-  const marginUsd = notionalUsd / 5; // 20% coverage < 50% threshold
-  const margin = Math.round(marginUsd * USDC);
+  line("2) OWNER OPENS A LEGAL 10x LONG AT THE MARK (10% margin)");
+  const size = 100;
+  const notional = size * mark;
+  const marginU = Math.round(notional / 10); // 10% — exactly 10x, the cap
   await ownerAcc.callFunction({
     contractId: owner.accountId,
     methodName: "open_position",
-    args: { size, price: mark, margin },
+    args: { size, price: mark, margin: marginU },
     gas: teraToGas("100"),
     deposit: nearToYocto("0"),
   });
-  let pos = await provider.callFunction({
+  let posO = await provider.callFunction({
     contractId: owner.accountId, method: "get_position", args: { account_id: owner.accountId },
   });
-  console.log(`  open_position(size=${size}, price=${mark}, margin=${margin})`);
-  console.log(`  position: ${JSON.stringify(pos)}`);
-  const coverage = (margin * 10000) / (size * mark);
-  console.log(`  margin coverage = ${margin}/${size * mark} = ${(coverage / 100).toFixed(1)}%  (threshold 50%)`);
+  console.log(`  open_position(size=${size}, price=${mark}, margin=${marginU})`);
+  console.log(`  notional $${(notional / USDC).toFixed(2)} | margin $${(marginU / USDC).toFixed(2)} | 10x leverage`);
+  console.log(`  position: ${JSON.stringify(posO)}`);
+  console.log("  equity = 10% of notional > 5% maintenance floor → HEALTHY");
 
-  line("3) HEALTHY-POSITION GUARD: liquidating a healthy position is IMPOSSIBLE");
-  // Try to liquidate with a price that makes coverage look fine:
-  // we need margin*10000 >= |size|*p*5000  => p <= 2*margin/size
-  const safePrice = Math.floor((2 * margin) / size);
+  line("3) LIQUIDATOR OPENS A 1x POSITION ON ITSELF (100% margin)");
+  const liqSize = 10;
+  const liqNotional = liqSize * mark;
+  const marginH = liqNotional; // 1x: margin = full notional
+  await liqAcc.callFunction({
+    contractId: owner.accountId,
+    methodName: "open_position",
+    args: { size: liqSize, price: mark, margin: marginH },
+    gas: teraToGas("100"),
+    deposit: nearToYocto("0"),
+  });
+  let posL = null;
+  for (let i = 0; i < 10; i++) {
+    posL = await provider.callFunction({
+      contractId: owner.accountId, method: "get_position", args: { account_id: liquidator.accountId },
+    });
+    if (posL && posL.entry_price === mark) break;
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+  console.log(`  open_position(size=${liqSize}, price=${mark}, margin=${marginH})`);
+  console.log(`  position: ${JSON.stringify(posL)}`);
+  console.log("  equity = 100% of notional >> 5% maintenance floor → healthy");
+
+  line("4) GUARD: liquidating the HEALTHY position is IMPOSSIBLE");
+  console.log(`  caller: ${owner.accountId}  (a stranger to the liquidator's position)`);
   try {
-    await liqAcc.callFunction({
+    await ownerAcc.callFunction({
       contractId: owner.accountId,
-      methodName: "liquidate",
-      args: { account_id: owner.accountId, mark_price: safePrice },
+      methodName: "liquidate_on_mark",
+      args: { account_id: liquidator.accountId },
       gas: teraToGas("100"),
       deposit: nearToYocto("0"),
     });
@@ -73,30 +108,71 @@ async function main() {
     process.exit(1);
   } catch (e) {
     const msg = (e.messages && e.messages[0]) || e.message;
-    console.log(`  liquidate(mark=$${(safePrice / USDC).toFixed(2)}) rejected by contract:`);
+    console.log("  liquidate_on_mark(...) REJECTED by the contract:");
     console.log(`  ${JSON.stringify(msg).slice(0, 200)}`);
   }
 
-  line("4) STRANGER LIQUIDATES THE UNDERWATER POSITION (different key!)");
+  line("5) PRICE CRASH: feed pushes a mark 7% lower (one 20%-guard step)");
+  const crashed = Math.round(mark * (10_000 - CRASH_BPS) / 10_000);
+  await updateMark(crashed);
+  const m2 = crashed;
+  const equity = marginU + size * (m2 - mark); // USDC raw 6dp
+  const notionalNow = size * m2;
+  console.log(`  mark: $${(mark / USDC).toFixed(4)} → $${(m2 / USDC).toFixed(4)}  (-${CRASH_BPS / 100}%)`);
+  console.log(`  owner equity: $${(marginU / USDC).toFixed(2)} → $${(equity / USDC).toFixed(2)}`);
+  console.log(`  equity/notional: ${((equity / notionalNow) * 100).toFixed(2)}%  (floor 5%)`);
+  // wait for the mark tx to land before the view (optimistic finality can race)
+  let prev = null;
+  for (let i = 0; i < 10; i++) {
+    prev = await provider.callFunction({
+      contractId: owner.accountId, method: "preview_liquidation", args: { account_id: owner.accountId },
+    });
+    if (prev) break;
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+  console.log(`  preview_liquidation → ${JSON.stringify(prev)}`);
+
+  line("6) RISK ENGINE → LIQUIDATION THROUGH AN INTENT (dry-run)");
   console.log(`  owner      : ${owner.accountId}`);
-  console.log(`  liquidator : ${liquidator.accountId}   <-- not the owner, not an admin`);
+  console.log(`  liquidator : ${liquidator.accountId}   <-- different key, not an admin`);
+  console.log("  the off-chain risk engine reads the on-chain position + on-chain");
+  console.log("  mark, sees equity below maintenance, and expresses the liquidation");
+  console.log("  as a 1Click intent (the solver hedges the long's exposure in the");
+  console.log("  market) while the accounting settles on NEAR:");
+  try {
+    const liqQ = await quote({ action: "close", amount: (BigInt(size) * 10n ** 24n).toString(), dry: true });
+    console.log(`  intent: wNEAR -> USDC  (hedge the long's notional)`);
+    console.log(`  quote:  ${liqQ.quote.amountInFormatted} wNEAR => ${liqQ.quote.amountOutFormatted} USDC  (est ${liqQ.quote.timeEstimate}s)`);
+    console.log(`  correlation: ${liqQ.correlationId}   [dry-run: no funds moved]`);
+  } catch (e) {
+    console.log(`  1Click route unavailable (${(e && e.message || e).toString().slice(0, 60)}…)`);
+    console.log("  → DEGRADED: hedge off-chain is pending; on-chain settlement below");
+    console.log("    does not depend on it — that is the point.");
+  }
+
+  line("7) SETTLE ON-CHAIN AT THE MARK — NO PRICE ARGUMENT, NO FEED");
+  console.log("  the mark comes from ON-CHAIN STATE. If 1Click, CoinGecko and");
+  console.log("  every chain were congested right now, this tx would still work.");
   await liqAcc.callFunction({
     contractId: owner.accountId,
-    methodName: "liquidate",
-    args: { account_id: owner.accountId, mark_price: mark },
+    methodName: "liquidate_on_mark",
+    args: { account_id: owner.accountId },
     gas: teraToGas("100"),
     deposit: nearToYocto("0"),
   });
-  pos = await provider.callFunction({
+  posO = await provider.callFunction({
     contractId: owner.accountId, method: "get_position", args: { account_id: owner.accountId },
   });
-  console.log(`  liquidate(${owner.accountId}, mark_price=${mark})`);
-  console.log(`  position: ${JSON.stringify(pos)}`);
+  console.log("  liquidate_on_mark(...) → closed.");
+  console.log(`  position: ${JSON.stringify(posO)}`);
+  console.log("  liquidator reward (50% of remaining equity) recorded on-chain.");
 
   line("LIQUIDATION DEMO COMPLETE ✓");
-  console.log("  An underwater position was force-closed by a stranger, purely on NEAR.");
-  console.log("  A healthy position cannot be liquidated. No operator, no order book,");
-  console.log("  no external sequencer — the rule and the state live in the contract.");
+  console.log("  - a LEGAL 10x position, broken by a 7% move, liquidated by a stranger");
+  console.log("  - mark price lives in the contract, pushed by a 2-source median feed");
+  console.log("  - liquidation is expressed as a 1Click intent (value moves off-chain)");
+  console.log("  - settlement reads only NEAR state (congestion-proof)");
+  console.log("  - liquidator earns 50% of remaining equity; healthy positions cannot be touched");
 }
 
 main().catch((e) => {

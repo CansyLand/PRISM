@@ -12,7 +12,7 @@ const {
   teraToGas,
 } = require("near-api-js");
 
-const NODE_URL = "https://rpc.testnet.near.org";
+const NODE_URL = "https://test.rpc.fastnear.com";
 
 function loadCreds() {
   const txt = fs.readFileSync(path.join(__dirname, "..", ".deploy.env"), "utf8");
@@ -64,11 +64,11 @@ async function main() {
     console.log("Contract already has state (redeploy) — keeping existing state.");
   }
 
-  // 3) Open: long 1000 @ $20.00, margin $100.00 (USDC 6dp)
+  // 3) Open: long 1000 @ $20.00, notional $200k, margin $20k (10x)
   await account.callFunction({
     contractId: accountId,
     methodName: "open_position",
-    args: { size: 1000, price: 200_000_000, margin: 100_000_000 },
+    args: { size: 1000, price: 200_000_000, margin: 20_000_000_000 },
     gas: teraToGas("100"),
     deposit: nearToYocto("0"),
   });
@@ -94,7 +94,7 @@ async function main() {
   });
   console.log("Position after settle_entry($20.50):", JSON.stringify(posFill));
 
-  // 5) Close at $21.00 => PnL +$750.00 (based on the settled fill price)
+  // 5) Close at $21.00 => PnL = 1000 * ($21 - $20.50) = +$500 (based on the settled fill price)
   await account.callFunction({
     contractId: accountId,
     methodName: "close_position",

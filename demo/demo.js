@@ -6,7 +6,7 @@ const fs = require("fs");
 const path = require("path");
 const { tokenPrice, quote } = require("./intent");
 
-const NODE_URL = "https://rpc.testnet.near.org";
+const NODE_URL = "https://test.rpc.fastnear.com";
 const USDC = 1e6; // 6 decimals
 const WNEAR = 1e24; // 24 decimals
 
