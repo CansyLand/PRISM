@@ -7,6 +7,8 @@
   "scripts": {
     "deploy": "node deploy.js",
     "setup-v4": "node setup-v4.js",
+    "bot": "node liquidation-bot.js",
+    "bot-test": "node bot-live-test.js",
     "demo": "node demo.js",
     "full": "node full-loop.js",
     "pricefeed": "node pricefeed.js",

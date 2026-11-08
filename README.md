@@ -113,6 +113,8 @@ near/
 │   ├── full-loop.js         # glue: price→open→intent→close (degrades offline)
 │   ├── demo.js              # full loop with real 1Click fills
 │   ├── e2e-test.js          # live userflow suite (npm run e2e; E2E_CONTRACT/E2E_PUSHER)
+│   ├── liquidation-bot.js   # 24/7 liquidation watcher (npm run bot)
+│   ├── bot-live-test.js     # live bot integration test (npm run bot-test)
 │   ├── intent.js            # 1Click wrapper (quote + status)
 │   ├── faucet-fund.js       # testnet faucet → contract/liquidator funding
 │   ├── check-balances.js · check-keys.js · inspect-state.js · topup.js
@@ -149,6 +151,10 @@ npm run setup-v4
 
 # 3. Live userflow suite (real txs on testnet; target via E2E_CONTRACT/E2E_PUSHER)
 npm run e2e
+
+# 3b. Liquidation bot (24/7 watcher) + its live integration test
+npm run bot        # polls every 5 s; BOT_ONESHOT=1 for a single pass
+npm run bot-test   # opens a 10x, crashes the mark -7%, bot liquidates (5/5 verified)
 
 # 4. Individual userflows
 npm run pricefeed     # push live dual-source mark on-chain

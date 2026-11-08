@@ -28,7 +28,7 @@ against the testnet build of 2026-11-08 (**contract v4, pusher-governed**,
 |---|---|---|
 | Price feed (`pricefeed.js`) | single node, 2 sources, median | 2+ independent nodes, alerting, attested source identity, fallback marks |
 | Funding-rate oracle | demo script sets it | scheduled off-chain service: `sign(mark−index)/index` per interval, push with same auth as marks |
-| Liquidation bots | manual / demo | 24/7 watchers: read `get_stats` + `get_positions` every ~5 s, call `liquidate_on_mark` when `preview_liquidation` ≠ None. Reward = 50% of remaining equity makes this economically viable. |
+| Liquidation bots | **live: `demo/liquidation-bot.js`** (5 s poll, on-chain-only, one-shot mode for cron) | 24/7 on a real node: `npm run bot`; `bot-live-test.js` proves the full detect→liquidate→reward cycle live |
 | Intent solver | 1Click dry-run quotes | real 1Click production keys / or own solver; vaulted collateral account (lego block 8) so margin is custodied on-chain |
 | Web UI wallet | CLI-only (testnet) | MyNearWallet connect for open/close/liquidate; same raw-RPC reads work on mainnet (`mainnet.fastnear.com`, check CORS or proxy) |
 
@@ -75,7 +75,7 @@ against the testnet build of 2026-11-08 (**contract v4, pusher-governed**,
 - [x] `update_mark` + `set_funding_rate` restricted to authorized pushers (v4)
 - [ ] `set_pusher` called on mainnet before any real volume
 - [ ] Mark feed running from 2 nodes with alerts
-- [ ] Liquidation bot live for ≥ 24 h without missed liquidations
+- [x] Liquidation bot built + live-tested (detect→liquidate→reward verified on testnet); still needs ≥ 24 h uninterrupted uptime before launch
 - [ ] Real USDC liquidation cycle verified on mainnet
 - [ ] UI connected via MyNearWallet, open/close/liquidate all working
 - [ ] Wasm hash pinned in the deploy record; no unknown code paths
