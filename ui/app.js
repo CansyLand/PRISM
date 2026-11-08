@@ -8,7 +8,7 @@
   const CFG = {
     networkId: "testnet",
     rpc: "https://test.rpc.fastnear.com",
-    contract: "contract.prism-v2-1455.testnet",
+    contract: "prism-v4-2026.testnet",
     usdc: 1e6,
   };
   document.getElementById("rpcLabel").textContent = CFG.rpc.replace("https://", "");
@@ -68,6 +68,17 @@
       $("statNotional").textContent = "$" + usdc(stats.total_notional);
       $("statMargin").textContent = "$" + usdc(stats.total_margin);
       $("statFunding").textContent = age(stats.last_funding_ts);
+
+      // v4 pusher governor (v3 contracts: views don't exist → "—")
+      try {
+        const [own, pusher] = await Promise.all([view("get_owner"), view("get_pusher")]);
+        $("govOwner").textContent = own || "—";
+        const pv = Array.isArray(pusher) ? (pusher.length ? pusher[0] : null) : pusher;
+        $("govPusher").textContent = pv || "none (permissionless)";
+        const st = $("govState");
+        if (pv) { st.textContent = "restricted to pusher"; st.className = "ok"; }
+        else { st.textContent = "OPEN — any account can push marks"; st.className = "bad"; }
+      } catch { $("govOwner").textContent = $("govPusher").textContent = $("govState").textContent = "v3 (no governor)"; }
 
       // positions table
       const maintBps = p.liq_bps;
