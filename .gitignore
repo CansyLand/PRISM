@@ -10,3 +10,6 @@ tools/*.tgz
 
 hackathon-submission.json
 hackathon-x-post.md
+
+# live collected emails (personal data)
+demo/email_list.txt
