@@ -190,7 +190,7 @@
           <td><span class="side-tag long">LONG 10×</span><br><span style="color:var(--dim);font-size:11px">$10,000</span></td>
           <td>3.6000</td><td id="posMark">3.6500</td>
           <td class="up" id="posPnl">+$138.89</td>
-          <td style="color:var(--red)">3.4090</td>
+          <td style="color:var(--red)">3.4105</td>
         </tr>
       </tbody>
     </table>
@@ -227,8 +227,12 @@ function drawChart(){
   const svg=document.getElementById('chart');
   const W=900,H=340,pl=8,pr=52,pt=10,pb=18;
   const cw=W-pl-pr, ch=H-pt-pb;
-  const lo=Math.min(...candles.map(x=>x.l))-0.01;
-  const hi=Math.max(...candles.map(x=>x.h),MARK0)+0.01;
+  // projected liquidation from the ticket (side + leverage), included in the y-range
+  const lp0=liqPrice(state.side,mark,state.lev);
+  const lpIn=lp0>mark*0.55&&lp0<mark*1.8;
+  let lo=Math.min(...candles.map(x=>x.l))-0.01;
+  let hi=Math.max(...candles.map(x=>x.h),MARK0)+0.01;
+  if(lpIn){lo=Math.min(lo,lp0-0.01);hi=Math.max(hi,lp0+0.01);}
   const y=v=>pt+ch*(1-(v-lo)/(hi-lo));
   const xw=cw/candles.length;
   let s='';
@@ -250,13 +254,20 @@ function drawChart(){
   s+=`<line x1="${pl}" y1="${y(MARK0)}" x2="${W-pr}" y2="${y(MARK0)}" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="5 4"/>`;
   s+=`<rect x="${W-pr+2}" y="${y(MARK0)-9}" width="50" height="18" rx="3" fill="#0ea5e9"/>`;
   s+=`<text x="${W-pr+27}" y="${y(MARK0)+4}" fill="#04263a" font-size="10" font-weight="700" text-anchor="middle">mark</text>`;
-  // entry + liquidation for open position
-  const eY=y(pos.entry), liq=pos.lev?pos.entry*(1-1/pos.lev)/(1-maint):pos.entry*0.947;
-  const lY=y(liq);
+  // entry line = the actually-open position; liquidation line = your ticket (side + leverage from mark)
+  const eY=y(pos.entry);
   s+=`<line x1="${pl}" y1="${eY}" x2="${W-pr}" y2="${eY}" stroke="#22c55e" stroke-width="1.2"/>`;
-  s+=`<text x="${pl+4}" y="${eY-4}" fill="#22c55e" font-size="10">entry ${pos.entry.toFixed(2)}</text>`;
-  s+=`<line x1="${pl}" y1="${lY}" x2="${W-pr}" y2="${lY}" stroke="#ef4444" stroke-width="1.2" stroke-dasharray="5 4"/>`;
-  s+=`<text x="${pl+4}" y="${lY-4}" fill="#ef4444" font-size="10">liq ${liq.toFixed(2)}</text>`;
+  s+=`<text x="${pl+4}" y="${eY-4}" fill="#22c55e" font-size="10">entry ${pos.entry.toFixed(2)} · open 10× long</text>`;
+  if(lpIn){
+    const lY=y(lp0);
+    s+=`<line x1="${pl}" y1="${lY}" x2="${W-pr}" y2="${lY}" stroke="#ef4444" stroke-width="1.4" stroke-dasharray="5 4"/>`;
+    s+=`<text x="${W-pr-4}" y="${state.side==='long'?lY-4:lY+12}" fill="#ef4444" font-size="10" font-weight="600" text-anchor="end" paint-order="stroke" stroke="#0b0e14" stroke-width="3">liq ${lp0.toFixed(4)} · ${state.lev}× ${state.side}</text>`;
+  } else if(lp0>0){
+    const atBottom=lp0<lo;
+    s+=`<text x="${W-pr-4}" y="${atBottom?pt+ch-4:pt+12}" fill="#ef4444" font-size="10" font-weight="600" text-anchor="end" paint-order="stroke" stroke="#0b0e14" stroke-width="3">liq ${lp0.toFixed(4)} · ${state.lev}× ${state.side} ${atBottom?'↓':'↑'} (off-scale)</text>`;
+  } else {
+    s+=`<text x="${W-pr-4}" y="${pt+ch-4}" fill="#ef4444" font-size="10" font-weight="600" text-anchor="end" paint-order="stroke" stroke="#0b0e14" stroke-width="3">1× ${state.side} — no liquidation (equity only reaches $0)</text>`;
+  }
   svg.innerHTML=s;
 }
 
@@ -281,6 +292,7 @@ function recompute(){
   sub.className='submit '+state.side;
   sub.textContent=state.side==='long'?'Buy wNEAR · Long':'Sell wNEAR · Short';
   renderQuotes();
+  drawChart(); // liquidation line follows side + leverage live
 }
 function setSide(s){
   state.side=s;
@@ -293,9 +305,9 @@ function setSide(s){
 function renderQuotes(){
   const dir=state.side==='long'?1:-1; // buy pays a little over mark; sells bid a little under
   const q=[
-    {n:'Solver Alpha',  off: +1, fee:1},
-    {n:'Solver Beta',   off: -1, fee:2},
-    {n:'Solver Gamma',  off: +2, fee:1},
+    {n:'Solver A',  off: +1, fee:1},
+    {n:'Solver B',  off: -1, fee:2},
+    {n:'Solver C',  off: +2, fee:1},
   ].map(x=>{
     const px=mark+x.off*0.0001*dir;
     const cost=px*(1+(x.fee/10000));
@@ -322,9 +334,9 @@ function pushFeed(txt,cls){
   feedEl.prepend(d);
   while(feedEl.children.length>6) feedEl.lastChild.remove();
 }
-pushFeed(`<b>Solver Beta</b> filled 2,777 wNEAR long @ 3.649 (2bp) <b>+$138.89 PnL</b>`,'g');
+pushFeed(`<b>Solver B</b> filled 2,777 wNEAR long @ 3.649 (2bp) <b>+$138.89 PnL</b>`,'g');
 pushFeed(`funding applied · <b>−$0.37</b> (longs pay)`, 'r');
-pushFeed(`<b>Solver Alpha</b> filled 1,204 wNEAR short @ 3.652 (1bp)`,'r');
+pushFeed(`<b>Solver A</b> filled 1,204 wNEAR short @ 3.652 (1bp)`,'r');
 pushFeed(`intent #4471 → <b>3 solvers quoted</b> → filled in 380ms`);
 pushFeed(`mark updated by oracle: <b>3.6500</b> (+0.04%)`);
 

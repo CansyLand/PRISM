@@ -98,11 +98,12 @@
       <span><i style="background:var(--muted)"></i>quote request → / ← quote</span>
       <span><i style="background:var(--green)"></i>winning fill</span>
       <span><i style="background:var(--red)"></i>P&L absorbed by the other side</span>
+      <span><i style="background:var(--gold)"></i>what feeds the vault — deposits</span>
     </div>
 
     <div class="grid2">
       <div>
-        <div class="callout">There is <b>no limit-order book</b>. The trader's order is an <b>intent</b>: "buy $100k of wNEAR at 10×, best price." 1Click fans that intent out to competing <b>solvers</b> (market makers who already hold the liquidity). Each solver returns a price + fee; <b>the best all-in price wins</b> and executes. That winning fill <i>is</i> the other side of the trade — and the P&amp;L of the position is absorbed by whoever is net short (the vault/shorts, tabs ①/②).</div>
+        <div class="callout">There is <b>no limit-order book</b>. The trader's order is an <b>intent</b>: "buy $100k of wNEAR at 10×, best price." 1Click fans that intent out to competing <b>solvers</b> — individuals, bots and scripts that already hold the liquidity. Each returns a price + fee; <b>the best all-in price wins</b> and executes; that winning fill <i>is</i> the other side of the trade. <b>What feeds the vault?</b> A creator seeds it with capital — later, public deposits flow in from any chain via Intents. That deposited money is what takes the other side of every trade, so the vault's size caps the book: <b>$100 in the vault ≈ $500–1,000 of open notional</b>.</div>
         <p class="note">Tokens: the winner sends the trader wNEAR and receives the trader's USDC (the swap the intent describes). 1Click takes a small cut of the solver's fee for routing. The whole auction ran in ~380ms, off-chain; only the final fill is settled on NEAR.</p>
       </div>
       <div>
@@ -125,7 +126,7 @@
 <script>
 const NODES = {
   trader:    {x:140, y:270, label:"TRADER", sub:"10× long · $10k margin"},
-  vault:     {x:820, y:270, label:"COUNTERPARTY / VAULT", sub:"the other side (shorts)"},
+  vault:     {x:820, y:270, label:"COUNTERPARTY / VAULT", sub:"seeded by deposits · the other side"},
   prism:     {x:480, y:80,  label:"PRISM (protocol)", sub:"venue — never a side"},
   click:     {x:480, y:470, label:"1CLICK / solvers", sub:"move the tokens"},
   liq:       {x:820, y:470, label:"LIQUIDATOR", sub:"50% of equity left"},
@@ -244,49 +245,92 @@ function showMain(key){
 }
 
 // ── fill / solver auction diagram ──
+function edge2(a,b,rA,rB){const dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy)||1;
+  return {sx:a.x+dx/len*rA, sy:a.y+dy/len*rA, ex:b.x-dx/len*rB, ey:b.y-dy/len*rB, ux:dx/len, uy:dy/len};}
+function flow(svg,a,b,rA,rB,color,w,dash,markerId,motion){
+  const e=edge2(a,b,rA,rB);
+  svg.appendChild(el("line",{x1:e.sx,y1:e.sy,x2:e.ex,y2:e.ey,stroke:color,"stroke-width":w,
+    "stroke-dasharray":dash||"1 0",opacity:"0.88","marker-end":markerId?`url(#ah-${markerId})`:null}));
+  if(motion){const d=el("circle",{r:4.5,fill:color,opacity:"0.95"});
+    d.appendChild(el("animateMotion",{dur:"1.6s",repeatCount:"indefinite",path:`M${e.sx},${e.sy} L${e.ex},${e.ey}`}));
+    svg.appendChild(d);}
+  return e;
+}
+function solverNode(svg,n,win){
+  const r=30,g=el("g",{});
+  g.appendChild(el("circle",{cx:n.x,cy:n.y,r:r,fill:win?"rgba(63,185,80,.14)":"var(--panel2)",
+    stroke:win?"var(--green)":"var(--border)","stroke-width":win?2:1.5}));
+  const t=el("text",{x:n.x,y:n.y+4,"text-anchor":"middle","font-size":"11","font-weight":"700",fill:"var(--fg)"});
+  t.textContent=n.label; g.appendChild(t);
+  const st=el("text",{x:n.x,y:n.y+r+14,"text-anchor":"middle","font-size":"9.5",fill:"var(--muted)"});
+  st.textContent=n.sub; g.appendChild(st);
+  svg.appendChild(g);
+}
+function chip(svg,cx,cy,txt,win){
+  const w=txt.length*6.1+18,g=el("g",{});
+  g.appendChild(el("rect",{x:cx-w/2,y:cy-10,width:w,height:20,rx:10,fill:"var(--panel2)",
+    stroke:win?"var(--green)":"var(--border)","stroke-width":win?1.6:1}));
+  const t=el("text",{x:cx,y:cy+3.5,"text-anchor":"middle","font-size":"10","font-weight":"600",
+    fill:win?"var(--green)":"var(--fg)","paint-order":"stroke",stroke:"var(--panel)","stroke-width":"3"});
+  t.textContent=txt; g.appendChild(t);
+  svg.appendChild(g);
+}
 function showFill(){
   const svg=document.getElementById("svgFill");
   svg.innerHTML="";
-  addMarkers(svg,["blue","green","red","muted"]);
+  addMarkers(svg,["blue","green","red","muted","gold"]);
   const N={
-    trader:{x:120,y:250,label:"TRADER",sub:"intent: buy $100k 10×"},
-    click:{x:470,y:250,label:"1CLICK",sub:"intent router / auction"},
-    alpha:{x:820,y:110,label:"SOLVER ALPHA",sub:"has wNEAR + USDC"},
-    beta:{x:820,y:250,label:"SOLVER BETA",sub:"has wNEAR + USDC"},
-    gamma:{x:820,y:390,label:"SOLVER GAMMA",sub:"has wNEAR + USDC"},
-    vault:{x:120,y:450,label:"VAULT / SHORTS",sub:"other side (P&L sink)"},
+    trader:{x:130,y:165,label:"TRADER",sub:"intent: buy $100k 10×"},
+    click:{x:470,y:165,label:"1CLICK",sub:"intent router / auction"},
+    alpha:{x:830,y:64,label:"SOLVER A",sub:"human market maker"},
+    beta:{x:830,y:165,label:"SOLVER B",sub:"MM bot"},
+    gamma:{x:830,y:266,label:"SOLVER C",sub:"arb script"},
+    vault:{x:150,y:425,label:"VAULT",sub:"the other side"},
+    fund:{x:470,y:445,label:"CREATOR + DEPOSITORS",sub:"deposits via Intents"},
   };
   // intent out
-  let p=arrow(svg,N.trader,N.click,"var(--blue)",4,null,true,"blue");
-  label(svg,(p.sx+p.ex)/2,(p.sy+p.ey)/2-16,"buy $100,000 wNEAR","intent · best price",-8);
-  // fan-out quote requests (thin, muted)
-  [N.alpha,N.beta,N.gamma].forEach((s)=>{
-    const q=arrow(svg,N.click,s,"var(--muted)",1.6,"4 4",false,null);
-    label(svg,(q.sx+q.ex)/2+8,(q.sy+q.ey)/2,"quote?",null,-8);
-  });
-  // quotes back
-  const qb=arrow(svg,N.alpha,N.click,"var(--muted)",1.6,"4 4",false,null);
-  label(svg,(qb.sx+qb.ex)/2-6,(qb.sy+qb.ey)/2,"3.6520","1bp",10);
-  const qg=arrow(svg,N.gamma,N.click,"var(--muted)",1.6,"4 4",false,null);
-  label(svg,(qg.sx+qg.ex)/2-6,(qg.sy+qg.ey)/2,"3.6530","1bp",10);
-  // winning fill (green, thick) beta -> click -> trader
-  arrow(svg,N.beta,N.click,"var(--green)",4,null,true,"green");
-  const win=arrow(svg,N.click,N.trader,"var(--green)",4,null,true,"green");
-  label(svg,(win.sx+win.ex)/2,(win.sy+win.ey)/2+22,"FILLED @ 3.6490","wNEAR → trader · USDC → beta",0);
-  // P&L absorbed by the other side (vault)
-  arrow(svg,N.vault,N.trader,"var(--red)",2.5,"6 5",false,"red");
-  label(svg,205,330,"P&L sink","net-short side absorbs wins",-6);
-
+  const p=flow(svg,N.trader,N.click,60,60,"var(--blue)",4,null,"blue",true);
+  label(svg,(p.sx+p.ex)/2,(p.sy+p.ey)/2-16,"buy $100,000 wNEAR","intent · best all-in price wins",-8);
+  // quote fan-out to the small solvers + their returned prices
+  const qa=flow(svg,N.click,N.alpha,60,30,"var(--muted)",1.4,"4 4","muted",false);
+  const qb=flow(svg,N.click,N.beta,60,30,"var(--muted)",1.4,"4 4","muted",false);
+  const qg=flow(svg,N.click,N.gamma,60,30,"var(--muted)",1.4,"4 4","muted",false);
+  const mid=e=>({x:(e.sx+e.ex)/2,y:(e.sy+e.ey)/2});
+  const ma=mid(qa),mb=mid(qb),mg=mid(qg);
+  label(svg,(qa.sx+ma.x)/2,(qa.sy+ma.y)/2+12,"quote?",null,-8);
+  chip(svg,ma.x-4,ma.y-16,"3.6520 · 1bp",false);
+  chip(svg,mb.x,mb.y-16,"3.6490 · 2bp ✓ best",true);
+  chip(svg,mg.x+4,mg.y-16,"3.6530 · 1bp",false);
+  // winning fill: solver B -> 1Click -> trader
+  flow(svg,N.beta,N.click,30,60,"var(--green)",4,null,"green",true);
+  const win=flow(svg,N.click,N.trader,60,60,"var(--green)",4,null,"green",true);
+  label(svg,(win.sx+win.ex)/2,(win.sy+win.ey)/2+24,"FILLED @ 3.6490","wNEAR → trader · USDC → solver B",0);
+  // what feeds the vault: creator/depositors -> vault (gold)
+  const f=flow(svg,N.fund,N.vault,60,60,"var(--gold)",4,null,"gold",true);
+  label(svg,(f.sx+f.ex)/2,(f.sy+f.ey)/2+21,"seed capital",null,0);
+  // vault = the other side of every trade (P&L + funding sink)
+  svg.appendChild(el("line",{x1:102,y1:389,x2:105,y2:220,stroke:"var(--red)","stroke-width":2.5,
+    "stroke-dasharray":"6 5",opacity:"0.85","marker-end":"url(#ah-red)"}));
+  const l1=el("text",{x:112,y:278,"font-size":"12","font-weight":"700",fill:"var(--fg)","paint-order":"stroke",stroke:"var(--panel)","stroke-width":"3.5"});
+  l1.textContent="P&L sink · funding"; svg.appendChild(l1);
+  const l2=el("text",{x:112,y:294,"font-size":"10.5",fill:"var(--muted)","paint-order":"stroke",stroke:"var(--panel)","stroke-width":"3.5"});
+  l2.textContent="vault capital absorbs wins · collects losses"; svg.appendChild(l2);
   // nodes
-  Object.values(N).forEach(n=>node(svg,n,n.label.length>8?54:60));
-  // highlight beta as winner
-  svg.appendChild(el("circle",{cx:N.beta.x,cy:N.beta.y,r:58,fill:"none",stroke:"var(--green)","stroke-width":"2","stroke-dasharray":"5 4"}));
-
+  node(svg,N.trader,60); node(svg,N.click,60);
+  node(svg,N.vault,60); node(svg,N.fund,60);
+  solverNode(svg,N.alpha,false);
+  solverNode(svg,N.beta,true);
+  solverNode(svg,N.gamma,false);
+  // winner ring + caption
+  svg.appendChild(el("circle",{cx:N.beta.x,cy:N.beta.y,r:37,fill:"none",stroke:"var(--green)","stroke-width":"2","stroke-dasharray":"5 4"}));
+  const cap=el("text",{x:830,y:341,"text-anchor":"middle","font-size":"10",fill:"var(--muted)"});
+  cap.textContent="people · bots · scripts — anyone can run one";
+  svg.appendChild(cap);
   // quote table
   const rows=[
-    ["Solver Alpha","3.6520","1bp","3.6524",""],
-    ["Solver Beta","3.6490","2bp","3.6497","win"],
-    ["Solver Gamma","3.6530","1bp","3.6534",""],
+    ["Solver A","3.6520","1bp","3.6524",""],
+    ["Solver B","3.6490","2bp","3.6497","win"],
+    ["Solver C","3.6530","1bp","3.6534",""],
   ];
   document.getElementById("qtable").innerHTML=
     "<tr><th>Solver</th><th class='num'>Price</th><th class='num'>Fee</th><th class='num'>All-in</th></tr>"+
