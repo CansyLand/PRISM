@@ -132,7 +132,7 @@ dashboard) — then open to public vault deposits.
 | **P0 testnet (now)** | 28/28 e2e + dashboard | **submit NEAR Hackathon (by Nov 14)**; build in public; ecosystem listing + Intents partner app; apply to Horizon |
 | **P1 mainnet core** | MAINNET.md launch gate green (authorized mark pusher, mainnet e2e, real-USDC liquidation cycle) | deploy; UI + MyNearWallet; own vault with bootstrap capital; invite 50 users from NEAR community for a soft open |
 | **P2 public vault** | 24 h bot uptime, no missed liquidations, real volume | vault deposits open (Intents-routed from any chain); public TVL dashboard; first fee layer |
-| **P3 cross-chain collateral** | lego block 8 (Chain Signatures) integrated | "collateral on any chain, perps on NEAR" is the headline; partner with one EVM wallet on Polygon/ETH for co-distribution |
+| **P3 cross-chain collateral** | module 8 (Chain Signatures) integrated | "collateral on any chain, perps on NEAR" is the headline; partner with one EVM wallet on Polygon/ETH for co-distribution |
 
 **KPIs per phase:** P0 — partner approval + listing live. P1 — 100 unique
 traders, 24 h of clean liquidation bot operation. P2 — $50K vault TVL,

@@ -29,7 +29,7 @@ against the testnet build of 2026-11-08 (**contract v4, pusher-governed**,
 | Price feed (`pricefeed.js`) | single node, 2 sources, median | 2+ independent nodes, alerting, attested source identity, fallback marks |
 | Funding-rate oracle | demo script sets it | scheduled off-chain service: `sign(mark−index)/index` per interval, push with same auth as marks |
 | Liquidation bots | **live: `demo/liquidation-bot.js`** (5 s poll, on-chain-only, one-shot mode for cron) | 24/7 on a real node: `npm run bot`; `bot-live-test.js` proves the full detect→liquidate→reward cycle live |
-| Intent solver | 1Click dry-run quotes | real 1Click production keys / or own solver; vaulted collateral account (lego block 8) so margin is custodied on-chain |
+| Intent solver | 1Click dry-run quotes | real 1Click production keys / or own solver; vaulted collateral account (module 8) so margin is custodied on-chain |
 | Web UI wallet | CLI-only (testnet) | MyNearWallet connect for open/close/liquidate; same raw-RPC reads work on mainnet (`mainnet.fastnear.com`, check CORS or proxy) |
 
 ## 3. Mainnet deployment steps

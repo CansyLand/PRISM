@@ -1,9 +1,9 @@
-# PRISM — Architecture & Lego-Piece Tracker
+# PRISM — Architecture & Module Tracker
 
 **Vision:** non-custodial, cross-chain perpetual futures with intent-based settlement.
 Positions are open/closable by anyone, state lives on NEAR, matching/settlement is
 routed by the existing NEAR Intents solver network, and no party can freeze or seize
-a position. Built lego-style: each piece has one job, a defined interface, and can be
+a position. Built modularly: each piece has one job, a defined interface, and can be
 swapped or added without rewriting the rest.
 
 **Status legend:** ✅ built & verified · 🟡 partial (interface exists, gap noted) · ⬜ not started

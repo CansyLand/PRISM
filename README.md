@@ -1,6 +1,6 @@
 # PRISM — Non-custodial Perpetuals on NEAR, Settled by Intents
 
-PRISM is a **leverage-as-lego** perpetual-futures platform: positions, margin,
+PRISM is a **modular leverage** perpetual-futures platform: positions, margin,
 risk, funding, and liquidation are independent on-chain modules on NEAR, while
 asset movement (funding, settlement, cross-chain collateral) is delegated to
 **NEAR Intents** (1Click). No operator is the source of truth: the mark price,
@@ -33,7 +33,7 @@ remains deployed for comparison; `e2e-test.js` runs against either via
 
 ---
 
-## The lego blocks
+## The modules
 
 | # | Block | Status | Where |
 |---|-------|--------|-------|
@@ -122,7 +122,7 @@ near/
 ├── ui/
 │   ├── index.html           # zero-backend dark dashboard (live on-chain)
 │   └── app.js               # raw JSON-RPC reads, no SDK dependency
-├── ARCHITECTURE.md          # design + lego status
+├── ARCHITECTURE.md          # design + module status
 ├── MAINNET.md               # mainnet runbook & audit
 ├── .deploy.env              # testnet credentials (gitignored — never commit)
 └── .account                 # master account (gitignored)
@@ -219,7 +219,7 @@ on mainnet — the UI's RPC layer is network-agnostic.
   path becomes real.
 - **Leverage is modeled**: margin, PnL, funding and liquidation are enforced
   on-chain; the actual token custody is currently in the user's wallet (the
-  intent route for vaulted collateral is the next integration, lego block 8).
+  intent route for vaulted collateral is the next integration, module 8).
 - **Storage rent**: NEAR testnet charges rent on the whole state blob (~18
   NEAR for the v3 state); `faucet-fund.js` tops the contract up when needed.
 - Mainnet readiness checklist: see **MAINNET.md**.

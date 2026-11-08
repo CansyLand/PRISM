@@ -1,4 +1,4 @@
-// Price & Mark Source (lego block 5) — independent, swappable.
+// Price & Mark Source (module 5) — independent, swappable.
 //
 // Pulls the wNEAR/USDC price from MULTIPLE independent sources, takes the
 // MEDIAN with a deviation check, and pushes it to the on-chain mark via

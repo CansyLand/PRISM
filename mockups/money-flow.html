@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>PRISM — Where the money goes</title>
+<style>
+  :root{--bg:#0b0e14;--panel:#121722;--border:#1e2634;--fg:#e6edf3;--muted:#8b97a8;
+    --green:#3fb950;--red:#f85149;--blue:#58a6ff;--gold:#d29922;--purple:#bc8cff;--line:#233042}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+    font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:1000px;margin:0 auto;padding:26px 20px 56px}
+  h1{font-size:22px;margin:0 0 4px}
+  .sub{color:var(--muted);font-size:13.5px;margin:0 0 18px}
+  .tabs{display:flex;gap:10px;margin-bottom:18px}
+  .tab{background:var(--panel);border:1px solid var(--border);color:var(--fg);
+    padding:10px 16px;border-radius:10px;cursor:pointer;font-size:14px;font-weight:600}
+  .tab.active{border-color:var(--blue);background:#0f1e30}
+  .tab.win.active{border-color:var(--green);background:#0f2417}
+  .tab.loss.active{border-color:var(--red);background:#2a1414}
+  .card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:6px}
+  svg{width:100%;height:auto;display:block}
+  .grid2{display:grid;grid-template-columns:1.35fr 1fr;gap:16px;margin-top:16px;align-items:start}
+  @media(max-width:820px){.grid2{grid-template-columns:1fr}}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{padding:9px 8px;border-bottom:1px solid var(--line);text-align:left}
+  th{color:var(--muted);font-size:11.5px;text-transform:uppercase;letter-spacing:.4px}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  .pos{color:var(--green);font-weight:700}.neg{color:var(--red);font-weight:700}
+  .check{margin-top:10px;font-size:13px;color:var(--muted)}
+  .check b{color:var(--green)}
+  .note{color:var(--muted);font-size:12.5px;margin-top:12px}
+  .callout{border-left:3px solid var(--blue);background:#0f1a2b;padding:12px 14px;border-radius:0 8px 8px 0;
+    font-size:13.5px;margin-top:14px}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:12px;font-size:12.5px;color:var(--muted)}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .legend i{width:14px;height:4px;border-radius:2px;display:inline-block}
+  .footer{margin-top:26px;padding-top:16px;border-top:1px solid var(--border);color:var(--muted);font-size:12px;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>PRISM — where the money actually goes</h1>
+  <p class="sub">A 10× long on $100,000 notional ($10,000 margin). Perps are ~zero-sum: the winner's P&L is paid by the other side. PRISM and 1Click just skim fees. Watch the flows.</p>
+
+  <div class="tabs">
+    <button class="tab win active" id="tab-win" onclick="show('win')">① Trader WINS big</button>
+    <button class="tab loss" id="tab-loss" onclick="show('loss')">② Trader LOSES → liquidated</button>
+  </div>
+
+  <div class="card">
+    <svg id="svg" viewBox="0 0 960 540" preserveAspectRatio="xMidYMid meet"></svg>
+  </div>
+
+  <div class="legend">
+    <span><i style="background:var(--green)"></i>P&L (who won / lost the trade)</span>
+    <span><i style="background:var(--gold)"></i>PRISM taker fee</span>
+    <span><i style="background:var(--blue)"></i>1Click swap fee</span>
+    <span><i style="background:var(--purple)"></i>Liquidator reward</span>
+  </div>
+
+  <div class="grid2">
+    <div>
+      <div class="callout" id="callout"></div>
+      <p class="note" id="footnote"></p>
+    </div>
+    <div>
+      <table id="ledger">
+        <tr><th>Party</th><th class="num">Net $</th></tr>
+      </table>
+      <div class="check" id="check"></div>
+    </div>
+  </div>
+
+  <div class="footer">PRISM — educational visualization. Illustrative numbers; not live data.</div>
+</div>
+
+<script>
+const NODES = {
+  trader:    {x:140, y:270, label:"TRADER", sub:"10× long · $10k margin"},
+  vault:     {x:820, y:270, label:"COUNTERPARTY / VAULT", sub:"the other side (shorts)"},
+  prism:     {x:480, y:80,  label:"PRISM (protocol)", sub:"venue — never a side"},
+  click:     {x:480, y:470, label:"1CLICK / solvers", sub:"move the tokens"},
+  liq:       {x:820, y:470, label:"LIQUIDATOR", sub:"50% of equity left"},
+};
+
+// Scenario definitions: flows = {from,to,amount,label,color,kind}
+const S = {
+  win: {
+    title:"Trader WINS big",
+    callout:"Price moves in the trader's favor. The trader's <b>+$10,000 profit is paid by the losing side — the counterparty/vault</b> (the shorts). It does not come from PRISM or from nowhere. PRISM just collects its fee on the way.",
+    footnote:"Round-trip cost to the trader: taker $40 + swap $20 = $60 (6 bps of notional).",
+    ledger:[["Trader","+9,940","pos"],["Counterparty / Vault","−10,000","neg"],["PRISM (protocol)","+50","pos"],["1Click / solvers","+10","pos"]],
+    check:"9,940 − 10,000 + 50 + 10 = <b>$0.00</b>  (nothing created — money is conserved)",
+    flows:[
+      {from:"vault",to:"trader",amount:"$10,000",label:"P&L — the losing side pays",color:"var(--green)",w:5},
+      {from:"trader",to:"prism",amount:"$40",label:"taker fee",color:"var(--gold)",w:3},
+      {from:"trader",to:"click",amount:"$20",label:"swap fee (50/50)",color:"var(--blue)",w:3},
+    ],
+  },
+  loss: {
+    title:"Trader LOSES → liquidated",
+    callout:"Price moves against the trader; at the maintenance floor the position is <b>liquidated</b>. The trader's loss splits into: (a) the winning counterparty gets the P&L, (b) the liquidator takes 50% of whatever equity was left, (c) PRISM & 1Click take their fees.",
+    footnote:"At liquidation the trader's equity had fallen to 5% of notional ($5,000). $5,000 went to the winning side, $2,500 to the liquidator, ~$30 in fees.",
+    ledger:[["Trader","−7,530","neg"],["Counterparty / Vault","+5,000","pos"],["Liquidator","+2,500","pos"],["PRISM (protocol)","+25","pos"],["1Click / solvers","+5","pos"]],
+    check:"−7,530 + 5,000 + 2,500 + 25 + 5 = <b>$0.00</b>  (still conserved — the loss is just redistributed)",
+    flows:[
+      {from:"trader",to:"vault",amount:"$5,000",label:"P&L — winner takes it",color:"var(--green)",w:5},
+      {from:"trader",to:"liq",amount:"$2,500",label:"liquidation penalty (50%)",color:"var(--purple)",w:4},
+      {from:"trader",to:"prism",amount:"$20",label:"taker fee (open)",color:"var(--gold)",w:3},
+      {from:"trader",to:"click",amount:"$10",label:"swap fee (50/50)",color:"var(--blue)",w:3},
+    ],
+  },
+};
+
+const SVGNS="http://www.w3.org/2000/svg";
+const svg=document.getElementById("svg");
+function el(tag,attrs){const e=document.createElementNS(SVGNS,tag);for(const k in attrs)e.setAttribute(k,attrs[k]);return e;}
+
+function edgePoint(a,b,t){ // point t along a->b, stopped short of node circle
+  const dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy);const r=64;
+  const sx=a.x+dx/len*r, sy=a.y+dy/len*r, ex=b.x-dx/len*r, ey=b.y-dy/len*r;
+  return {sx,sy,ex,ey,len,ux:dx/len,uy:dy/len};
+}
+function offLine(p,px,py,sign){ // offset a label to one side of the line
+  const nx=-p.uy, ny=p.ux; return {x:p.sx+(p.ex-p.sx)/2+nx*px*sign, y:p.sy+(p.ey-p.sy)/2+ny*py*sign};
+}
+
+function show(key){
+  document.getElementById("tab-win").classList.toggle("active",key==="win");
+  document.getElementById("tab-loss").classList.toggle("active",key==="loss");
+  svg.innerHTML="";
+  const d=S[key];
+
+  // arrowhead markers per color
+  const defs=el("defs",{});
+  ["green","gold","blue","purple"].forEach(c=>{
+    const m=el("marker",{id:"ah-"+c,viewBox:"0 0 10 10",refX:"8",refY:"5",markerWidth:"6",markerHeight:"6",orient:"auto-start-reverse"});
+    m.appendChild(el("path",{d:"M0,0 L10,5 L0,10 z",fill:getComputedStyle(document.documentElement).getPropertyValue("--"+c)}));
+    defs.appendChild(m);
+  });
+  svg.appendChild(defs);
+
+  // flows first (under nodes)
+  const showLiq = key==="loss";
+  d.flows.forEach((f,i)=>{
+    const a=NODES[f.from], b=NODES[f.to];
+    const p=edgePoint(a,b);
+    // avoid overlap: stagger parallel lines
+    const color = f.color;
+    const base = p;
+    // draw line
+    const line=el("line",{x1:base.sx,y1:base.sy,x2:base.ex,y2:base.ey,stroke:color,"stroke-width":f.w,"stroke-dasharray":"1 0",opacity:"0.85","marker-end":"url(#ah-"+(color.match(/--(\w+)/)||[])[1]+")"});
+    svg.appendChild(line);
+    // moving dot
+    const dot=el("circle",{r:6,fill:color,opacity:"0.95"});
+    const am=el("animateMotion",{dur:"1.6s",repeatCount:"indefinite",
+      path:`M${base.sx},${base.sy} L${base.ex},${base.ey}`});
+    dot.appendChild(am); svg.appendChild(dot);
+    // label
+    const mid={x:(base.sx+base.ex)/2,y:(base.sy+base.ey)/2};
+    const sign = (f.from==="trader"&&f.to==="prism")?-1:1;
+    const lx=mid.x, ly=mid.y + (f.to==="prism"?-14:(f.to==="click"?20:(f.to==="vault"?-12:14)));
+    const t1=el("text",{x:lx,y:ly-4,"text-anchor":"middle","font-size":"15","font-weight":"700",fill:"var(--fg)"});
+    t1.textContent=f.amount; svg.appendChild(t1);
+    const t2=el("text",{x:lx,y:ly+12,"text-anchor":"middle","font-size":"11",fill:"var(--muted)"});
+    t2.textContent=f.label; svg.appendChild(t2);
+  });
+
+  // nodes
+  const order=["trader","vault","prism","click","liq"];
+  order.forEach(id=>{
+    if(id==="liq"&&!showLiq)return;
+    const n=NODES[id];
+    const g=el("g",{});
+    g.appendChild(el("circle",{cx:n.x,cy:n.y,r:60,fill:"var(--panel)",stroke:"var(--border)","stroke-width":"2"}));
+    // two-line label
+    const words=n.label.split(" ");
+    const lines=words.length>2?[words.slice(0,Math.ceil(words.length/2)).join(" "),words.slice(Math.ceil(words.length/2)).join(" ")]:[n.label];
+    lines.forEach((ln,i)=>{
+      const t=el("text",{x:n.x,y:n.y-4+i*16,"text-anchor":"middle","font-size":"12","font-weight":"700",fill:"var(--fg)"});
+      t.textContent=ln; g.appendChild(t);
+    });
+    const st=el("text",{x:n.x,y:n.y+lines.length*16-4,"text-anchor":"middle","font-size":"10",fill:"var(--muted)"});
+    st.textContent=n.sub; g.appendChild(st);
+    svg.appendChild(g);
+  });
+
+  // ledger
+  const led=document.getElementById("ledger");
+  led.innerHTML="<tr><th>Party</th><th class='num'>Net $</th></tr>"+
+    d.ledger.map(r=>`<tr><td>${r[0]}</td><td class="num ${r[2]}">${r[1]}</td></tr>`).join("");
+  document.getElementById("callout").innerHTML=d.callout;
+  document.getElementById("footnote").textContent=d.footnote;
+  document.getElementById("check").innerHTML="Conservation check: "+d.check;
+}
+show("win");
+</script>
+</body>
+</html>

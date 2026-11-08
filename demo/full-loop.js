@@ -1,4 +1,4 @@
-// FULL ASSEMBLED LOOP — every lego block in one pass.
+// FULL ASSEMBLED LOOP — every module in one pass.
 //
 //   [1] Price Feed      : 2 sources -> median -> ON-CHAIN mark
 //   [2] Intent Factory  : open expressed as a 1Click intent (dry-run quote)
