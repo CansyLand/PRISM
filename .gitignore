@@ -7,3 +7,6 @@ target/
 tools/node_modules/
 tools/*.tgz
 .DS_Store
+
+hackathon-submission.json
+hackathon-x-post.md
