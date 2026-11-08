@@ -22,10 +22,14 @@ settlement still execute if every off-chain source is down.
 ```
 
 **Verified on NEAR testnet:**
-`contract.prism-v2-1455.testnet` (v3) · 25 unit tests + **24/24 live e2e
-tests** · web dashboard · intent quotes are dry-run against the production
-1Click mainnet (it rejects `.testnet` recipients), so the loop needs **no
-wallet and no funds** to demo.
+`prism-v4-2026.testnet` (**v4, pusher-governed** — the deployable build) ·
+33 unit tests + **live e2e userflow suite** (`npm run e2e`, 25–28 assertions
+depending on the funding-hour branch) · web dashboard · intent quotes are
+dry-run against the production 1Click mainnet (it rejects `.testnet`
+recipients), so the loop needs **no wallet and no funds** to demo.
+The v3 contract (`contract.prism-v2-1455.testnet`, permissionless price feed)
+remains deployed for comparison; `e2e-test.js` runs against either via
+`E2E_CONTRACT` / `E2E_PUSHER`.
 
 ---
 
@@ -45,19 +49,20 @@ wallet and no funds** to demo.
 
 ---
 
-## Contract (v3)
+## Contract (v4)
 
 | Method | Kind | Args | Returns |
 |---|---|---|---|
-| `new` | init | – | contract |
+| `new` | init | – | contract (owner = caller) |
 | `open_position` | state | `size: i128`, `price: u128`, `margin: u128` (USDC 6dp) | – |
 | `settle_entry` | state | `fill_price: u128` | – |
 | `close_position` | state | `exit_price: u128` | `i128` PnL |
 | `close_position_at_mark` | state | – | `i128` PnL at on-chain mark |
 | `liquidate_on_mark` | state | `account_id` | `LiquidationResult` |
-| `update_mark` | state | `mark: u128` (USDC 6dp) | – |
-| `set_funding_rate` | state | `funding_bps: i128` (positive = longs pay) | – |
+| `update_mark` | state (**pusher**) | `mark: u128` (USDC 6dp) | – |
+| `set_funding_rate` | state (**pusher**) | `funding_bps: i128` (positive = longs pay) | – |
 | `apply_funding` | state | – | `u128` transferred |
+| `set_pusher` | state (**owner**) | `price_pusher: AccountId?` | – |
 | `get_position` | view | `account_id` | `Position?` |
 | `get_positions` | view | – | `Vec<Position>` |
 | `get_mark` | view | – | `[u128 price, u64 ts]` |
@@ -65,6 +70,7 @@ wallet and no funds** to demo.
 | `get_stats` | view | – | open/notional/margin/penalty earned |
 | `preview_liquidation` | view | `account_id` | `LiquidationResult?` (None if healthy) |
 | `funding_rate_bps` / `last_funding_ts` | view | – | scalar |
+| `get_owner` / `get_pusher` | view | – | governor state |
 
 ### Rules (on-chain, no admin, no freeze, no seize)
 
@@ -80,6 +86,12 @@ wallet and no funds** to demo.
 - **Mark freshness**: first mark accepted; subsequent within 20% (fresh) or
   50% (mark older than 1 h) — a deviation guard against a single bad push.
 - **Min margin** $1 (USDC 6dp). `size` signed: + long, − short.
+- **v4 pusher governance**: `owner` (set at `new()`) may set/clear one
+  `price_pusher`. While a pusher is set, **only the pusher** may call
+  `update_mark` and `set_funding_rate`; everything else stays
+  permissionless — anyone can still open/close positions and liquidate.
+  Pusher unset = v3 permissionless mode (testnet convenience). Trading and
+  liquidation are never restricted.
 
 > u128 args must be JSON **numbers**, not strings.
 
@@ -90,15 +102,17 @@ wallet and no funds** to demo.
 ```
 near/
 ├── contract/                # Rust NEAR contract (near-sdk)
-│   └── src/lib.rs           # ~720 lines, 25 unit tests
+│   └── src/lib.rs           # ~950 lines, 33 unit tests
 ├── demo/
 │   ├── deploy.js            # build→deploy→init→verify
+│   ├── setup-v4.js          # v4: fresh faucet account + deploy + set_pusher + fund
+│   ├── faucet-create.js     # helper.nearprotocol.com account w/ our public key
 │   ├── pricefeed.js         # dual-source mark feed + on-chain push
 │   ├── liquidate-demo.js    # crash → stranger liquidates → intent hedge (dry)
 │   ├── funding-demo.js      # funding engine end-to-end
 │   ├── full-loop.js         # glue: price→open→intent→close (degrades offline)
 │   ├── demo.js              # full loop with real 1Click fills
-│   ├── e2e-test.js          # 24-assertion live userflow suite (npm run e2e)
+│   ├── e2e-test.js          # live userflow suite (npm run e2e; E2E_CONTRACT/E2E_PUSHER)
 │   ├── intent.js            # 1Click wrapper (quote + status)
 │   ├── faucet-fund.js       # testnet faucet → contract/liquidator funding
 │   ├── check-balances.js · check-keys.js · inspect-state.js · topup.js
@@ -124,13 +138,16 @@ near/
 ## Commands
 
 ```bash
-# 1. Contract unit tests (25)
+# 1. Contract unit tests (33)
 cd contract && cargo test
 
 # 2. Build + deploy (testnet)
 cd demo && npm install && npm run deploy
 
-# 3. Live userflow suite (24 assertions, real txs on testnet)
+# 2b. v4: fresh faucet account + deploy + set_pusher + fund (one-shot)
+npm run setup-v4
+
+# 3. Live userflow suite (real txs on testnet; target via E2E_CONTRACT/E2E_PUSHER)
 npm run e2e
 
 # 4. Individual userflows
@@ -164,6 +181,9 @@ npm run faucet        # if the contract needs more NEAR for storage rent
   gate is open) margin moves exactly per model
 - **F7 views & stats** — `get_params`, `get_mark`, `get_stats` reconcile with
   `get_positions`
+- **F9 pusher governance (v4)** — `get_owner`/`get_pusher` set; a stranger's
+  `update_mark` and `set_funding_rate` are **rejected on-chain** (skipped on
+  v3, where the feed is permissionless)
 - **F8 cleanup** — zero open positions remain
 
 Exit code 0 = all flows verified; any ✗ fails the run.
@@ -200,8 +220,14 @@ on mainnet — the UI's RPC layer is network-agnostic.
 
 ## Security / custody
 
-- No admin keys, no `freeze`, no `seize`. The only forced mutation anyone
-  other than the owner can cause is liquidation of an underwater position.
+- No `freeze`, no `seize`, no pausing. The only forced mutation anyone other
+  than the owner can cause is liquidation of an underwater position.
+- **v4 price-push authorization**: the single mutable input that would let an
+  attacker manipulate PnL — the mark price — is gated to one pusher account
+  that the owner (and only the owner) can change. With no pusher set the
+  contract falls back to v3's permissionless feed (dev convenience, never use
+  on mainnet). The owner cannot trade, liquidate, or read user funds — they
+  only choose who feeds the price.
 - All risk state (positions, mark, health check) is on-chain; liquidation does
   not depend on any off-chain price or operator.
 - Intent settlement routes through the `intents.near` verifier — unfilled

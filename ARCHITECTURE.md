@@ -14,13 +14,13 @@ swapped or added without rewriting the rest.
 
 | # | Piece | Status | Where it lives | Interface (in → out) |
 |---|-------|--------|----------------|----------------------|
-| 1 | **Position & Margin Ledger** | ✅ | `contract/src/lib.rs` (deployed: `contract.prism-v2-1455.testnet`, v3) | open/close/liquidate commands → position state, PnL, health |
+| 1 | **Position & Margin Ledger** | ✅ | `contract/src/lib.rs` (deployed v4: `prism-v4-2026.testnet`; v3 still live at `contract.prism-v2-1455.testnet`) | open/close/liquidate commands → position state, PnL, health |
 | 2 | **Intent Factory** | ✅ | `demo/intent.js` (`buildIntent`) | user action + params → formatted 1Click intent (slippage, deadline, refund) |
 | 3 | **Solver / Execution Adapter** | ✅ | `demo/intent.js` (`quote`, `status`) + `demo/demo.js` (fill feedback) | intent → quote/depositAddress/status → **fill price written back to ledger via `settle_entry`** |
 | 4 | **Risk Engine** | ✅ (folded into ledger) | `contract/src/lib.rs` (equity-based, 5% maintenance margin, 10× cap) | position + ON-CHAIN mark → healthy / liquidatable |
 | 5 | **Price Feed** | ✅ | `demo/pricefeed.js` → `update_mark` in contract | **2 sources (1Click + CoinGecko) → median + deviation check → on-chain `mark_price`/`mark_ts`** (20% guard, 50% if stale >1h) |
 | 6 | **Liquidation Module** | ✅ | `liquidate_on_mark`/`close_position_at_mark` in contract + `demo/liquidate-demo.js` | stranger force-closes underwater position **at the on-chain mark** (no feed needed, congestion-proof); healthy positions refused (verified); 50% of remaining equity to the liquidator; liquidation expressed as a 1Click intent (dry-run) before on-chain settlement |
-| 7 | **Funding & Settlement Engine** | ✅ | `set_funding_rate`/`apply_funding` in contract v3 + `demo/funding-demo.js` | signed bps rate per interval → clamped margin Δ between longs/shorts (10% cap, 0 floor), hourly gate; **demo verified end-to-end** |
+| 7 | **Funding & Settlement Engine** | ✅ | `set_funding_rate`/`apply_funding` in contract v4 (pusher-gated) + `demo/funding-demo.js` | signed bps rate per interval → clamped margin Δ between longs/shorts (10% cap, 0 floor), hourly gate; **demo verified end-to-end** |
 | 8 | **Cross-Chain Controller (Chain Signatures)** | 🟡 (routes verified) | `refundType: "INTENTS"` quotes | ETH(Ethereum)→USDC(NEAR) $2232/45s and →USDC(Polygon) $2232.69/51s verified via 1Click dry-run; **gap:** not wired into the ledger yet |
 | 9 | **UI / Agent Interface** | ✅ | `ui/` (zero-backend live dashboard) + `demo/full-loop.js` (CLI glue) | browser → raw JSON-RPC reads of live on-chain state (mark, params, positions+health, funding, stats), auto-refresh; full assembled loop in one CLI command |
 
@@ -83,7 +83,7 @@ in §4 — the step that turns modeled leverage into actual leverage.
   versions join the UI for the mainnet launch (see MAINNET.md §3).
 
 ### E. Funding engine  ✅ **BUILT & VERIFIED**
-- `set_funding_rate(funding_bps)` + `apply_funding()` in contract v3: hourly
+- `set_funding_rate(funding_bps)` + `apply_funding()` in contract v4 (pusher-gated): hourly
   gate, delta = |size| × mark × rate / 10000, clamped to 10% of current
   margin, margin floors at 0. `demo/funding-demo.js` verified the exact
   margin movement end-to-end; `e2e-test.js` F6 covers the gate.
@@ -126,7 +126,7 @@ ARCHITECTURE.md       → this file
 
 ## 6. Environment facts (don't rediscover)
 
-- Testnet accounts: `contract.prism-v2-1455.testnet` (v3 contract, creds in
+- Testnet accounts: `prism-v4-2026.testnet` (v4 contract, owner+pusher, creds in
   `.deploy.env`, git-ignored), `liquidator-8842.testnet` (stranger key),
   `prism-fund-11111.testnet` (faucet account, contract key).
 - 1Click = **mainnet** intent network; `.testnet` recipients → server error. Demo uses
@@ -143,3 +143,5 @@ ARCHITECTURE.md       → this file
   `createTransaction` publicKey must be the **signer's** key.
 - near-sdk 5: `#[near(contract_state)]` + `#[near]` impl + `#[init]`, `PanicOnDefault` on state.
 - Storage rent on testnet ≈ 18 NEAR for the v3 state — top up with `faucet-fund.js`.
+- v4 deployability: state struct changed vs v3 (added `price_pusher`), so v4 runs on a
+  fresh account — cannot be redeployed over the v3 account in place.

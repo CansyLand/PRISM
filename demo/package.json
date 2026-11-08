@@ -6,6 +6,7 @@
   "main": "demo.js",
   "scripts": {
     "deploy": "node deploy.js",
+    "setup-v4": "node setup-v4.js",
     "demo": "node demo.js",
     "full": "node full-loop.js",
     "pricefeed": "node pricefeed.js",

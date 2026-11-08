@@ -69,6 +69,12 @@ pub struct LeveragedPositions {
     mark_ts: u64,      // unix seconds
     funding_bps: i128, // per-interval funding rate, bps (positive = longs pay)
     last_funding_ts: u64,
+    /// v4: governance for price/funding inputs. The owner sets the pusher;
+    /// the pusher is the only account allowed to call `update_mark` and
+    /// `set_funding_rate` (once a pusher is set). Trading and liquidation
+    /// remain permissionless — a stranger can still liquidate anyone.
+    owner: AccountId,
+    price_pusher: Option<AccountId>,
 }
 
 #[near]
@@ -81,6 +87,36 @@ impl LeveragedPositions {
             mark_ts: 0,
             funding_bps: 0,
             last_funding_ts: 0,
+            owner: env::predecessor_account_id(),
+            price_pusher: None,
+        }
+    }
+
+    // ─────────────────────────── GOVERNANCE (v4) ───────────────────────────
+
+    /// Set (or clear, with `None`/empty) the authorized price/funding
+    /// pusher. Owner only. Setting `None` re-opens price updates to
+    /// anyone (the v3 behavior) — useful for testing, dangerous on mainnet.
+    pub fn set_pusher(&mut self, price_pusher: Option<AccountId>) {
+        let caller: AccountId = env::predecessor_account_id();
+        require!(caller == self.owner, "not the contract owner");
+        self.price_pusher = price_pusher.clone();
+        log!(
+            "{}",
+            format!(
+                r#"{{"event":"pusher","pusher":"{}"}}"#,
+                price_pusher.map(|p| p.to_string()).unwrap_or_default()
+            )
+        );
+    }
+
+    fn require_pusher(&self, method: &str) {
+        if let Some(ref pusher) = self.price_pusher {
+            let caller: AccountId = env::predecessor_account_id();
+            require!(
+                caller == *pusher,
+                format!("{}: caller is not the authorized price pusher", method)
+            );
         }
     }
 
@@ -94,6 +130,7 @@ impl LeveragedPositions {
     /// liquidations survive even if the price feed or an external
     /// chain is down — any client can feed a fresh one.
     pub fn update_mark(&mut self, mark: u128) {
+        self.require_pusher("update_mark");
         require!(mark > 0, "mark must be > 0");
         let last = self.mark_price;
         if last > 0 {
@@ -271,6 +308,7 @@ impl LeveragedPositions {
     /// Typically an off-chain oracle computes 0.01% × sign(premium) per
     /// interval from mark vs index and pushes it here.
     pub fn set_funding_rate(&mut self, funding_bps: i128) {
+        self.require_pusher("set_funding_rate");
         require!(
             funding_bps.abs() <= 1_000,
             "funding rate capped at ±10% per interval"
@@ -371,6 +409,16 @@ impl LeveragedPositions {
     /// View: current per-interval funding rate (bps; positive = longs pay).
     pub fn funding_rate_bps(&self) -> I128 {
         I128(self.funding_bps)
+    }
+
+    /// View: the contract owner (governs only the price pusher).
+    pub fn get_owner(&self) -> AccountId {
+        self.owner.clone()
+    }
+
+    /// View: the authorized price/funding pusher, if one is set.
+    pub fn get_pusher(&self) -> Option<AccountId> {
+        self.price_pusher.clone()
     }
 
     /// View: liquidator's cut of the remaining equity, in bps (5000 = 50%).
@@ -803,5 +851,103 @@ mod tests {
         c.close_position(200_000_000); // alice closes
         let s2 = c.get_stats();
         assert_eq!(s2.open_positions, 1);
+    }
+
+    // ─────────────────────────── v4: PUSHER GOVERNANCE ───────────────────────────
+
+    #[test]
+    fn pusher_starts_unset_and_open() {
+        ctx("owner.testnet", "owner.testnet");
+        let mut c = LeveragedPositions::new();
+        assert_eq!(c.get_owner(), "owner.testnet".parse::<AccountId>().unwrap());
+        assert!(c.get_pusher().is_none());
+        // no pusher set → anyone may feed the mark (v3 behavior)
+        c.update_mark(200_000_000);
+        assert_eq!(c.get_mark().0, 200_000_000);
+    }
+
+    #[test]
+    fn owner_sets_pusher() {
+        ctx("owner.testnet", "owner.testnet");
+        let mut c = LeveragedPositions::new();
+        c.set_pusher(Some("feed.testnet".parse().unwrap()));
+        assert_eq!(
+            c.get_pusher().unwrap(),
+            "feed.testnet".parse::<AccountId>().unwrap()
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "not the contract owner")]
+    fn non_owner_cannot_set_pusher() {
+        ctx("owner.testnet", "owner.testnet");
+        let mut c = LeveragedPositions::new();
+        ctx("mallory.testnet", "mallory.testnet");
+        c.set_pusher(Some("feed.testnet".parse().unwrap()));
+    }
+
+    #[test]
+    fn pusher_can_feed_mark() {
+        ctx("owner.testnet", "owner.testnet");
+        let mut c = LeveragedPositions::new();
+        c.set_pusher(Some("feed.testnet".parse().unwrap()));
+        ctx("feed.testnet", "feed.testnet");
+        c.update_mark(200_000_000);
+        assert_eq!(c.get_mark().0, 200_000_000);
+        c.set_funding_rate(1);
+        assert_eq!(c.funding_rate_bps().0, 1);
+    }
+
+    #[test]
+    #[should_panic(expected = "not the authorized price pusher")]
+    fn stranger_cannot_feed_mark_when_pusher_set() {
+        ctx("owner.testnet", "owner.testnet");
+        let mut c = LeveragedPositions::new();
+        c.set_pusher(Some("feed.testnet".parse().unwrap()));
+        ctx("mallory.testnet", "mallory.testnet");
+        c.update_mark(999_000_000); // even a wildly wrong price must be rejected
+    }
+
+    #[test]
+    #[should_panic(expected = "not the authorized price pusher")]
+    fn stranger_cannot_set_funding_when_pusher_set() {
+        ctx("owner.testnet", "owner.testnet");
+        let mut c = LeveragedPositions::new();
+        c.set_pusher(Some("feed.testnet".parse().unwrap()));
+        ctx("mallory.testnet", "mallory.testnet");
+        c.set_funding_rate(1_000);
+    }
+
+    #[test]
+    fn owner_can_clear_pusher_reopening_updates() {
+        ctx("owner.testnet", "owner.testnet");
+        let mut c = LeveragedPositions::new();
+        c.set_pusher(Some("feed.testnet".parse().unwrap()));
+        c.set_pusher(None); // clear → back to permissionless (v3 behavior)
+        assert!(c.get_pusher().is_none());
+        ctx("anyone.testnet", "anyone.testnet");
+        c.update_mark(123_000_000);
+        assert_eq!(c.get_mark().0, 123_000_000);
+    }
+
+    #[test]
+    fn stranger_liquidation_still_permissionless_with_pusher_set() {
+        // Setting a price pusher must NOT restrict trading or liquidation:
+        // a stranger can still liquidate an underwater position.
+        ctx("owner.testnet", "owner.testnet");
+        let mut c = LeveragedPositions::new();
+        c.set_pusher(Some("feed.testnet".parse().unwrap()));
+        ctx("feed.testnet", "feed.testnet");
+        c.update_mark(182_000_000);
+        ctx("alice.testnet", "alice.testnet");
+        c.open_position(1_000, 200_000_000, 20_000_000_000); // 10x long, underwater
+        ctx("carol.testnet", "carol.testnet");
+        let r = c.liquidate_on_mark("alice.testnet".parse().unwrap());
+        assert_eq!(r.liquidator_reward, 1_000_000_000);
+        assert!(
+            !c.get_position("alice.testnet".parse().unwrap())
+                .unwrap()
+                .is_open
+        );
     }
 }

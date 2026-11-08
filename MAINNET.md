@@ -1,7 +1,8 @@
 # PRISM — Mainnet Readiness Runbook
 
 What must be true before PRISM goes live on NEAR mainnet. Status is audited
-against the testnet build of 2026-11-08 (contract v3, 25 unit + 24 e2e tests).
+against the testnet build of 2026-11-08 (**contract v4, pusher-governed**,
+33 unit + live e2e userflow suite on `prism-v4-2026.testnet`).
 
 ## 1. Contract audit checklist
 
@@ -9,14 +10,15 @@ against the testnet build of 2026-11-08 (contract v3, 25 unit + 24 e2e tests).
 |---|---|---|
 | No admin / freeze / seize | ✅ | Only forced mutation is liquidation of an underwater position |
 | Reentrancy | ✅ | No external calls from the contract; state mutations are self-contained. (Intent settlement is called *by the user/solver*, not by the contract — no call-back surface.) |
-| Price manipulation of the mark | ✅ guarded | 20% fresh / 50% stale deviation gate on `update_mark`; dual-source median pusher off-chain. **Mainnet TODO:** multi-pusher redundancy + attestation before accepting a mark; consider a Timelock on mark source changes (currently: any authorized feed key). |
-| `update_mark` authorization | ⬜ **TODO** | Today any account can call `update_mark` (dev simplicity). For mainnet: restrict to a feed-pusher account (or NEP-447 attested oracles). |
-| Integer overflow | ✅ | u128 math, NEAR wasm 32-bit `i128`/`u128` is checked in release? — verify `overflow-checks` in Cargo profile (near-sdk enables checked). **Confirm in build flags.** |
+| Price manipulation of the mark | ✅ guarded | 20% fresh / 50% stale deviation gate on `update_mark`; dual-source median pusher off-chain. **Mainnet TODO:** run 2+ independent pusher nodes + attestation before accepting a mark. |
+| `update_mark` authorization | ✅ **v4** | Gated to `price_pusher` (set by owner via `set_pusher`). `None` = permissionless dev mode — **must be set before mainnet**. |
+| Integer overflow | ✅ | u128 math, NEAR wasm 32-bit `i128`/`u128` is checked in release. **Confirm `overflow-checks` in Cargo profile.** |
 | Gas | ✅ | 0.3 TGas per mutation, well under 30 TGas block budget; loops are O(positions) only in `get_positions`. |
 | Storage | ✅ | One `Position` per owner; `get_stats` is an aggregation — fine for thousands of positions. **TODO:** cap or paginate if position count grows large (stats scans all). |
 | Liquidation edge cases | ✅ | `require!(equity*10000 < notional*500, "healthy")` — healthy positions cannot be touched; reward split is exact integer math. |
 | Negative funding / underflow | ✅ | Funding delta clamped to 10% of current margin, margin floors at 0 (cannot go negative). |
-| `set_funding_rate` authorization | ⬜ **TODO** | Restrict to oracle/operator role for mainnet. |
+| `set_funding_rate` authorization | ✅ **v4** | Gated to the same `price_pusher`. |
+| Pusher-governance edge cases | ✅ **v4** | `set_pusher` is owner-only; changing the pusher cannot open/close/liquidate or read funds. Unset = v3 dev fallback. |
 | Event logs | ✅ | Structured JSON logs on open/close/liquidate/funding for indexers. |
 | Versioning / upgrades | ⬜ **TODO** | Deploy mainnet with an upgrade path (contract owner key held by a multisig) OR freeze the wasm and rely on NEP-330 (state migration) — decide before launch. |
 
@@ -39,16 +41,18 @@ against the testnet build of 2026-11-08 (contract v3, 25 unit + 24 e2e tests).
    (sponsored via 1Click/ChainSigner or a bootstrap account with ~$50).
 3. **Build** the wasm with `overflow-checks` confirmed on:
    `cargo build --target wasm32-unknown-unknown --release`
-4. **Deploy** with the v3 wasm; call `new()`.
-5. **Run `e2e-test.js` against mainnet** (point `NODE_URL` at
-   `https://mainnet.fastnear.com`) with a small bootstrap account as
-   owner + a second account as liquidator. The 24-assertion suite is the
-   launch gate.
-6. **Fund the mark feed** service and verify `update_mark` lands (2-source
-   median, deviation guard).
-7. **Deploy one liquidation bot**, open a real 10× position with ~$10 margin,
+4. **Deploy** with the **v4** wasm; call `new()` (caller becomes owner).
+5. **Call `set_pusher` (owner)** to designate the mark-feed service account.
+   Until then the feed is permissionless — never leave it unset on mainnet.
+6. **Run `e2e-test.js` against mainnet** (point `NODE_URL` at
+   `https://mainnet.fastnear.com`, `E2E_PUSHER=<pusher account>`) with a small
+   bootstrap account as owner + a second account as liquidator. The full
+   suite (incl. F9 governance rejections) is the launch gate.
+7. **Fund the mark feed** service and verify `update_mark` lands (2-source
+   median, deviation guard) **from the pusher key only**.
+8. **Deploy one liquidation bot**, open a real 10× position with ~$10 margin,
    verify a full open→crash→liquidation→reward cycle with real USDC.
-8. **Ship the UI** on mainnet (same `ui/`, different `NODE_URL`/`contract`),
+9. **Ship the UI** on mainnet (same `ui/`, different `NODE_URL`/`contract`),
    with MyNearWallet for state-changing calls.
 
 ## 4. Economics to finalize before launch
@@ -65,9 +69,11 @@ against the testnet build of 2026-11-08 (contract v3, 25 unit + 24 e2e tests).
 
 ## 5. Launch gate (all must be green)
 
-- [ ] 25/25 `cargo test`
-- [ ] 24/24 `npm run e2e` **on mainnet**
-- [ ] `update_mark` + `set_funding_rate` restricted to authorized pushers
+- [x] 33/33 `cargo test` (v4, incl. pusher-governance tests)
+- [x] `npm run e2e` green on testnet against v4 (incl. F9 governance rejections)
+- [ ] `npm run e2e` green **on mainnet**
+- [x] `update_mark` + `set_funding_rate` restricted to authorized pushers (v4)
+- [ ] `set_pusher` called on mainnet before any real volume
 - [ ] Mark feed running from 2 nodes with alerts
 - [ ] Liquidation bot live for ≥ 24 h without missed liquidations
 - [ ] Real USDC liquidation cycle verified on mainnet

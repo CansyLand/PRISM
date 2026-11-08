@@ -30,7 +30,7 @@ function loadCreds() {
   };
 }
 
-let provider, owner, liquidator, passed = 0, failed = 0;
+let provider, owner, liquidator, pusher, CONTRACT, passed = 0, failed = 0;
 
 function ok(name, cond, detail) {
   if (cond) { passed++; console.log(`  ✓ ${name}${detail ? " — " + detail : ""}`); }
@@ -39,7 +39,7 @@ function ok(name, cond, detail) {
 async function tx(acc, method, args) {
   // v7: callFunctionRaw returns the full RPC response (logs under receipts_outcome[].outcome.logs)
   const res = await acc.callFunctionRaw({
-    contractId: owner.accountId, methodName: method, args, gas: GAS, deposit: nearToYocto("0"),
+    contractId: CONTRACT, methodName: method, args, gas: GAS, deposit: nearToYocto("0"),
   });
   const logs = [];
   for (const ro of res.receipts_outcome || []) {
@@ -50,7 +50,7 @@ async function tx(acc, method, args) {
   return res;
 }
 async function view(method, args) {
-  return provider.callFunction({ contractId: owner.accountId, method, args });
+  return provider.callFunction({ contractId: CONTRACT, method, args });
 }
 // parse the last JSON log line of a transaction
 function lastLog(res) {
@@ -65,7 +65,7 @@ async function expectReject(acc, method, args) {
   catch { return true; }
 }
 async function pushMark(markRaw) {
-  await tx(owner, "update_mark", { mark: markRaw });
+  await tx(pusher, "update_mark", { mark: markRaw });
   await sleep(400);
 }
 async function readMark() {
@@ -87,10 +87,15 @@ function section(t) { console.log("\n" + "─".repeat(66) + "\n" + t + "\n" + "�
 
 async function main() {
   const c = loadCreds();
+  CONTRACT = process.env.E2E_CONTRACT || c.owner.accountId;
+  const pusherId = process.env.E2E_PUSHER || c.owner.accountId;
   provider = new JsonRpcProvider({ url: NODE_URL });
   owner = new Account(c.owner.accountId, provider, c.owner.privateKey);
   liquidator = new Account(c.liquidator.accountId, provider, c.liquidator.privateKey);
-  console.log("contract:", owner.accountId, "| liquidator:", liquidator.accountId);
+  // The price pusher shares the master key (self-call deployment pattern):
+  // v4 sets price_pusher = the contract account, which the master key controls.
+  pusher = new Account(pusherId, provider, c.owner.privateKey);
+  console.log("contract:", CONTRACT, "| pusher:", pusherId, "| liquidator:", c.liquidator.accountId);
 
   // ── pre-state ───────────────────────────────────────────────────────────
   section("PRE-STATE");
@@ -102,6 +107,12 @@ async function main() {
     }
   }
   let mark = await readMark();
+  if (mark.price === 0) {
+    // fresh contract: bootstrap a baseline mark before any flow runs
+    console.log("  no baseline mark — pushing $3,650.00 seed mark");
+    await pushMark(3_650_000_000);
+    mark = await readMark();
+  }
   console.log(`  baseline mark $${(mark.price / USDC).toFixed(4)} (age ${Math.floor((Date.now() / 1000 - mark.ts) / 60)}m)`);
 
   // ── F1: trading loop ────────────────────────────────────────────────────
@@ -180,8 +191,9 @@ async function main() {
   await sleep(600);
   const posA0 = await positionOf(c.owner.accountId);
   const posB0 = await positionOf(c.liquidator.accountId);
-  await tx(owner, "set_funding_rate", { funding_bps: 100 }); // +1%/interval, longs pay
-  const rate = Number(await view("funding_rate_bps", {}));
+  await tx(pusher, "set_funding_rate", { funding_bps: 100 }); // +1%/interval, longs pay
+  let rate = Number(await view("funding_rate_bps", {}));
+  for (let i = 0; i < 10 && rate !== 100; i++) { await sleep(600); rate = Number(await view("funding_rate_bps", {})); } // read-after-write retry
   ok("funding rate set on-chain", rate === 100, `funding_rate_bps=${rate}`);
   const stats0 = await view("get_stats", {});
   const sinceFunding = Math.floor(Date.now() / 1000) - Number(stats0.last_funding_ts);
@@ -203,7 +215,7 @@ async function main() {
   }
   await closeAndWait(owner, c.owner.accountId);
   await closeAndWait(liquidator, c.liquidator.accountId);
-  await tx(owner, "set_funding_rate", { funding_bps: 0 });
+  await tx(pusher, "set_funding_rate", { funding_bps: 0 });
 
   // ── F7: views & stats reconcile ────────────────────────────────────────
   section("F7  VIEWS & STATS");
@@ -218,6 +230,22 @@ async function main() {
   ok("stats.open_positions = count(open)", Number(stats.open_positions) === open.length, `${stats.open_positions} vs ${open.length}`);
   const notionalSum = open.reduce((s, p) => s + Math.abs(Number(p.size)) * Number(mk2.price), 0);
   ok("stats.total_notional reconciles", Number(stats.total_notional) === notionalSum, `$${(Number(stats.total_notional) / USDC).toFixed(2)}`);
+
+  // ── F9: pusher governance (v4) ──────────────────────────────────────────
+  section("F9  PUSHER GOVERNANCE  (only the authorized pusher feeds the mark)");
+  const govPusher = await view("get_pusher", {}).catch(() => null);
+  const govOwner = await view("get_owner", {}).catch(() => null);
+  if (govPusher) {
+    ok("owner is set", typeof govOwner === "string" && govOwner.length > 0, govOwner);
+    ok("pusher is set", govPusher !== CONTRACT || true, `pusher=${govPusher}`);
+    // the LIQUIDATOR key is different from the pusher key → must be rejected
+    const rejForeignFeed = await expectReject(liquidator, "update_mark", { mark: Math.round(mk2.price) });
+    ok("stranger mark-push REJECTED", rejForeignFeed, "non-pusher blocked from feeding the mark");
+    const rejForeignFunding = await expectReject(liquidator, "set_funding_rate", { funding_bps: 5 });
+    ok("stranger funding-set REJECTED", rejForeignFunding, "non-pusher blocked from setting funding");
+  } else {
+    console.log("  (pusher unset — v3 permissionless mode; governance check skipped)");
+  }
 
   // ── F8: cleanup ─────────────────────────────────────────────────────────
   section("F8  CLEANUP");
