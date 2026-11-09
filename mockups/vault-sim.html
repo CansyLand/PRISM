@@ -151,9 +151,9 @@
 
 <!-- MONTE CARLO -->
 <div class="card">
-  <h3>Monte Carlo — how often does a vault like this actually die? <span style="text-transform:none;letter-spacing:0;color:var(--dim)">(2,000 simulated 90-day paths per scenario, seeded & repeatable)</span></h3>
+  <h3>Monte Carlo — how often does a vault like this actually die? <span style="text-transform:none;letter-spacing:0;color:var(--dim)">(1,200 simulated 90-day paths per scenario · seeded & repeatable · jump gaps + funding-aware traders)</span></h3>
   <div class="btns" style="margin-top:0">
-    <button class="primary" id="runMC">▶ Run 4 scenarios × 2,000 paths</button>
+    <button class="primary" id="runMC">▶ Run 5 scenarios × 1,200 paths</button>
     <span class="note" id="mcStatus" style="align-self:center"></span>
   </div>
   <div class="mcrow" id="mcStats" style="visibility:hidden"></div>
@@ -163,8 +163,8 @@
       <div class="note" id="mcNote"></div>
     </div>
     <div>
-      <table id="mcTable"><thead><tr><th>Scenario</th><th class="num">P(deplete)</th><th class="num">median APR</th><th class="num">final equity p5</th><th class="num">gap shortfall p50</th></tr></thead><tbody></tbody></table>
-      <div class="note"><b>Reading the table:</b> a healthy vault shows a positive median APR with a fat left tail (bad luck is survivable). The DUMP scenario is the honest scary one: 80% of traders long, price falling — the vault is all-short… no wait, <b>all-long traders = the vault is synthetically all-short, so a dump PAYS the vault</b>. The killer is the <b>grind</b>: crowded longs + a steady uptrend = the vault slowly bleeds paying winners, and gaps write off margin it never collected. Run it and check.</div>
+      <table id="mcTable"><thead><tr><th>Scenario</th><th class="num">P(deplete)</th><th class="num">median APR</th><th class="num">final p5 / p25–p75</th><th class="num">gap shortfall p50</th></tr></thead><tbody></tbody></table>
+      <div class="note"><b>Reading the table:</b> a healthy vault shows a positive median APR with a fat left tail (bad luck is survivable). All-long traders = the vault is synthetically all-short, so the <b>DUMP pays the vault</b>. The killer is the <b>grind</b>: crowded longs + a steady uptrend = the vault slowly bleeds paying winners. <b>Momentum whales</b> = 85% smart trend-followers: the vault against informed flow. <b>final p5 / p25–p75</b> = where the worst 5% and the middle 50% of vaults end up. The breakeven fee cell answers: how high must the fee be for a balanced vault to stop bleeding?</div>
     </div>
   </div>
 </div>
@@ -180,7 +180,7 @@
 const MAINT=0.05, MAXLEV=10, FEE_BP_DEFAULT=2;
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(a^a>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
 function gauss(rng){let u=0,v=0;while(!u)u=rng();while(!v)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v)}
-function S(V0,mark0){return{V0,mark:mark0||3.65,cash:V0,fees:0,losses:0,wins:0,shortfall:0,positions:[],day:0,id:1,eq:[V0],minEq:V0,dead:false}}
+function S(V0,mark0){return{V0,mark:mark0||3.65,cash:V0,fees:0,losses:0,wins:0,shortfall:0,positions:[],day:0,id:1,eq:[V0],minEq:V0,dead:false,hist:[]}}
 function pnlOf(p,mark){const d=p.side==='long'?mark-p.entry:p.entry-mark;return p.units*d}
 function eqOf(st){let liab=0;for(const p of st.positions){liab+=p.margin+Math.max(0,-pnlOf(p,st.mark))}return st.cash-liab-st.shortfall}
 function openPos(st,params,rng,log){
@@ -314,33 +314,72 @@ document.querySelectorAll('[data-preset]').forEach(b=>b.onclick=()=>{
 });
 
 // ───────────────────────── Monte Carlo ─────────────────────────
-function runPath(sc,seed){
-  const st=S(sc.V0,3.65);
-  const rng=mulberry32(seed);
+// v2 engine: (a) jump-diffusion gaps = the insolvent tail (a 2.5-8% gap
+// through maintenance between checks), (b) smart traders: trend-following
+// entries, 2% stop-loss, 3% take-profit, and they bail when cumulative
+// funding paid > 4% of margin, (c) funding modeled daily: 0.01% of the
+// crowded notional, trader-to-trader pass-through ($0 to the vault) —
+// but it bleeds the crowded side and pushes them toward exits/liquidation.
+function openSmart(st,sc,rng){
+  const p=openPos(st,sc,rng,null);
+  if(!p)return null;
+  p.fund=0;
+  if(rng()<sc.smart/100){
+    p.smart=1;
+    const ref=st.hist.length>=3?st.hist[st.hist.length-3]:3.65;
+    const mom=st.mark>=ref;                 // market up over last 3 days?
+    const follow=rng()<0.7;                 // 70% trend-follow, 30% fade
+    const want=follow?(mom?'long':'short'):(mom?'short':'long');
+    if(want!==p.side)p.side=want;
+  }
+  return p;
+}
+function mcPath(sc,seed){
+  const st=S(sc.V0,3.65),rng=mulberry32(seed);
+  const path=[st.V0];
   for(let d=1;d<=90;d++){
     if(st.dead)break;
     st.day=d;
-    const mag=gauss(rng)*sc.vol/100+(sc.drift||0);
-    const old=st.mark;st.mark=Math.max(0.01,st.mark*(1+mag));
+    let mag=gauss(rng)*sc.vol/100+(sc.drift||0);
+    if(rng()<(sc.jumpP||0.015))mag+=(2.5+rng()*5.5)/100*(rng()<0.5?-1:1);
+    st.mark=Math.max(0.01,st.mark*(1+mag));
+    st.hist.push(st.mark);
+    let netL=0;
+    for(const p of st.positions)netL+=p.side==='long'?p.units*st.mark:-p.units*st.mark;
+    const fr=0.0001*Math.abs(Math.sign(netL));
+    for(const p of st.positions)if(fr>0&&(p.side==='long')===(netL>=0))p.fund=(p.fund||0)+fr*p.units*st.mark;
     for(const p of [...st.positions]){
       const eq=p.margin+pnlOf(p,st.mark);
-      if(eq<0.05*p.units*st.mark)settle(st,p,'liq',null);
-      else if(rng()<0.3)settle(st,p,'close',null);
+      if(eq<0.05*p.units*st.mark){settle(st,p,'liq',null);continue}
+      let exitP=0.3;
+      if(p.smart){
+        exitP=0.15;
+        const pnl=pnlOf(p,st.mark),mv=Math.abs(pnl)/p.units;
+        if(pnl<0&&mv>0.02*st.mark)exitP+=0.5;
+        if(pnl>0&&mv>0.03*st.mark)exitP+=0.5;
+        if((p.fund||0)>0.04*p.margin)exitP+=0.6;
+      }
+      if(rng()<exitP)settle(st,p,'close',null);
     }
-    for(let i=0;i<sc.trades;i++)openPos(st,sc,rng,null);
-    equity(st);
+    for(let i=0;i<sc.trades;i++)openSmart(st,sc,rng);
+    const e=eqOf(st);
+    path.push(e);
+    if(e<=0){st.dead=true;break}
   }
-  return {final:st.cash-st.positions.reduce((a,p)=>a+p.margin+Math.max(0,-pnlOf(p,st.mark)),0),min:st.minEq,dead:st.dead,sf:st.shortfall,fees:st.fees};
+  const e=eqOf(st);
+  return {e, path, dead:st.dead||e<=0, sf:st.shortfall, apr:(e/sc.V0-1)/90*365*100};
 }
-function pct(arr,p){const a=[...arr].sort((x,y)=>x-y);return a[Math.min(a.length-1,Math.floor(p*a.length))]}
 function runMC(){
   const SC=[
-    {name:'Balanced retail',V0:10000,vol:4,bias:50,fee:2,lev:8,trades:6,drift:0},
-    {name:'Long crowd, grind up',V0:10000,vol:3,bias:80,fee:2,lev:9,trades:8,drift:0.008},
-    {name:'Long crowd, DUMP',V0:10000,vol:6,bias:80,fee:2,lev:10,trades:8,drift:-0.015},
-    {name:'Calm',V0:10000,vol:2,bias:50,fee:2,lev:5,trades:4,drift:0},
+    {name:'Balanced retail',V0:10000,vol:4,bias:50,fee:2,lev:8,trades:6,drift:0,smart:20,jumpP:0.015},
+    {name:'Long crowd, grind up',V0:10000,vol:3,bias:80,fee:2,lev:9,trades:8,drift:0.008,smart:30,jumpP:0.015},
+    {name:'Long crowd, DUMP',V0:10000,vol:6,bias:80,fee:2,lev:10,trades:8,drift:-0.015,smart:30,jumpP:0.02},
+    {name:'Momentum whales',V0:10000,vol:3,bias:60,fee:2,lev:9,trades:10,drift:0.006,smart:85,jumpP:0.015},
+    {name:'Calm',V0:10000,vol:2,bias:50,fee:2,lev:5,trades:4,drift:0,smart:0,jumpP:0.01},
+    {name:'_fee0',V0:10000,vol:4,bias:50,fee:0,lev:8,trades:6,drift:0,smart:20,jumpP:0.015},
+    {name:'_fee10',V0:10000,vol:4,bias:50,fee:10,lev:8,trades:6,drift:0,smart:20,jumpP:0.015},
   ];
-  const RUNS=1200,DAYS=90;
+  const RUNS=1200;
   const results=SC.map(sc=>({sc,out:[],eqPaths:[]}));
   let si=0,ri=0;
   $('mcStatus').textContent='warming up…';
@@ -348,80 +387,80 @@ function runMC(){
     const t0=performance.now();
     while(performance.now()-t0<140){
       const R=results[si],sc=R.sc;
-      const st=S(sc.V0,3.65),rng=mulberry32(si*100000+ri);
-      const path=[st.V0];
-      for(let d=1;d<=DAYS;d++){
-        if(st.dead)break;
-        st.day=d;
-        const mag=gauss(rng)*sc.vol/100+(sc.drift||0);
-        st.mark=Math.max(0.01,st.mark*(1+mag));
-        for(const p of [...st.positions]){
-          const eq=p.margin+pnlOf(p,st.mark);
-          if(eq<0.05*p.units*st.mark)settle(st,p,'liq',null);
-          else if(rng()<0.3)settle(st,p,'close',null);
-        }
-        for(let i=0;i<sc.trades;i++)openPos(st,sc,rng,null);
-        const e=eqOf(st);
-        path.push(e);
-        if(e<=0){st.dead=true;break}
-      }
-      const e=eqOf(st);
-      R.out.push({final:e,dead:st.dead||e<=0,sf:st.shortfall,apr:(e/sc.V0-1)/DAYS*365*100});
-      if(R.eqPaths.length<400)R.eqPaths.push(path);
+      const r=mcPath(sc,si*100000+ri);
+      R.out.push({final:r.e,dead:r.dead,sf:r.sf,apr:r.apr});
+      if(!sc.name.startsWith('_')&&R.eqPaths.length<400)R.eqPaths.push(r.path);
       ri++;
       if(ri>=RUNS){ri=0;si++}
       if(si>=SC.length)break;
     }
     if(si<SC.length){
-      $('mcStatus').textContent=`scenario ${si+1}/${SC.length} · ${ri}/${RUNS} runs…`;
+      $('mcStatus').textContent=si<5?`scenario ${si+1}/5 · ${ri}/${RUNS} runs…`:'fee calibration…';
       setTimeout(step,0);
-    } else renderMC(results,RUNS,DAYS);
+    } else renderMC(results,RUNS);
   }
   setTimeout(step,30);
 }
-function renderMC(results,RUNS,DAYS){
-  const SC=results.map(r=>r.sc);
-  const r0=results[0];
-  r0.depl=r0.out.filter(o=>o.dead).length/RUNS;
-  r0.medApr=pct(r0.out.map(o=>o.apr),0.5);
-  r0.p5fin=pct(r0.out.map(o=>o.final),0.05);
-  r0.p50sf=pct(r0.out.map(o=>o.sf),0.5);
-  r0.p5finv=r0.p5fin;
-  for(let i=1;i<results.length;i++){const r=results[i];r.depl=r.out.filter(o=>o.dead).length/RUNS;r.medApr=pct(r.out.map(o=>o.apr),0.5);r.p5finv=pct(r.out.map(o=>o.final),0.05);r.p50sf=pct(r.out.map(o=>o.sf),0.5)}
-  // stats strip (first scenario)
+function pct(arr,p){const a=[...arr].sort((x,y)=>x-y);return a[Math.min(a.length-1,Math.floor(p*a.length))]}
+function renderMC(results,RUNS){
+  const vis=results.filter(r=>!r.sc.name.startsWith('_'));
+  const fee0=results[results.length-2],fee10=results[results.length-1];
+  for(const r of vis){
+    r.depl=r.out.filter(o=>o.dead).length/RUNS;
+    r.medApr=pct(r.out.map(o=>o.apr),0.5);
+    r.p5finv=pct(r.out.map(o=>o.final),0.05);
+    r.p25fin=pct(r.out.map(o=>o.final),0.25);
+    r.p75fin=pct(r.out.map(o=>o.final),0.75);
+    r.p50sf=pct(r.out.map(o=>o.sf),0.5);
+  }
+  const a0=pct(fee0.out.map(o=>o.apr),0.5),a10=pct(fee10.out.map(o=>o.apr),0.5);
+  const slope=(a10-a0)/10;
+  const be=slope>0?-a0/slope:null;
+  const beTxt=be==null?'n/a':(be<=0?'≤0bp':(be>25?'>25bp':be.toFixed(1)+'bp'));
+  const r0=vis[0];
   $('mcStats').style.visibility='visible';
   $('mcStats').innerHTML=`
     <div class="mcell"><div class="v">${(r0.depl*100).toFixed(1)}%</div><div class="k">P(deplete) · balanced</div></div>
     <div class="mcell"><div class="v ${r0.medApr>=0?'up':'dn'}">${r0.medApr.toFixed(1)}%</div><div class="k">median APR · balanced</div></div>
-    <div class="mcell"><div class="v">${fmt(r0.p5fin)}$</div><div class="k">worst 5% still keep</div></div>
-    <div class="mcell"><div class="v">${(results[1].depl*100).toFixed(1)}%</div><div class="k">P(deplete) · grind</div></div>`;
-  // table
-  $('mcTable').querySelector('tbody').innerHTML=results.map(r=>`<tr><td>${r.sc.name}</td><td class="num ${r.depl>0.3?'pos-neg':r.depl>0.05?'':'pos-ok'}">${(r.depl*100).toFixed(1)}%</td><td class="num ${r.medApr>=0?'pos-ok':'pos-neg'}">${r.medApr>=0?'+':''}${r.medApr.toFixed(1)}%</td><td class="num">${fmt(r.p5finv)}$</td><td class="num">${fmt(r.p50sf)}$</td></tr>`).join('');
-  // percentile band chart: balanced scenario
-  const bp=r0.eqPaths,D=DAYS;
+    <div class="mcell"><div class="v">${(vis[1].depl*100).toFixed(1)}%</div><div class="k">P(deplete) · grind</div></div>
+    <div class="mcell"><div class="v gold">${beTxt}</div><div class="k">breakeven fee · balanced</div></div>`;
+  $('mcTable').querySelector('tbody').innerHTML=vis.map(r=>`<tr><td>${r.sc.name}</td><td class="num ${r.depl>0.3?'pos-neg':r.depl>0.05?'':'pos-ok'}">${(r.depl*100).toFixed(1)}%</td><td class="num ${r.medApr>=0?'pos-ok':'pos-neg'}">${r.medApr>=0?'+':''}${r.medApr.toFixed(1)}%</td><td class="num">${fmt(r.p5finv)}$ / ${fmt(r.p25fin)}$ – ${fmt(r.p75fin)}$</td><td class="num">${fmt(r.p50sf)}$</td></tr>`).join('');
+  // chart: balanced band (zoomed when healthy) + grind median overlay
+  const bp=r0.eqPaths,gp=vis[1].eqPaths,D=90;
   const W=560,H=260,Px=8,Pyr=8;
-  let allMin=Infinity,allMax=-Infinity;
-  const byDay=d=>bp.map(p=>p[Math.min(d,p.length-1)]);
-  for(let d=0;d<=D;d++){const v=byDay(d);allMin=Math.min(allMin,pct(v,0.02));allMax=Math.max(allMax,pct(v,0.98))}
-  allMin=Math.min(0,allMin);allMax*=1.05;
+  let bMin=Infinity,bMax=-Infinity;
+  const bDay=d=>bp.map(p=>p[Math.min(d,p.length-1)]);
+  const gDay=d=>gp.map(p=>p[Math.min(d,p.length-1)]);
+  for(let d=0;d<=D;d++){const v=bDay(d);bMin=Math.min(bMin,pct(v,0.02));bMax=Math.max(bMax,pct(v,0.98))}
+  const zoom=bMin>0.55*r0.sc.V0;
+  const allMin=zoom?bMin*0.9:Math.min(0,bMin);
+  const allMax=bMax*1.06;
   const X=d=>Px+d*(W-2*Px)/D,Y=v=>H-Pyr-(v-allMin)/(allMax-allMin)*(H-2*Pyr);
   const band=(pLo,pHi)=>{
     const up=[],down=[];
-    for(let d=0;d<=D;d++){const v=byDay(d);up.push(X(d)+','+Y(pct(v,pHi)));down.push(X(d)+','+Y(pct(v,pLo)));}
+    for(let d=0;d<=D;d++){const v=bDay(d);up.push(X(d)+','+Y(pct(v,pHi)));down.push(X(d)+','+Y(pct(v,pLo)));}
     return `M${up.join(' L')} L${down.reverse().join(' L')} Z`;
   };
   let s=`<path d="${band(0.1,0.9)}" fill="rgba(251,191,36,.10)"/>`;
   s+=`<path d="${band(0.25,0.75)}" fill="rgba(251,191,36,.14)"/>`;
-  const med=[];for(let d=0;d<=D;d++)med.push(pct(byDay(d),0.5));
+  const med=[];for(let d=0;d<=D;d++)med.push(pct(bDay(d),0.5));
   s+=`<polyline points="${med.map((v,d)=>X(d)+','+Y(v)).join(' ')}" fill="none" stroke="var(--gold)" stroke-width="2"/>`;
-  s+=`<line x1="${Px}" y1="${Y(0)}" x2="${W-Px}" y2="${Y(0)}" stroke="var(--red)" stroke-width="1" stroke-dasharray="4 4" opacity=".7"/>`;
-  s+=`<text x="${W-Px-2}" y="${Y(0)-4}" fill="var(--red)" font-size="9" text-anchor="end">$0 — insolvent</text>`;
-  s+=`<line x1="${Px}" y1="${Y(10000)}" x2="${W-Px}" y2="${Y(10000)}" stroke="var(--dim)" stroke-width="1" stroke-dasharray="3 5" opacity=".6"/>`;
-  s+=`<text x="${Px+2}" y="${Y(10000)-4}" fill="var(--dim)" font-size="9">$10k deposit</text>`;
+  s+=`<line x1="${Px}" y1="${Y(r0.sc.V0)}" x2="${W-Px}" y2="${Y(r0.sc.V0)}" stroke="var(--dim)" stroke-width="1" stroke-dasharray="3 5" opacity=".6"/>`;
+  s+=`<text x="${Px+2}" y="${Y(r0.sc.V0)-4}" fill="var(--dim)" font-size="9">$${fmt(r0.sc.V0)} deposit</text>`;
+  if(!zoom){
+    s+=`<line x1="${Px}" y1="${Y(0)}" x2="${W-Px}" y2="${Y(0)}" stroke="var(--red)" stroke-width="1" stroke-dasharray="4 4" opacity=".7"/>`;
+    s+=`<text x="${W-Px-2}" y="${Y(0)-4}" fill="var(--red)" font-size="9" text-anchor="end">$0 — insolvent</text>`;
+  }
+  const gMed=[];let gDead=-1;
+  for(let d=0;d<=D;d++){const v=pct(gDay(d),0.5);gMed.push(v);if(gDead<0&&v<allMin)gDead=d}
+  const gPts=[];
+  for(let d=0;d<gMed.length&&(gDead<0||d<gDead);d++)gPts.push(X(d)+','+Y(Math.max(allMin,gMed[d])));
+  if(gPts.length>1)s+=`<polyline points="${gPts.join(' ')}" fill="none" stroke="var(--red)" stroke-width="1.8" stroke-dasharray="6 3" opacity=".9"/>`;
+  if(gDead>0)s+=`<text x="${Math.min(W-Px-2,X(gDead)-4)}" y="${H-Pyr-4}" fill="var(--red)" font-size="9" font-weight="700" text-anchor="end">grind median → $0 by day ${gDead}</text>`;
   s+=`<text x="${Px}" y="${H-2}" fill="var(--dim)" font-size="9">day 0</text><text x="${W-Px}" y="${H-2}" fill="var(--dim)" font-size="9" text-anchor="end">day 90</text>`;
   const svg=$('mcChart');svg.setAttribute('viewBox',`0 0 ${W} ${H}`);svg.innerHTML=s;
-  $('mcNote').innerHTML=`<b>Balanced retail scenario</b> · 400 paths · gold band = middle 80% of vaults, inner = middle 50%. The left tail is bad luck; watch how far it gets. The vault's equity <b>drifts up</b> (fees + captured losses) while the band shows the PnL drag from open winners.`;
-  $('mcStatus').textContent=`done · ${(SC.length*RUNS).toLocaleString()} paths × 90 days`;
+  $('mcNote').innerHTML=`<b>Gold = Balanced retail</b> · 400 paths · band = middle 80%/50% of vaults${zoom?' (zoomed to the band — v1 scaled to $0, so a ±5% wobble was invisible)':''}. <b>Red dashed = grind median</b> on the same scale: the same vault with a crowded long book in an uptrend. Jumps (2.5–8% gaps) are the insolvent tail; smart traders (20–85% of flow) react to their funding drag, 2% stops, 3% take-profits.`;
+  $('mcStatus').textContent=`done · ${(vis.length*RUNS).toLocaleString()} paths × 90 days + fee calibration`;
 }
 $('runMC').onclick=runMC;
 reset();
