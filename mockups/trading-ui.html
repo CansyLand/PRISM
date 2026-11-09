@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>PRISM — Trading Terminal (mockup)</title>
+<title>PRISM — Trading Terminal (LIVE sim)</title>
 <style>
   :root{
     --bg:#0b0e14; --panel:#121722; --panel2:#0e131d; --line:#1e2635;
@@ -13,25 +13,34 @@
   }
   *{box-sizing:border-box;margin:0;padding:0}
   body{background:var(--bg);color:var(--fg);font:13px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,sans-serif;padding:14px}
-  .badge-mock{position:fixed;top:0;left:0;right:0;background:#7c2d12;color:#fed7aa;text-align:center;font-size:11px;font-weight:600;letter-spacing:.06em;padding:3px;z-index:50}
-  .top{display:flex;align-items:center;gap:18px;padding:8px 14px;background:var(--panel);border:1px solid var(--line);border-radius:10px;margin-top:20px;flex-wrap:wrap}
+  .badge{position:fixed;top:0;left:0;right:0;background:#052e16;color:#bbf7d0;text-align:center;font-size:11px;font-weight:600;letter-spacing:.06em;padding:3px;z-index:50}
+  .badge.off{background:#451a03;color:#fed7aa}
+  .top{display:flex;align-items:center;gap:16px;padding:8px 14px;background:var(--panel);border:1px solid var(--line);border-radius:10px;margin-top:20px;flex-wrap:wrap}
   .sym{font-weight:700;font-size:15px}
   .sym span{color:var(--muted);font-weight:500;font-size:12px}
-  .px{font-size:18px;font-weight:700;font-variant-numeric:tabular-nums}
+  .px{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums;transition:color .2s}
+  .px.flu{color:var(--green);text-shadow:0 0 14px rgba(34,197,94,.45)}
+  .px.fld{color:var(--red);text-shadow:0 0 14px rgba(239,68,68,.45)}
   .up{color:var(--green)} .dn{color:var(--red)}
-  .stat{color:var(--muted);font-size:12px}
+  .stat{color:var(--muted);font-size:12px;line-height:1.35}
   .stat b{color:var(--fg);font-variant-numeric:tabular-nums}
   .sp{flex:1}
-  .acct{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-size:12px}
+  .acct{background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-size:12px;line-height:1.5}
   .acct b{font-variant-numeric:tabular-nums}
+  .reset{background:none;border:1px solid var(--line);color:var(--dim);border-radius:6px;font-size:10px;cursor:pointer;padding:2px 7px}
+  .reset:hover{color:var(--fg);border-color:var(--muted)}
+  .livedot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);margin-right:5px;animation:pulse 1.6s infinite}
+  .livedot.off{background:var(--amber);animation:none}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
 
-  .grid{display:grid;grid-template-columns:1fr 340px;gap:12px;margin-top:12px}
+  .grid{display:grid;grid-template-columns:1fr 350px;gap:12px;margin-top:12px}
   .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px}
   .card h3{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:10px;display:flex;align-items:center;gap:8px}
+  .card h3 .src{color:var(--dim);font-weight:400;letter-spacing:0;text-transform:none}
   .tf{display:flex;gap:4px}
   .tf b{font-size:11px;padding:2px 7px;border-radius:5px;color:var(--muted);cursor:pointer}
   .tf b.on{background:var(--panel2);color:var(--fg)}
-  #chart{width:100%;height:340px;display:block}
+  #chart{width:100%;height:360px;display:block}
   .legend{display:flex;gap:14px;margin-top:8px;font-size:11px;color:var(--muted);flex-wrap:wrap}
   .legend i{display:inline-block;width:14px;height:0;border-top:2px solid;vertical-align:middle;margin-right:5px}
   .wchip{display:inline-flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:2px 10px;font-size:11px;color:var(--muted)}
@@ -45,7 +54,7 @@
   .lbl{font-size:11px;color:var(--muted);margin:10px 0 4px}
   input[type=number]{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:8px;color:var(--fg);padding:9px 10px;font-size:15px;font-variant-numeric:tabular-nums}
   input[type=number]:focus{outline:none;border-color:var(--accent)}
-  .row{display:flex;justify-content:space-between;font-size:12px;padding:3px 0}
+  .row{display:flex;justify-content:space-between;font-size:12px;padding:2px 0}
   .row span{color:var(--muted)} .row b{font-variant-numeric:tabular-nums}
   .liq{border:1px dashed var(--red);border-radius:8px;padding:8px 10px;margin-top:10px;font-size:12px;display:flex;justify-content:space-between;align-items:center}
   .liq b{color:var(--red);font-variant-numeric:tabular-nums;font-size:14px}
@@ -58,8 +67,9 @@
   .submit.long{background:var(--green);color:#04140a}
   .submit.short{background:var(--red);color:#1a0505}
   .submit:hover{filter:brightness(1.08)}
+  .submit:disabled{opacity:.5;cursor:wait}
+  .err{color:var(--red);font-size:11px;margin-top:6px;min-height:14px}
 
-  .rail{display:flex;flex-direction:column;gap:12px}
   .fund{display:flex;align-items:center;gap:12px}
   .fund .rate{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
   .pill{font-size:10px;font-weight:700;padding:2px 7px;border-radius:20px}
@@ -89,48 +99,75 @@
   .side-tag{font-size:10px;font-weight:700;padding:1px 6px;border-radius:4px}
   .side-tag.long{background:rgba(34,197,94,.15);color:var(--green)}
   .side-tag.short{background:rgba(239,68,68,.15);color:var(--red)}
+  .cl{background:none;border:1px solid var(--line);color:var(--muted);border-radius:5px;font-size:10px;cursor:pointer;padding:2px 8px}
+  .cl:hover{color:var(--fg);border-color:var(--muted)}
+  .empty{color:var(--dim);font-size:12px;padding:10px 0}
 
-  .feed{max-height:150px;overflow-y:auto;display:flex;flex-direction:column;gap:5px}
+  .feed{max-height:160px;overflow-y:auto;display:flex;flex-direction:column;gap:5px}
   .feed div{font-size:11px;color:var(--muted);padding:5px 8px;background:var(--panel2);border-radius:6px;border-left:2px solid var(--line)}
   .feed div b{color:var(--fg)}
   .feed div.g{border-left-color:var(--green)} .feed div.r{border-left-color:var(--red)}
   .hint{font-size:11px;color:var(--dim);margin-top:8px}
-  .bottom{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:12px;margin-top:12px}
+
+  .tape{max-height:218px;overflow-y:auto;display:flex;flex-direction:column;gap:2px}
+  .tape div{display:grid;grid-template-columns:52px 14px 62px 1fr 70px;gap:6px;font-size:11px;padding:3px 8px;border-radius:4px;font-variant-numeric:tabular-nums}
+  .tape div:nth-child(odd){background:var(--panel2)}
+  .tape .t{color:var(--dim)}
+  .tape .sb{font-weight:700;text-align:center}
+  .tape .sb.b{color:var(--green)} .tape .sb.s{color:var(--red)}
+  .tape .p{color:var(--fg)}
+  .tape .q{color:var(--muted);text-align:right}
+  .tape .u{color:var(--muted);text-align:right}
+  .spread{display:flex;justify-content:center;gap:14px;padding:5px;margin:6px 0;background:var(--panel2);border-radius:6px;font-variant-numeric:tabular-nums;font-size:12px}
+
+  .depth{margin-top:10px}
+  .depth .dl{position:relative;display:grid;grid-template-columns:62px 1fr 62px;gap:6px;font-size:11px;padding:1px 6px;font-variant-numeric:tabular-nums}
+  .depth .dl .bar{position:absolute;top:1px;bottom:1px;opacity:.13}
+  .depth .dl .ax{justify-self:end;color:var(--red)}
+  .depth .dl .ab{justify-self:start;color:var(--green)}
+  .depth .dl .aqq{color:var(--muted);justify-self:end}
+  .depth .dl .bqq{color:var(--muted);justify-self:start}
+  .depth .dc{display:flex;justify-content:center;font-size:10px;color:var(--dim);padding:3px 0}
+
+  .bottom{display:grid;grid-template-columns:1fr 1.15fr 1fr;gap:12px;margin-top:12px}
+  @media(max-width:1150px){.bottom{grid-template-columns:1fr 1fr}}
   @media(max-width:1000px){.grid{grid-template-columns:1fr}.bottom{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
-<div class="badge-mock">MOCKUP — ILLUSTRATIVE DATA · PRISM trading terminal · intent-based (no limit-order book)</div>
+<div class="badge" id="badge"><span class="livedot" id="livedot"></span>CONNECTING · LIVE FEED — Binance spot NEAR/USDT tape · PRISM simulator settles trades in-browser only · nothing on-chain</div>
 
 <div class="top">
-  <div class="sym">wNEAR / USDC <span>PERP</span></div>
-  <div class="px up" id="mark">3.6500</div>
-  <div class="stat">24h <b class="up" id="chg24">+1.24%</b></div>
-  <div class="stat">Mark <b id="mark2">3.6500</b></div>
-  <div class="stat">Funding <b id="fundTop" style="color:var(--red)">+0.0100%/h</b></div>
+  <div class="sym">wNEAR / USDC <span>PERP · PRISM</span></div>
+  <div class="px" id="price">—</div>
+  <div class="stat">24h <b id="chg24">—</b><br>vol <b id="vol24">—</b></div>
+  <div class="stat">24h H <b id="hi24">—</b><br>24h L <b id="lo24">—</b></div>
+  <div class="stat">Funding <b id="fundTop">—</b><br>premium <b id="prem">—</b></div>
   <div class="sp"></div>
-  <div class="acct">Wallet <b>near-wallet-…8842</b> · USDC <b id="bal">10,000.00</b></div>
+  <div class="acct">Wallet <b>near-wallet-…8842</b><br>USDC <b id="bal">$10,000.00</b> · realized <b id="real">$0.00</b><br>
+    <span class="stat" style="display:inline">trades <b id="ntr">0</b> · liqs <b id="nliq">0</b></span>
+    <button class="reset" onclick="resetSim()">reset sim</button></div>
 </div>
 
 <div class="grid">
   <!-- CHART -->
   <div class="card">
-    <h3>Price <span class="tf"><b>1m</b><b>5m</b><b class="on">15m</b><b>1h</b><b>4h</b><b>1D</b></span>
-      <span class="sp"></span><span style="text-transform:none;letter-spacing:0">Candles · entry & liquidation overlay</span>
+    <h3>Price <span class="tf" id="tfs"><b class="on">1m</b><b>5m</b><b>15m</b><b>1h</b></span>
+      <span class="sp"></span><span class="src" style="text-transform:none;letter-spacing:0">live candles · volume · your entries & liquidations</span>
     </h3>
-    <svg id="chart" viewBox="0 0 900 340" preserveAspectRatio="none"></svg>
+    <svg id="chart" viewBox="0 0 940 360" preserveAspectRatio="none"></svg>
     <div class="legend">
       <span><i style="border-color:var(--green)"></i>bullish</span>
       <span><i style="border-color:var(--red)"></i>bearish</span>
-      <span><i style="border-color:var(--blue);border-top-style:dashed"></i>mark</span>
+      <span><i style="border-color:var(--blue);border-top-style:dashed"></i>last price</span>
       <span><i style="border-color:var(--green)"></i>your entry</span>
-      <span><i style="border-color:var(--red);border-top-style:dashed"></i>liquidation</span>
+      <span><i style="border-color:var(--red);border-top-style:dashed"></i>your liquidation</span>
     </div>
   </div>
 
   <!-- TICKET -->
   <div class="card">
-    <h3>Open position</h3>
+    <h3>New position <span class="src">intent → solver auction</span></h3>
     <div class="tabs">
       <button class="long on" id="tb-long" onclick="setSide('long')">Buy / Long</button>
       <button class="short" id="tb-short" onclick="setSide('short')">Sell / Short</button>
@@ -144,289 +181,630 @@
       <div class="row"><span>Units</span><b id="units">—</b></div>
       <div class="row"><span>Required margin</span><b id="margin">—</b></div>
       <div class="row"><span>Maintenance (5%)</span><b id="maint">—</b></div>
-      <div class="row"><span>Est. taker fee (open)</span><b id="fee">—</b></div>
+      <div class="row"><span>Taker fee (open, 2bp)</span><b id="fee">—</b></div>
+      <div class="row"><span>Est. impact vs live tape</span><b id="imp">—</b></div>
+      <div class="row"><span>Tape volume · last 60s</span><b id="tape1m">—</b></div>
     </div>
     <div class="liq"><div>LIQUIDATION PRICE<div class="warn">≈ when equity &lt; maintenance</div></div><b id="liq">—</b></div>
     <button class="submit long" id="submit" onclick="submitOrder()">Buy wNEAR · Long</button>
+    <div class="err" id="err"></div>
   </div>
 </div>
 
 <div class="bottom">
-  <!-- FUNDING -->
+  <!-- LIVE TAPE -->
   <div class="card">
-    <h3>Funding rate</h3>
-    <div class="fund">
-      <div class="rate dn" id="fundRate">+0.0100%</div>
-      <div>
-        <div class="pill lp">longs pay shorts</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:4px">per hour · next in <span class="countdown" id="cd">00:42:13</span></div>
-      </div>
-    </div>
-    <div style="margin-top:10px">
-      <div class="row"><span>Your hourly funding (this pos)</span><b class="dn" id="fundPay">−$0.37</b></div>
-      <div class="row"><span>24h avg rate</span><b>+0.0083%</b></div>
-      <div class="row"><span>Mark − index (premium)</span><b class="dn">+0.42%</b></div>
-    </div>
-    <div class="hint">Rate = 0.01% × sign(mark − index), pushed by the oracle each interval. Positive → longs pay shorts (trader-to-trader); the vault profits when the crowded side gets liquidated.</div>
+    <h3>Live market tape <span class="src">Binance spot NEAR/USDT — real trades</span></h3>
+    <div class="spread">bid <b class="up" id="bidpx">—</b> · <span style="color:var(--dim)">spread</span> <b id="spreadv">—</b> · ask <b class="dn" id="askpx">—</b></div>
+    <div class="depth" id="depth"></div>
+    <div class="tape" id="tape"><div class="empty">waiting for live feed…</div></div>
   </div>
 
   <!-- INTENT BOOK -->
   <div class="card">
-    <h3>Intent book · solver quotes <span style="text-transform:none;color:var(--dim);font-weight:400">for your order</span></h3>
+    <h3>Intent book · solver quotes <span class="src">off live bid/ask</span></h3>
     <div id="quotes"></div>
     <div class="stepper" id="stepper">
-      <div class="step done">intent</div>
-      <div class="step done">3 solvers quote</div>
-      <div class="step active">best selected</div>
+      <div class="step">intent</div>
+      <div class="step">3 solvers quote</div>
+      <div class="step">best selected</div>
       <div class="step">filled</div>
     </div>
     <div style="margin-top:10px">
-      <div style="display:flex;justify-content:space-between;align-items:baseline;font-size:11px;color:var(--muted)"><b style="color:var(--fg);text-transform:uppercase;letter-spacing:.08em;font-size:10px">Fill ribbon · last 30 auctions</b><span>dot = all-in fill price · color = winning solver</span></div>
-      <svg id="ribbon" style="width:100%;height:64px;display:block"></svg>
+      <div style="display:flex;justify-content:space-between;align-items:baseline;font-size:11px;color:var(--muted)"><b style="color:var(--fg);text-transform:uppercase;letter-spacing:.08em;font-size:10px">Fill ribbon · last 30 auctions</b><span>dot = all-in fill · color = solver · ring = you</span></div>
+      <svg id="ribbon" style="width:100%;height:56px;display:block"></svg>
       <div id="winrate" style="display:flex;gap:8px;margin-top:6px;flex-wrap:wrap"></div>
     </div>
-    <div class="hint">No limit-order book: your intent is auctioned to competing 1Click solvers; the best price fills. That fill IS the other side.</div>
+    <h3 style="margin-top:14px">Activity</h3>
+    <div class="feed" id="feed"></div>
   </div>
 
-  <!-- POSITIONS + ACTIVITY -->
+  <!-- POSITIONS + VAULT -->
   <div class="card">
-    <h3>Open positions</h3>
+    <h3>Open positions <span class="src" id="poscount">0 open</span></h3>
     <table>
-      <thead><tr><th>Pos</th><th>Entry</th><th>Mark</th><th>PnL</th><th>Liq</th></tr></thead>
-      <tbody>
-        <tr>
-          <td><span class="side-tag long">LONG 10×</span><br><span style="color:var(--dim);font-size:11px">$10,000</span></td>
-          <td>3.6000</td><td id="posMark">3.6500</td>
-          <td class="up" id="posPnl">+$138.89</td>
-          <td style="color:var(--red)">3.4105</td>
-        </tr>
-      </tbody>
+      <thead><tr><th>Pos</th><th>Entry</th><th>Mark</th><th>PnL</th><th>Liq</th><th></th></tr></thead>
+      <tbody id="postable"><tr><td colspan="6" class="empty">no open positions — place your first intent</td></tr></tbody>
     </table>
-    <h3 style="margin-top:14px">Intent activity</h3>
-    <div class="feed" id="feed"></div>
+    <div style="margin-top:10px">
+      <div class="row"><span>Total unrealized PnL</span><b id="totpnl">—</b></div>
+      <div class="row"><span>Equity (margin + PnL − funding)</span><b id="toTEq">—</b></div>
+    </div>
+    <h3 style="margin-top:14px">The vault <span class="src">your counterparty to the net delta</span></h3>
+    <div class="row"><span>Vault equity</span><b id="vEq">—</b></div>
+    <div class="row"><span>Net delta (book)</span><b id="vDelta">—</b></div>
+    <div class="row"><span>Open notional / capacity</span><b id="vCap">—</b></div>
+    <div class="row"><span>Vault PnL vs your book (live)</span><b id="vPnl">—</b></div>
+    <div class="hint">Every trade you place is against the vault. Watch its delta when you open size — that's the counterparty you're really trading with.</div>
   </div>
 </div>
 
 <script>
-const MARK0 = 3.65;
-let mark = MARK0;
-let state = { side:'long', size:10000, lev:10 };
-const maint = 0.05;
-const pos = { side:'long', units:10000/3.60, entry:3.60, lev:10, notional:10000 };
+// ================= PRISM live trading sim =================
+// Real market data: Binance spot NEAR/USDT (trades, depth, 24h stats) + Binance USDT-M
+// funding (mark/index/lastFundingRate). Trades settle IN-BROWSER only — nothing on-chain.
+const CFG={
+  ws:'wss://stream.binance.com:9443/stream?streams=nearusdt@trade/nearusdt@miniTicker/nearusdt@bookTicker/nearusdt@depth5@100ms',
+  klines:tf=>`https://api.binance.com/api/v3/klines?symbol=NEARUSDT&interval=${tf}&limit=90`,
+  funding:'https://fapi.binance.com/fapi/v1/premiumIndex?symbol=NEARUSDT',
+  levMax:10, maint:0.05, feeBp:2, startBal:10000, vaultSeed:250000,
+  tfMs:{'1m':60000,'5m':300000,'15m':900000,'1h':3600000}
+};
+const SOLV=[{n:'A',c:'#38bdf8'},{n:'B',c:'#22c55e'},{n:'C',c:'#a78bfa'}];
+const $=id=>document.getElementById(id);
+const fmt=n=>n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtp=n=>n.toLocaleString('en-US',{maximumFractionDigits:4,minimumFractionDigits:4});
+const tstr=t=>new Date(t).toLocaleTimeString('en-GB',{hour12:false});
 
-// ---------- candlestick data ----------
-function genCandles(n, start){
-  const c=[]; let p=start;
-  for(let i=0;i<n;i++){
-    const o=p;
-    const drift=(MARK0-start)/n;
-    let ch=(Math.random()-0.48)*0.02+drift;
-    const cl=o+ch;
-    const hi=Math.max(o,cl)+Math.random()*0.008;
-    const lo=Math.min(o,cl)-Math.random()*0.008;
-    c.push({o,h:hi,l:lo,c:cl}); p=cl;
-  }
-  c[c.length-1].c=MARK0; c[c.length-1].h=Math.max(c[c.length-1].h,MARK0);
-  return c;
+const S={
+  live:false, offline:false,
+  price:0, bid:0, ask:0,
+  mini:null,
+  funding:{rate:0.0001,mark:0,index:0,next:0},
+  tf:'1m', candles:[],
+  tape:[], volRoll:[],          // real trades + rolling 60s tape volume
+  depthB:[], depthA:[],
+  fills:[], wins:[0,0,0],
+  bgDelta:0, bgNotional:0,      // simulated other-traders' book (driven by real tape)
+  pos:[], npos:0, realized:0,
+  vault:{fees:0,liq:0},
+  bal:CFG.startBal,
+  stats:{trades:0,liqs:0},
+  tickLast:Date.now(), lastBgf:0, lastUi:0,
+  side:'long',
+};
+
+function save(){
+  try{localStorage.setItem('prism_live_v2',JSON.stringify({bal:S.bal,realized:S.realized,pos:S.pos,npos:S.npos,vault:S.vault,stats:S.stats}));}catch(e){}
 }
-const candles = genCandles(64, 3.60);
+function loadState(){
+  try{
+    const j=JSON.parse(localStorage.getItem('prism_live_v2')||'null');
+    if(j){
+      S.bal=j.bal;S.realized=j.realized;S.pos=j.pos||[];S.npos=j.npos||0;
+      S.vault=j.vault||{fees:0,liq:0};S.stats=j.stats||{trades:0,liqs:0};
+      if(S.pos.length) pushFeed(`restored <b>${S.pos.length} position(s)</b> from this browser — balance $${fmt(S.bal)}`);
+    }
+  }catch(e){}
+}
+function resetSim(){
+  localStorage.removeItem('prism_live_v2');
+  location.reload();
+}
 
+// ---------- feed ----------
+const feedEl=$('feed');
+function pushFeed(txt,cls){
+  const d=document.createElement('div');
+  d.className=cls||'';
+  d.innerHTML=`<span style="color:var(--dim)">${tstr(Date.now())}</span> · ${txt}`;
+  feedEl.prepend(d);
+  while(feedEl.children.length>9) feedEl.lastChild.remove();
+}
+
+// ---------- market data ----------
+let ws=null;
+function connect(){
+  try{ws=new WebSocket(CFG.ws);}catch(e){setTimeout(connect,5000);return;}
+  ws.onopen=()=>{
+    S.live=true;S.offline=false;
+    badgeText('LIVE');
+    pushFeed('connected to <b>Binance spot NEAR/USDT</b> — live tape, depth & prices','g');
+  };
+  ws.onmessage=ev=>{
+    const m=JSON.parse(ev.data), d=m.data;
+    if(m.stream.endsWith('@trade')) onTrade(d);
+    else if(m.stream.endsWith('@miniTicker')) onMini(d);
+    else if(m.stream.endsWith('@bookTicker')){S.bid=+d.b;S.ask=+d.a;}
+    else if(m.stream.includes('@depth5')){S.depthB=d.bids.map(x=>[+x[0],+x[1]]);S.depthA=d.asks.map(x=>[+x[0],+x[1]]);}
+  };
+  ws.onerror=()=>{};
+  ws.onclose=()=>{ if(S.live)pushFeed('feed dropped — reconnecting…','r'); setTimeout(connect,4000); };
+}
+function badgeText(mode){
+  const b=$('badge');
+  b.innerHTML=`<span class="livedot ${mode==='LIVE'?'':'off'}"></span>`+(mode==='LIVE'
+    ?'LIVE FEED · Binance spot NEAR/USDT tape + USDT-M funding · PRISM sim — trades settle in-browser, nothing on-chain'
+    :'OFFLINE · simulated feed around last real price · auto-retrying');
+  b.classList.toggle('off',mode!=='LIVE');
+}
+// offline fallback: random walk around last real price
+function goOffline(){
+  if(S.offline)return;
+  S.offline=true;S.live=false;
+  if(!S.price)S.price=3.61;
+  if(!S.bid){S.bid=S.price-0.0005;S.ask=S.price+0.0005;}
+  badgeText('OFF');
+  pushFeed('live feed unavailable — <b>simulated feed</b> (random walk), sim still trades','r');
+}
+setInterval(()=>{ if(!S.offline) return;
+  onTradeSim(S.price*(1+(Math.random()-0.5)*0.0006), Date.now());
+},500);
+function onTradeSim(p,now){
+  S.bid=p-0.0005;S.ask=p+0.0005;
+  S.depthB=[...Array(5)].map((_,i)=>[p-0.0005-i*0.0002, 500+i*300]);
+  S.depthA=[...Array(5)].map((_,i)=>[p+0.0005+i*0.0002, 500+i*300]);
+  updatePrice(p,now);
+}
+
+function onTrade(d){
+  const p=+d.p, q=+d.q, usdc=p*q, now=d.T, buy=!d.m;
+  updatePrice(p,now);
+  S.tape.unshift({t:now,p,q,usdc,buy});
+  if(S.tape.length>24)S.tape.pop();
+  S.volRoll.push({t:now,usdc});
+  S.volRoll=S.volRoll.filter(x=>now-x.t<60000);
+  const cs=S.candles, cur=cs[cs.length-1];
+  if(cur){
+    const tfMs=CFG.tfMs[S.tf];
+    if(now-cur.t>=tfMs){
+      cs.push({t:Math.floor(now/tfMs)*tfMs,o:p,h:p,l:p,c:p,v:q});
+      if(cs.length>120)cs.shift();
+    } else {
+      if(p>cur.h)cur.h=p; if(p<cur.l)cur.l=p; cur.c=p; cur.v+=q;
+    }
+  }
+  if(usdc>15000) pushFeed(`tape: <b>${buy?'▲ buy':'▼ sell'} $${fmt(usdc)}</b> @ ${fmtp(p)}`, buy?'g':'r');
+  maybeBgf(now,usdc,buy);
+}
+function updatePrice(p,now){
+  const prev=S.price;
+  S.price=p;
+  const el=$('price');
+  el.textContent=fmtp(p);
+  el.className='px '+(p>prev?'flu':p<prev?'fld':'');
+  if(prev&&p!==prev){
+    clearTimeout(updatePrice._to);
+    updatePrice._to=setTimeout(()=>el.classList.remove('flu','fld'),400);
+  }
+}
+function onMini(d){
+  S.mini={o:+d.o,h:+d.h,l:+d.l,c:+d.c,v:+d.v,q:+d.q};
+}
+
+// ---------- klines / timeframes ----------
+async function loadKlines(tf){
+  S.tf=tf;
+  document.querySelectorAll('#tfs b').forEach(b=>b.classList.toggle('on',b.textContent===tf));
+  try{
+    const r=await fetch(CFG.klines(tf));
+    const arr=await r.json();
+    S.candles=arr.map(k=>({t:k[0],o:+k[1],h:+k[2],l:+k[3],c:+k[4],v:+k[5]}));
+    if(!S.price&&S.candles.length) S.price=S.candles[S.candles.length-1].c;
+    drawChart();
+  }catch(e){ pushFeed('candle load failed: '+String(e).slice(0,60),'r'); }
+}
+document.querySelectorAll('#tfs b').forEach(b=>{
+  b.onclick=()=>loadKlines(b.textContent);
+});
+
+// ---------- funding (real, Binance USDT-M) ----------
+async function pollFunding(){
+  try{
+    const r=await fetch(CFG.funding);
+    const j=await r.json();
+    S.funding={rate:+j.lastFundingRate,mark:+j.markPrice,index:+j.indexPrice,next:+j.nextFundingTime};
+  }catch(e){}
+  pollFundingUI();
+}
+setInterval(pollFunding,20000);
+function pollFundingUI(){
+  const f=S.funding;
+  if(!f.rate&&!f.mark)return;
+  const ratePct=f.rate*100;
+  const el=$('fundTop');
+  el.textContent=(ratePct>=0?'+':'')+ratePct.toFixed(4)+'%/h';
+  el._base=el.textContent;
+  el.style.color=ratePct>=0?'var(--red)':'var(--green)';
+  const prem=f.mark&&f.index?(f.mark-f.index)/f.index*100:0;
+  $('prem').textContent=(prem>=0?'+':'')+prem.toFixed(3)+'%';
+  $('prem').style.color=prem>=0?'var(--red)':'var(--green)';
+}
+
+// ---------- background book: other traders' intents, driven by the real tape ----------
+function maybeBgf(now,usdc,buy){
+  if(now-S.lastBgf<1500||usdc<40||S.offline)return;
+  S.lastBgf=now;
+  const w=Math.random();
+  const s=w<0.41?0:(w<0.74?1:2);
+  S.fills.push({p:S.price*(1+(Math.random()-0.5)*0.0004),s,usdc,you:false,t:now});
+  if(S.fills.length>30)S.fills.shift();
+  S.wins[s]++;
+  S.bgDelta+=buy?usdc:-usdc;
+  S.bgNotional+=usdc;
+}
+
+// ---------- ticket ----------
+const sizeEl=$('size'), levEl=$('lev');
+function liqPrice(side,ref,lev){
+  return side==='long' ? ref*(1-1/lev)/(1-CFG.maint) : ref*(1+1/lev)/(1+CFG.maint);
+}
+function setSide(s){
+  S.side=s;
+  $('tb-long').classList.toggle('on',s==='long');
+  $('tb-short').classList.toggle('on',s==='short');
+  recompute();
+}
+function impactFrac(size){
+  const tv=S.volRoll.reduce((a,b)=>a+b.usdc,0);
+  const spread=(S.ask&&S.bid&&S.price)?Math.max(0,(S.ask-S.bid)/S.price):0.00028;
+  return Math.min(0.004, 2*(size/Math.max(10000,tv))*spread);
+}
+function recompute(){
+  const size=+sizeEl.value||0, lev=+levEl.value;
+  $('levShow').textContent=lev+'×';
+  if(!S.price)return;
+  const u=size/S.price, margin=size/lev, fee=size*CFG.feeBp/1e4;
+  $('units').textContent=u.toLocaleString('en-US',{maximumFractionDigits:1})+' wNEAR';
+  $('margin').textContent='$'+fmt(margin);
+  $('maint').textContent='$'+fmt(size*CFG.maint);
+  $('fee').textContent='$'+fmt(fee);
+  const imp=impactFrac(size);
+  $('imp').textContent=(imp*10000).toFixed(1)+' bp';
+  $('tape1m').textContent='$'+fmt(S.volRoll.reduce((a,b)=>a+b.usdc,0));
+  $('liq').textContent=liqPrice(S.side,S.price,lev).toFixed(4);
+  const sub=$('submit');
+  sub.className='submit '+S.side;
+  sub.textContent=S.side==='long'?'Buy wNEAR · Long':'Sell wNEAR · Short';
+  renderQuotes();
+}
+
+// ---------- solver quotes: anchored to the live bid/ask ----------
+function renderQuotes(){
+  if(!S.price)return;
+  const long=S.side==='long';
+  const base=long?(S.ask||S.price):(S.bid||S.price);
+  const q=[{n:'Solver A',fee:1},{n:'Solver B',fee:2},{n:'Solver C',fee:3}].map(x=>{
+    const px=base*(1+(long?1:-1)*(Math.random()*0.0003));
+    const allin=px*(1+(x.fee/10000));
+    return {n:x.n,px,fee:x.fee,allin};
+  });
+  q.sort((a,b)=>long?a.allin-b.allin:b.allin-a.allin);
+  window.__quotes=q;
+  $('quotes').innerHTML=q.map((r,i)=>`
+    <div class="quote ${i===0?'best':''}">
+      <span class="name">${r.n}</span>
+      <span class="price">${fmtp(r.px)}</span>
+      <span class="fee">${r.fee}bp</span>
+      <span class="tot">${fmtp(r.allin)}</span>
+    </div>`).join('')
+    +`<div class="hint">price · fee · all-in ${long?'(you pay)':'(you receive)'} for $${fmt(+sizeEl.value||0)} — quotes anchored to the live ${long?'ask':'bid'}</div>`;
+}
+
+// ---------- order flow: intent → auction → fill ----------
+function submitOrder(){
+  const size=+sizeEl.value||0, lev=+levEl.value;
+  const margin=size/lev, fee=size*CFG.feeBp/1e4;
+  const errEl=$('err'); errEl.textContent='';
+  if(size<100) return errEl.textContent='min notional $100';
+  if(margin+fee>S.bal) return errEl.textContent='insufficient USDC — need $'+fmt(margin+fee);
+  if(!S.live&&!S.offline) return errEl.textContent='waiting for feed…';
+  const sub=$('submit'); sub.disabled=true;
+  const imp=impactFrac(size);
+  const px=S.side==='long'?(S.ask||S.price)*(1+imp):(S.bid||S.price)*(1-imp);
+  const steps=document.querySelectorAll('#stepper .step');
+  const show=()=>{
+    steps.forEach((x,i)=>{x.className='step'+(i===0?' active':'');});
+    setTimeout(()=>{steps[0].className='step done';steps[1].className='step active';renderQuotes();},180);
+    setTimeout(()=>{steps[1].className='step done';steps[2].className='step active';renderQuotes();},520);
+    setTimeout(()=>{
+      steps[2].className='step done';steps[3].className='step done';
+      openPosition(S.side,size,px,lev,fee);
+      setTimeout(()=>{steps.forEach(x=>x.className='step');sub.disabled=false;},900);
+    },820);
+  };
+  show();
+}
+function openPosition(side,size,px,lev,fee){
+  const margin=size/lev, units=size/px;
+  S.bal-=margin+fee; S.vault.fees+=fee; S.stats.trades++;
+  S.npos++;
+  const p={id:'L'+S.npos,side,notional:size,units,entry:px,lev,margin,funding:0,openedAt:Date.now()};
+  p.liq=liqPrice(side,px,lev);
+  S.pos.push(p);
+  const w=Math.random();
+  const s=w<0.41?0:(w<0.74?1:2);
+  S.fills.push({p:px,s,usdc:size,you:true,t:Date.now()});
+  if(S.fills.length>30)S.fills.shift();
+  S.wins[s]++;
+  pushFeed(`✔ <b>${p.id} ${side.toUpperCase()} $${fmt(size)}</b> @ ${fmtp(px)} via ${SOLV[s].n} · margin $${fmt(margin)} · fee $${fmt(fee)}`,'g');
+  save(); renderPositions();
+}
+function closePosition(id){
+  const p=S.pos.find(x=>x.id===id); if(!p)return;
+  const sign=p.side==='long'?1:-1;
+  const imp=impactFrac(p.notional);
+  const px=sign>0?(S.bid||S.price)*(1-imp):(S.ask||S.price)*(1+imp);
+  const fee=p.units*px*CFG.feeBp/1e4;
+  const pnl=sign*p.units*(px-p.entry);
+  const net=p.margin+pnl-p.funding-fee;
+  S.bal+=net; S.realized+=pnl-p.funding-fee; S.vault.fees+=fee;
+  S.pos=S.pos.filter(x=>x!==p);
+  const tot=pnl-p.funding-fee;
+  pushFeed(`✕ <b>${p.id} closed</b> @ ${fmtp(px)} · PnL <b>${tot>=0?'+$':'-$'}${fmt(Math.abs(tot))}</b> (funding $${fmt(Math.abs(p.funding))})`,tot>=0?'g':'r');
+  save(); renderPositions();
+}
+function liquidate(p,now){
+  const sign=p.side==='long'?1:-1;
+  const gap=(0.0012+Math.random()*0.003)*(p.side==='long'?1:-1);
+  const settle=S.price*(1-gap);
+  const pnl=sign*p.units*(settle-p.entry);
+  const residual=Math.max(0,p.margin+pnl-p.funding);
+  const userGets=0.5*residual;
+  S.bal+=userGets; S.vault.liq+=0.5*residual;
+  S.realized+=(pnl-p.funding);
+  S.stats.liqs++;
+  pushFeed(`⚡ <b>${p.id} LIQUIDATED</b> @ ${fmtp(settle)} (gap ${(Math.abs(gap)*100).toFixed(2)}%) · residual $${fmt(residual)} split 50/50 · you get <b>$${fmt(userGets)}</b>`,'r');
+  S.pos=S.pos.filter(x=>x!==p);
+  save(); renderPositions();
+}
+
+// ---------- chart: live candles + volume + position overlays ----------
 function drawChart(){
-  const svg=document.getElementById('chart');
-  const W=900,H=340,pl=8,pr=52,pt=10,pb=18;
+  const svg=$('chart');
+  const cs=S.candles;
+  if(!cs.length)return;
+  const W=940,H=360,pl=8,pr=58,pt=8,pb=20;
   const cw=W-pl-pr, ch=H-pt-pb;
-  // projected liquidation from the ticket (side + leverage), included in the y-range
-  const lp0=liqPrice(state.side,mark,state.lev);
-  const lpIn=lp0>mark*0.55&&lp0<mark*1.8;
-  let lo=Math.min(...candles.map(x=>x.l))-0.01;
-  let hi=Math.max(...candles.map(x=>x.h),MARK0)+0.01;
-  if(lpIn){lo=Math.min(lo,lp0-0.01);hi=Math.max(hi,lp0+0.01);}
+  const N=Math.min(90,cs.length);
+  const view=cs.slice(-N);
+  let lo=Infinity,hi=-Infinity;
+  view.forEach(k=>{lo=Math.min(lo,k.l);hi=Math.max(hi,k.h);});
+  S.pos.forEach(p=>{
+    [p.entry,p.liq].forEach(v=>{ if(v&&v>lo*0.88&&v<hi*1.12){lo=Math.min(lo,v);hi=Math.max(hi,v);} });
+  });
+  const pad=(hi-lo)*0.08||0.01; lo-=pad; hi+=pad;
   const y=v=>pt+ch*(1-(v-lo)/(hi-lo));
-  const xw=cw/candles.length;
+  const xw=cw/N, volH=ch*0.2;
+  const maxV=Math.max(...view.map(k=>k.v),1);
   let s='';
-  // grid
   for(let i=0;i<=4;i++){
     const gy=pt+ch*i/4, gv=hi-(hi-lo)*i/4;
-    s+=`<line x1="${pl}" y1="${gy}" x2="${W-pr}" y2="${gy}" stroke="#1e2635" stroke-width="1"/>`;
+    s+=`<line x1="${pl}" y1="${gy}" x2="${W-pr}" y2="${gy}" stroke="#1e2635"/>`;
     s+=`<text x="${W-pr+6}" y="${gy+4}" fill="#4c5a72" font-size="10">${gv.toFixed(2)}</text>`;
   }
-  // candles
-  candles.forEach((k,i)=>{
+  const step=Math.ceil(N/6);
+  view.forEach((k,i)=>{
+    if(i%step===0){
+      const t=new Date(k.t).toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+      s+=`<text x="${pl+i*xw+xw/2}" y="${H-6}" fill="#4c5a72" font-size="9" text-anchor="middle">${t}</text>`;
+    }
+  });
+  view.forEach((k,i)=>{
     const x=pl+i*xw+xw/2, bw=Math.max(2,xw*0.62);
-    const up=k.c>=k.o, col=up?'#22c55e':'#ef4444';
+    const vh=k.v/maxV*volH;
+    s+=`<rect x="${x-bw/2}" y="${pt+ch-vh}" width="${bw}" height="${vh}" fill="${k.c>=k.o?'#22c55e':'#ef4444'}" opacity="0.18"/>`;
+  });
+  view.forEach((k,i)=>{
+    const x=pl+i*xw+xw/2, bw=Math.max(2,xw*0.62);
+    const col=k.c>=k.o?'#22c55e':'#ef4444';
     s+=`<line x1="${x}" y1="${y(k.h)}" x2="${x}" y2="${y(k.l)}" stroke="${col}" stroke-width="1"/>`;
-    const yo=y(k.o),yc=y(k.c), top=Math.min(yo,yc), hgt=Math.max(1,Math.abs(yc-yo));
+    const yo=y(k.o),yc=y(k.c),top=Math.min(yo,yc),hgt=Math.max(1.2,Math.abs(yc-yo));
     s+=`<rect x="${x-bw/2}" y="${top}" width="${bw}" height="${hgt}" fill="${col}" rx="1"/>`;
   });
-  // mark line
-  s+=`<line x1="${pl}" y1="${y(MARK0)}" x2="${W-pr}" y2="${y(MARK0)}" stroke="#38bdf8" stroke-width="1.5" stroke-dasharray="5 4"/>`;
-  s+=`<rect x="${W-pr+2}" y="${y(MARK0)-9}" width="50" height="18" rx="3" fill="#0ea5e9"/>`;
-  s+=`<text x="${W-pr+27}" y="${y(MARK0)+4}" fill="#04263a" font-size="10" font-weight="700" text-anchor="middle">mark</text>`;
-  // entry line = the actually-open position; liquidation line = your ticket (side + leverage from mark)
-  const eY=y(pos.entry);
-  s+=`<line x1="${pl}" y1="${eY}" x2="${W-pr}" y2="${eY}" stroke="#22c55e" stroke-width="1.2"/>`;
-  s+=`<text x="${pl+4}" y="${eY-4}" fill="#22c55e" font-size="10">entry ${pos.entry.toFixed(2)} · open 10× long</text>`;
-  if(lpIn){
-    const lY=y(lp0);
-    s+=`<line x1="${pl}" y1="${lY}" x2="${W-pr}" y2="${lY}" stroke="#ef4444" stroke-width="1.4" stroke-dasharray="5 4"/>`;
-    s+=`<text x="${W-pr-4}" y="${state.side==='long'?lY-4:lY+12}" fill="#ef4444" font-size="10" font-weight="600" text-anchor="end" paint-order="stroke" stroke="#0b0e14" stroke-width="3">liq ${lp0.toFixed(4)} · ${state.lev}× ${state.side}</text>`;
-  } else if(lp0>0){
-    const atBottom=lp0<lo;
-    s+=`<text x="${W-pr-4}" y="${atBottom?pt+ch-4:pt+12}" fill="#ef4444" font-size="10" font-weight="600" text-anchor="end" paint-order="stroke" stroke="#0b0e14" stroke-width="3">liq ${lp0.toFixed(4)} · ${state.lev}× ${state.side} ${atBottom?'↓':'↑'} (off-scale)</text>`;
-  } else {
-    s+=`<text x="${W-pr-4}" y="${pt+ch-4}" fill="#ef4444" font-size="10" font-weight="600" text-anchor="end" paint-order="stroke" stroke="#0b0e14" stroke-width="3">1× ${state.side} — no liquidation (equity only reaches $0)</text>`;
+  const mp=S.price;
+  if(mp>lo&&mp<hi){
+    s+=`<line x1="${pl}" y1="${y(mp)}" x2="${W-pr}" y2="${y(mp)}" stroke="#38bdf8" stroke-width="1.2" stroke-dasharray="5 4"/>`;
+    s+=`<rect x="${W-pr+2}" y="${y(mp)-9}" width="54" height="18" rx="3" fill="#0ea5e9"/>`;
+    s+=`<text x="${W-pr+29}" y="${y(mp)+4}" fill="#04263a" font-size="10" font-weight="700" text-anchor="middle">${mp.toFixed(3)}</text>`;
   }
+  S.pos.forEach(p=>{
+    if(p.entry>lo&&p.entry<hi){
+      const eY=y(p.entry), col=p.side==='long'?'#22c55e':'#ef4444';
+      s+=`<line x1="${pl}" y1="${eY}" x2="${W-pr}" y2="${eY}" stroke="${col}" stroke-width="1.1"/>`;
+      s+=`<text x="${pl+4}" y="${eY-3}" fill="${col}" font-size="9">${p.id} entry ${p.entry.toFixed(3)} · ${p.lev}× ${p.side}</text>`;
+    }
+    if(p.liq&&p.liq>lo&&p.liq<hi){
+      const lY=y(p.liq);
+      s+=`<line x1="${pl}" y1="${lY}" x2="${W-pr}" y2="${lY}" stroke="#f87171" stroke-width="1.2" stroke-dasharray="4 4"/>`;
+      s+=`<text x="${W-pr-4}" y="${lY+(p.side==='long'?12:-4)}" fill="#f87171" font-size="9" text-anchor="end">liq ${p.liq.toFixed(3)}</text>`;
+    }
+  });
+  svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
   svg.innerHTML=s;
 }
 
-function liqPrice(side, ref, lev){
-  return side==='long' ? ref*(1-1/lev)/(1-maint) : ref*(1+1/lev)/(1+maint);
-}
-const fmt=n=>n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
-
-function recompute(){
-  state.size=+document.getElementById('size').value||0;
-  state.lev=+document.getElementById('lev').value;
-  document.getElementById('levShow').textContent=state.lev+'×';
-  const u=state.size/mark;
-  const margin=state.size/state.lev;
-  const fee=state.size*2/10000;
-  document.getElementById('units').textContent=u.toLocaleString('en-US',{maximumFractionDigits:1})+' wNEAR';
-  document.getElementById('margin').textContent='$'+fmt(margin);
-  document.getElementById('maint').textContent='$'+fmt(state.size*maint);
-  document.getElementById('fee').textContent='$'+fmt(fee);
-  document.getElementById('liq').textContent=liqPrice(state.side,mark,state.lev).toFixed(4);
-  const sub=document.getElementById('submit');
-  sub.className='submit '+state.side;
-  sub.textContent=state.side==='long'?'Buy wNEAR · Long':'Sell wNEAR · Short';
-  renderQuotes();
-  drawChart(); // liquidation line follows side + leverage live
-}
-function setSide(s){
-  state.side=s;
-  document.getElementById('tb-long').classList.toggle('on',s==='long');
-  document.getElementById('tb-short').classList.toggle('on',s==='short');
-  recompute();
-}
-
-// ---------- solver quotes (the "intent book") ----------
-function renderQuotes(){
-  const dir=state.side==='long'?1:-1; // buy pays a little over mark; sells bid a little under
-  const q=[
-    {n:'Solver A',  off: +1, fee:1},
-    {n:'Solver B',  off: -1, fee:2},
-    {n:'Solver C',  off: +2, fee:1},
-  ].map(x=>{
-    const px=mark+x.off*0.0001*dir;
-    const cost=px*(1+(x.fee/10000));
-    return {...x, px, cost, allin:cost};
-  });
-  // best = lowest all-in for a buy, highest for a sell
-  q.sort((a,b)=> state.side==='long' ? a.allin-b.allin : b.allin-a.allin);
-  document.getElementById('quotes').innerHTML=q.map((r,i)=>`
-    <div class="quote ${i===0?'best':''}">
-      <span class="name">${r.n}</span>
-      <span class="price">${r.px.toFixed(4)}</span>
-      <span class="fee">${r.fee}bp</span>
-      <span class="tot">${r.allin.toFixed(4)}</span>
-    </div>`).join('')
-    +`<div class="hint">price · fee · all-in ${state.side==='long'?'(you pay)':'(you receive)'} for $${fmt(state.size)}</div>`;
-}
-
-// ---------- fill ribbon: auction history (price discovery) ----------
-const SOLV=[{n:'A',c:'#38bdf8'},{n:'B',c:'#22c55e'},{n:'C',c:'#a78bfa'}];
-let fills=[];
-function seedFills(){
-  let p=MARK0;
-  for(let i=0;i<30;i++){
-    p+=(Math.random()-0.5)*0.0012;
-    const w=Math.random();
-    fills.push({p:p*(1+(0.5+Math.random()*1.5)/10000*(Math.random()<0.5?1:-1)),s:w<0.41?0:(w<0.74?1:2),t:i});
+// ---------- tape + depth ----------
+function renderTape(){
+  const el=$('tape');
+  if(!S.tape.length){el.innerHTML='<div class="empty">waiting for live feed…</div>';return;}
+  el.innerHTML=S.tape.slice(0,18).map(t=>`
+    <div>
+      <span class="t">${tstr(t.t)}</span>
+      <span class="sb ${t.buy?'b':'s'}">${t.buy?'▲':'▼'}</span>
+      <span class="p">${fmtp(t.p)}</span>
+      <span class="q">${t.q.toLocaleString('en-US',{maximumFractionDigits:1})} NEAR</span>
+      <span class="u">$${fmt(t.usdc)}</span>
+    </div>`).join('');
+  const tv=S.volRoll.reduce((a,b)=>a+b.usdc,0);
+  $('tape1m').textContent='$'+fmt(tv);
+  $('bidpx').textContent=S.bid?fmtp(S.bid):'—';
+  $('askpx').textContent=S.ask?fmtp(S.ask):'—';
+  if(S.bid&&S.ask){
+    const sp=S.ask-S.bid;
+    $('spreadv').textContent=sp.toFixed(4)+' ('+(sp/S.price*10000).toFixed(1)+'bp)';
   }
 }
-function recordFill(){
-  const w=Math.random();
-  fills.push({p:mark*(1+(Math.random()-0.5)*0.0004),s:w<0.41?0:(w<0.74?1:2),t:Date.now()});
-  if(fills.length>30)fills.shift();
+function renderDepth(){
+  const el=$('depth');
+  if(!S.depthA.length||!S.depthB.length){el.innerHTML='';return;}
+  const maxQ=Math.max(...S.depthA.map(x=>x[1]),...S.depthB.map(x=>x[1]),1);
+  let s='';
+  for(let i=S.depthA.length-1;i>=0;i--){
+    const [px,qq]=S.depthA[i];
+    s+=`<div class="dl"><span class="ax">${fmtp(px)}</span><span class="bar" style="left:60px;width:${qq/maxQ*38}%;background:var(--red)"></span><span class="aqq">${qq.toFixed(0)}</span></div>`;
+  }
+  s+=`<div class="dc">best bid ${S.bid?fmtp(S.bid):'—'} · spread ${S.bid&&S.ask&&S.price?((S.ask-S.bid)/S.price*10000).toFixed(1):'—'}bp</div>`;
+  for(let i=0;i<S.depthB.length;i++){
+    const [px,qq]=S.depthB[i];
+    s+=`<div class="dl"><span class="ab">${fmtp(px)}</span><span class="bar" style="left:60px;width:${qq/maxQ*38}%;background:var(--green)"></span><span class="bqq">${qq.toFixed(0)}</span></div>`;
+  }
+  el.innerHTML=s;
 }
+
+// ---------- positions + vault ----------
+function pnlOf(p){
+  const sign=p.side==='long'?1:-1;
+  return sign*p.units*(S.price-p.entry);
+}
+function renderPositions(){
+  const tb=$('postable');
+  $('poscount').textContent=S.pos.length+' open';
+  if(!S.pos.length){
+    tb.innerHTML='<tr><td colspan="6" class="empty">no open positions — place your first intent</td></tr>';
+    $('totpnl').textContent='—'; $('toTEq').textContent='—';
+    return;
+  }
+  let tpnl=0, teq=0;
+  tb.innerHTML=S.pos.map(p=>{
+    const pnl=pnlOf(p);
+    const eq=p.margin+pnl-p.funding;
+    tpnl+=pnl; teq+=eq;
+    const pc=pnl>=0?'up':'dn';
+    return `<tr>
+      <td><span class="side-tag ${p.side}">${p.side.toUpperCase()} ${p.lev}×</span><br><span style="color:var(--dim);font-size:11px">$${fmt(p.notional)}</span></td>
+      <td>${fmtp(p.entry)}</td>
+      <td>${fmtp(S.price)}</td>
+      <td class="${pc}">${pnl>=0?'+$':'-$'}${fmt(Math.abs(pnl))}</td>
+      <td style="color:var(--red)">${p.liq.toFixed(4)}</td>
+      <td><button class="cl" onclick="closePosition('${p.id}')">close</button></td>
+    </tr>`;
+  }).join('');
+  $('totpnl').textContent=(tpnl>=0?'+$':'-$')+fmt(Math.abs(tpnl));
+  $('totpnl').className=tpnl>=0?'up':'dn';
+  $('toTEq').textContent='$'+fmt(teq);
+}
+function renderVault(){
+  const vEq=CFG.vaultSeed+S.vault.fees+S.vault.liq;
+  const userNet=S.pos.reduce((a,p)=>a+(p.side==='long'?p.notional:-p.notional),0);
+  const userNot=S.pos.reduce((a,p)=>a+p.notional,0);
+  const delta=userNet+S.bgDelta;
+  const notional=userNot+S.bgNotional;
+  const cap=10*vEq;
+  $('vEq').textContent='$'+fmt(vEq);
+  const dTxt=Math.abs(delta)>=1000?fmt(Math.abs(delta)/1000)+'k':fmt(Math.abs(delta));
+  $('vDelta').textContent=(delta>=0?'+':'−')+'$'+dTxt;
+  $('vDelta').className=delta>=0?'dn':'up';
+  $('vCap').textContent='$'+fmt(notional)+' / $'+fmt(cap);
+  const vpnl=-S.pos.reduce((a,p)=>a+pnlOf(p),0);
+  $('vPnl').textContent=(vpnl>=0?'+$':'-$')+fmt(Math.abs(vpnl));
+  $('vPnl').className=vpnl>=0?'up':'dn';
+}
+
+// ---------- ribbon + winrate ----------
 function drawRibbon(){
-  const svg=document.getElementById('ribbon');
-  if(!svg||!fills.length)return;
-  const W=560,H=64;
-  const ps=fills.map(f=>f.p);
-  let lo=Math.min.apply(null,ps.concat(mark)),hi=Math.max.apply(null,ps.concat(mark));
+  const svg=$('ribbon');
+  if(!svg||!S.fills.length)return;
+  const W=560,H=56;
+  const ps=S.fills.map(f=>f.p);
+  let lo=Math.min.apply(null,ps.concat([S.price])),hi=Math.max.apply(null,ps.concat([S.price]));
   const pad=(hi-lo)*0.25||0.001; lo-=pad;hi+=pad;
-  const X=i=>10+i*(W-20)/(fills.length-1), Y=p=>H-8-((p-lo)/(hi-lo))*(H-16);
-  let s=`<line x1="8" y1="${Y(mark)}" x2="${W-8}" y2="${Y(mark)}" stroke="var(--dim)" stroke-width="1" stroke-dasharray="3 4"/>`;
-  s+=`<text x="${W-8}" y="${Y(mark)-3}" fill="var(--dim)" font-size="8" text-anchor="end">mark ${mark.toFixed(4)}</text>`;
-  fills.forEach((f,i)=>{
-    const last=i===fills.length-1;
-    s+=`<circle cx="${X(i)}" cy="${Y(f.p)}" r="${last?4:2.6}" fill="${SOLV[f.s].c}" opacity="${last?1:0.75}"/>`;
+  const X=i=>10+i*(W-20)/(S.fills.length-1), Y=p=>H-8-((p-lo)/(hi-lo))*(H-16);
+  let s=`<line x1="8" y1="${Y(S.price)}" x2="${W-8}" y2="${Y(S.price)}" stroke="var(--dim)" stroke-width="1" stroke-dasharray="3 4"/>`;
+  s+=`<text x="${W-8}" y="${Y(S.price)-3}" fill="var(--dim)" font-size="8" text-anchor="end">price ${S.price.toFixed(4)}</text>`;
+  S.fills.forEach((f,i)=>{
+    const last=i===S.fills.length-1;
+    if(f.you){
+      s+=`<circle cx="${X(i)}" cy="${Y(f.p)}" r="6" fill="none" stroke="var(--fg)" stroke-width="1.2"/>`;
+    }
+    s+=`<circle cx="${X(i)}" cy="${Y(f.p)}" r="${last?3.6:2.4}" fill="${SOLV[f.s].c}" opacity="${last?1:0.7}"/>`;
   });
-  const lf=fills[fills.length-1];
-  s+=`<text x="${X(fills.length-1)-8}" y="${Y(lf.p)-6}" fill="var(--fg)" font-size="9" font-weight="600" text-anchor="end">${lf.p.toFixed(4)}</text>`;
+  const lf=S.fills[S.fills.length-1];
+  s+=`<text x="${X(S.fills.length-1)-8}" y="${Y(lf.p)-7}" fill="var(--fg)" font-size="9" font-weight="600" text-anchor="end">${lf.p.toFixed(4)}${lf.you?' · you':''}</text>`;
   svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
   svg.innerHTML=s;
 }
 function drawWinrate(){
-  const el=document.getElementById('winrate');
-  if(!el||!fills.length)return;
-  const n=fills.length,w=[0,0,0];
-  fills.forEach(f=>w[f.s]++);
+  const el=$('winrate');
+  const n=S.fills.length;
+  if(!n){el.innerHTML='';return;}
   el.innerHTML=SOLV.map((sv,i)=>
-    `<span class="wchip"><i style="background:${sv.c}"></i>Solver ${sv.n} · <b>${Math.round(w[i]/n*100)}%</b> · ${w[i]} fills</span>`).join('')
-    +`<span class="wchip" style="border-style:dashed">win rate = who took the other side of each intent</span>`;
+    `<span class="wchip"><i style="background:${sv.c}"></i>Solver ${sv.n} · <b>${Math.round(S.wins[i]/(S.wins[0]+S.wins[1]+S.wins[2]||1)*100)}%</b> · ${S.wins[i]} fills</span>`).join('')
+    +`<span class="wchip" style="border-style:dashed">who took the other side of each intent</span>`;
 }
 
-// ---------- activity feed ----------
-const feedEl=document.getElementById('feed');
-function pushFeed(txt,cls){
-  const d=document.createElement('div');
-  d.className=cls||'';
-  d.innerHTML=txt;
-  feedEl.prepend(d);
-  while(feedEl.children.length>6) feedEl.lastChild.remove();
+// ---------- top bar ----------
+function renderTop(){
+  $('bal').textContent='$'+fmt(S.bal);
+  $('real').textContent=(S.realized>=0?'+$':'-$')+fmt(Math.abs(S.realized));
+  $('ntr').textContent=S.stats.trades;
+  $('nliq').textContent=S.stats.liqs;
+  if(S.mini){
+    const chg=(S.mini.c-S.mini.o)/S.mini.o*100;
+    const c=$('chg24');
+    c.textContent=(chg>=0?'+':'')+chg.toFixed(2)+'%';
+    c.className=chg>=0?'up':'dn';
+    $('vol24').textContent='$'+(S.mini.q/1e6).toFixed(1)+'M';
+    $('hi24').textContent=S.mini.h.toFixed(3);
+    $('lo24').textContent=S.mini.l.toFixed(3);
+  }
+  const f=S.funding;
+  if(f.next){
+    let ms=f.next-Date.now();
+    if(ms<0)ms+=3600000;
+    const h=String(Math.floor(ms/3600000)).padStart(2,'0'),
+          m=String(Math.floor(ms%3600000/60000)).padStart(2,'0'),
+          s=String(Math.floor(ms%60000/1000)).padStart(2,'0');
+    const el=$('fundTop');
+    if(!el._base)el._base=el.textContent;
+    el.textContent=`${el._base} · next in ${h}:${m}:${s}`;
+  }
 }
-pushFeed(`<b>Solver B</b> filled 2,777 wNEAR long @ 3.649 (2bp) <b>+$138.89 PnL</b>`,'g');
-pushFeed(`funding applied · <b>−$0.37</b> (longs pay)`, 'r');
-pushFeed(`<b>Solver A</b> filled 1,204 wNEAR short @ 3.652 (1bp)`,'r');
-pushFeed(`intent #4471 → <b>3 solvers quoted</b> → filled in 380ms`);
-pushFeed(`mark updated by oracle: <b>3.6500</b> (+0.04%)`);
 
-function submitOrder(){
-  const best=document.querySelector('.quote.best .name').textContent.replace(' ✓ best','').trim();
-  pushFeed(`your intent → <b>${best}</b> selected → <b>${state.side} $${fmt(state.size)}</b> filled`,'g');
-  const st=document.querySelectorAll('#stepper .step');
-  st.forEach(x=>{x.classList.remove('active');x.classList.add('done');});
-  setTimeout(()=>st.forEach(x=>x.classList.remove('done')),400);
-}
-
-// ---------- live tick ----------
-let cd=42*60+13;
+// ---------- main tick: funding accrual, liquidations, UI refresh ----------
 setInterval(()=>{
-  mark=MARK0+(Math.random()-0.5)*0.004; // tiny live wiggle
-  const chg=((mark-MARK0)/MARK0*100);
-  document.getElementById('mark').textContent=mark.toFixed(4);
-  document.getElementById('mark2').textContent=mark.toFixed(4);
-  document.getElementById('posMark').textContent=mark.toFixed(4);
-  const pnl=pos.units*(mark-pos.entry);
-  const pe=document.getElementById('posPnl');
-  pe.textContent=(pnl>=0?'+$':'-$')+fmt(Math.abs(pnl));
-  pe.className=pnl>=0?'up':'dn';
-  const fp=pos.units*mark*0.0001/10000;
-  const fe=document.getElementById('fundPay'); fe.textContent='−$'+fp.toFixed(2);
-  document.getElementById('bal').textContent=fmt(10000+pnl);
-  recompute();
-  if(Math.random()<0.55){recordFill();drawRibbon();drawWinrate();}
-  // countdown
-  cd=Math.max(0,cd-1);
-  const h=String(Math.floor(cd/3600)).padStart(2,'0'),m=String(Math.floor(cd%3600/60)).padStart(2,'0'),s=String(cd%60).padStart(2,'0');
-  document.getElementById('cd').textContent=`${h}:${m}:${s}`;
-  if(cd===0) cd=3600;
-},1500);
+  const now=Date.now();
+  let dt=(now-S.tickLast)/1000;
+  S.tickLast=now;
+  if(dt>5)dt=5;
+  if(S.price){
+    // funding accrual (real hourly rate, applied continuously) + liquidation check
+    for(const p of [...S.pos]){
+      const sign=p.side==='long'?1:-1;
+      p.funding+=S.funding.rate*sign*p.units*S.price*dt/3600;
+      const eq=p.margin+pnlOf(p)-p.funding;
+      const maint=p.units*S.price*CFG.maint;
+      if(eq<maint) liquidate(p,now);
+    }
+    // background book decays (other traders close out)
+    const k=1-dt/600;
+    S.bgDelta*=k; S.bgNotional*=k;
+    recompute();
+    if(now-S.lastUi>500){
+      S.lastUi=now;
+      drawChart(); renderTape(); renderDepth(); renderPositions(); renderVault();
+      renderTop(); drawRibbon(); drawWinrate(); pollFundingUI();
+    }
+  }
+},400);
 
-seedFills();drawRibbon();drawWinrate();
-drawChart();
+// ---------- init ----------
+loadState();
+connect();
+setTimeout(()=>{ if(!S.live) goOffline(); },6000);
+loadKlines('1m');
+pollFunding();
+pushFeed('PRISM live sim — your fills use the <b>real bid/ask + live tape impact</b>');
 recompute();
 </script>
 </body>
