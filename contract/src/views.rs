@@ -39,6 +39,10 @@ pub struct MarketView {
     pub funding_base_annual_bps: u32,
     /// Current utilization multiplier (10000 = 1×).
     pub funding_multiplier_bps: u32,
+    /// Realized volatility of the oracle price (annualized bps, capped); 0 when switched off.
+    pub realized_vol_bps: u32,
+    /// Volatility funding is priced at: max(implied_vol_bps floor, realized_vol_bps).
+    pub funding_vol_bps: u32,
     pub funding_pending: U128,
     pub free_total: U128,
     pub fees: U128,
@@ -160,6 +164,8 @@ impl Contract {
             funding_rate_annual_bps: (self.funding_rate_at_e18(Self::utilization_bps(l.c_raw, l.risk_pool)) * BPS / ONE) as u32,
             funding_base_annual_bps: (self.base_funding_rate_e18() * BPS / ONE) as u32,
             funding_multiplier_bps: self.util_multiplier_bps(Self::utilization_bps(l.c_raw, l.risk_pool)) as u32,
+            realized_vol_bps: self.realized_vol_bps(),
+            funding_vol_bps: self.funding_vol_bps(),
             funding_pending: U128(l.funding_pending),
             free_total: U128(self.free_total),
             fees: U128(self.fees + l.fee_pending),

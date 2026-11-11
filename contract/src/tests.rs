@@ -1,4 +1,5 @@
 use crate::oracle::{OracleConfig, PythPrice};
+use crate::math::BPS;
 use crate::{Contract, Params};
 use near_contract_standards::fungible_token::receiver::FungibleTokenReceiver;
 use near_sdk::json_types::{I64, U128, U64};
@@ -47,13 +48,14 @@ fn params() -> Params {
         util_mult_base_bps: 10_000,
         util_mult_slope_bps: 0,
         util_mult_kink_slope_bps: 0,
+        rv_halflife_secs: 0,
         ..Params::default()
     }
 }
 
-/// Default multiplier: 0.5× at u = 0, 1× at the 50% kink, 21.5× at 100%.
+/// Default multiplier: 1.25× at u = 0, 1.75× at the 50% kink, 22.25× at 100%. Realized vol off.
 fn util_params() -> Params {
-    Params { trade_fee_bps: 0, funding_fee_bps: 0, max_jump_bps: 5_000, max_open_bps: 10_000, ..Params::default() }
+    Params { trade_fee_bps: 0, funding_fee_bps: 0, max_jump_bps: 5_000, max_open_bps: 10_000, rv_halflife_secs: 0, ..Params::default() }
 }
 
 #[test]
@@ -115,11 +117,11 @@ fn funding_after_one_day(flat: u128, curve: u128, price_after_open: u128) -> (u1
 #[test]
 fn multiplier_matches_spec() {
     let c = setup(util_params());
-    assert_eq!(c.util_multiplier_bps(0), 5_000);
-    assert_eq!(c.util_multiplier_bps(2_500), 7_500);
-    assert_eq!(c.util_multiplier_bps(5_000), 10_000);
-    assert_eq!(c.util_multiplier_bps(7_500), 12_500 + 100_000);
-    assert_eq!(c.util_multiplier_bps(10_000), 15_000 + 200_000);
+    assert_eq!(c.util_multiplier_bps(0), 12_500);
+    assert_eq!(c.util_multiplier_bps(2_500), 15_000);
+    assert_eq!(c.util_multiplier_bps(5_000), 17_500);
+    assert_eq!(c.util_multiplier_bps(7_500), 20_000 + 100_000);
+    assert_eq!(c.util_multiplier_bps(10_000), 22_500 + 200_000);
 }
 
 #[test]
@@ -136,9 +138,49 @@ fn rally_past_the_kink_makes_funding_steep() {
     // Open at 33% utilization, then a rally pushes long claims to ~65% of the pool.
     let (_, m_open) = funding_after_one_day(2_000, 1_000, P5);
     let (paid, m_rally) = funding_after_one_day(2_000, 1_000, 7_000_000);
-    assert!(m_open < 10_000 && m_rally > 15_000, "open {m_open} rally {m_rally}");
+    assert!(m_open < 17_500 && m_rally > 20_000, "open {m_open} rally {m_rally}");
     // Fair rate is 0.64/yr; at m > 1.5× one day costs > 0.26% of the (now ~$1,960) claim.
     assert!(paid > 5_000_000, "paid {paid}");
+}
+
+#[test]
+#[should_panic(expected = "never below fair funding")]
+fn multiplier_floor_below_fair_is_rejected() {
+    setup(Params { util_mult_base_bps: 5_000, ..params() });
+}
+
+/// Hourly prices for `days` days, alternating ±move_bps, starting at `t0`. Returns the last timestamp.
+fn wiggle(c: &mut Contract, t0: u64, days: u64, move_bps: u128) -> u64 {
+    let mut t = t0;
+    for h in 0..days * 24 {
+        t += 3_600;
+        let px = if h % 2 == 0 { P5 * (BPS + move_bps) / BPS } else { P5 };
+        push(c, px, t);
+    }
+    t
+}
+
+#[test]
+fn realized_vol_tracks_the_oracle_and_lifts_funding() {
+    let p = Params { rv_halflife_secs: 1_814_400, ..params() };
+    // Calm market: 0.2% hourly moves ≈ 0.002 · sqrt(8760) ≈ 19% a year, below the 80% floor.
+    let mut c = setup(p.clone());
+    wiggle(&mut c, T0, 60, 20);
+    let m = c.get_market();
+    assert!((1_500..=2_300).contains(&m.realized_vol_bps), "calm rv {}", m.realized_vol_bps);
+    assert_eq!(m.funding_vol_bps, 8_000);
+    // Wild market: 2% hourly moves ≈ 187% a year; funding follows it.
+    let mut c = setup(p.clone());
+    wiggle(&mut c, T0, 60, 200);
+    let m = c.get_market();
+    assert!((15_500..=19_500).contains(&m.realized_vol_bps), "wild rv {}", m.realized_vol_bps);
+    assert_eq!(m.funding_vol_bps, m.realized_vol_bps);
+    // p = 2: fair rate = σ², so base funding is about (1.7)² ≈ 290%/yr instead of 64% (the EWMA is ~86% warmed up after 60 days).
+    assert!(m.funding_base_annual_bps > 25_000, "base {}", m.funding_base_annual_bps);
+    // Same-second prints and the cap: one 40% print can't push funding past rv_cap_bps.
+    let mut c = setup(Params { rv_cap_bps: 12_000, max_jump_bps: 5_000, ..p });
+    push(&mut c, P5 * 14 / 10, T0 + 60);
+    assert!(c.get_market().realized_vol_bps <= 12_000);
 }
 
 fn setup(p: Params) -> Contract {
@@ -293,7 +335,7 @@ fn shorts_can_exit_any_time_and_funding_turns_extreme() {
     c.set_params(util_params());
     let m = c.get_market();
     assert_eq!(m.utilization_bps, 8_000);
-    assert_eq!(m.funding_multiplier_bps, 5_000 + 8_000 + 120_000); // 13.3× fair
+    assert_eq!(m.funding_multiplier_bps, 12_500 + 8_000 + 120_000); // 14.05× fair
     solvent(&c);
 }
 

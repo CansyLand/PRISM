@@ -12,13 +12,20 @@ pub fn validate_params(p: &Params) {
     require!((1..=10).contains(&p.power), "power must be 1..=10");
     require!(p.implied_vol_bps <= 50_000, "implied_vol_bps > 500%");
     require!(p.base_funding_bps <= 10_000, "base_funding_bps > 100%/yr");
-    require!(p.util_mult_base_bps <= 20_000, "util_mult_base_bps > 2×");
+    require!(
+        (10_000..=40_000).contains(&p.util_mult_base_bps),
+        "util_mult_base_bps must be 10000..=40000 (never below fair funding)"
+    );
     require!(p.util_mult_slope_bps <= 50_000, "util_mult_slope_bps > 5×");
     require!((1_000..=9_500).contains(&p.util_kink_bps), "util_kink_bps must be 1000..=9500");
     require!(p.util_mult_kink_slope_bps <= 1_000_000, "util_mult_kink_slope_bps > 100×");
     require!(
-        p.util_mult_base_bps > 0 || p.util_mult_slope_bps > 0,
-        "funding multiplier can't be zero at every utilization"
+        p.rv_halflife_secs == 0 || (3_600..=31_536_000).contains(&p.rv_halflife_secs),
+        "rv_halflife_secs must be 0 (off) or 3600..=31536000"
+    );
+    require!(
+        p.rv_cap_bps >= p.implied_vol_bps && p.rv_cap_bps <= 50_000,
+        "rv_cap_bps must be between implied_vol_bps and 50000"
     );
     require!((100..=10_000).contains(&p.max_open_bps), "max_open_bps must be 100..=10000");
     require!(p.funding_fee_bps <= 5_000, "funding_fee_bps > 50%");

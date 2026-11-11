@@ -56,7 +56,8 @@ impl Contract {
     /// Accrues funding at the old price, then switches to the new one.
     pub(crate) fn internal_set_price(&mut self, price: u128, ts: u64, source: &str) {
         require!(price > 0 && price <= MAX_PRICE, "price out of range");
-        self.accrue();
+        self.accrue(); // funding up to now is priced at the volatility known before this print
+        self.update_realized_var(price, ts);
         self.price = price;
         self.price_ts = ts;
         self.write_down_if_capped();

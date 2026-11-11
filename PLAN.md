@@ -13,9 +13,16 @@ One USDC treasury, two sides, priced only by the oracle.
   `Curve Short equity = risk pool − long claims`. Every bit of `NF` decay lands in
   Curve Short equity automatically, with no transfers. Curve Short earns when the market is
   quiet (realized vol < implied vol) and loses when the market rips upward.
-- **Funding** follows the closed-form fair rate for a power perp under GBM:
-  `rate/yr = p(p−1)/2 · σ²_implied + base`. With p = 2 and σ = 80%, longs pay
-  about 0.18%/day.
+- **Funding** follows the closed-form fair rate for a power perp under GBM, times a
+  utilization multiplier: `rate/yr = p(p−1)/2 · σ² · m(u) + base`.
+  - `σ = max(implied_vol_bps, realized vol)`. Realized vol is an on-chain EWMA of squared
+    oracle returns (`rv_halflife_secs`, default 21 days ≈ a 30-day window, capped at
+    `rv_cap_bps`). When the market gets wilder, funding follows within days.
+  - `m(u) = base + slope·u + kink_slope·max(0, u − kink)/(1 − kink)`, with base ≥ 1×
+    (default 1.25×: a 25% short premium). A delta-hedged short loses about
+    p(p−1)/2 · realized variance to daily rebalancing, so anything below 1× pays the vault
+    less than its cost (see `sim/two-sided-vault.html` and `sim/search-results.txt`).
+  - With p = 2, σ = 80% and u near 0, longs pay about 0.22%/day.
 - **Solvency is built into the structure.** Long claims can never exceed the risk
   pool: a rally past the pool writes the excess off and Curve Short restarts as a new
   epoch that fresh shorts can join. So total claims ≤ treasury always holds. Nothing is
@@ -45,7 +52,8 @@ One USDC treasury, two sides, priced only by the oracle.
 
 ### Nice to have
 - Delta-hedge module (makes Curve Short delta-neutral)
-- ✅ Utilization-based funding: 0.5× fair below 50% utilization, steep above (`util_*` params, `funding_multiplier_bps` in `get_market`)
+- ✅ Utilization-based funding: at least 1× fair (default 1.25×), steep above 50% (`util_*` params, `funding_multiplier_bps` in `get_market`)
+- ✅ Funding follows realized volatility of the oracle price (`rv_halflife_secs`, `rv_cap_bps`; `realized_vol_bps` and `funding_vol_bps` in `get_market`)
 - Curve Short withdrawal cooldown/queue (stops Curve Short from front-running a pump)
 - Telegram mini-app UI with a payoff chart (`quote_payoff` view is ready for it)
 - Fractional `p` (needs on-chain `ln`/`exp`; integer p only in v1)

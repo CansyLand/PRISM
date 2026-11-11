@@ -49,18 +49,25 @@ pub const MAX_OPERATORS: usize = 4;
 pub struct Params {
     /// Payoff exponent p (1..=10). Can't change while long units exist.
     pub power: u8,
-    /// Implied volatility σ (annualized, bps). Funding/yr = p(p−1)/2 · σ² + base.
+    /// Volatility floor σ (annualized, bps). Funding/yr = p(p−1)/2 · σ² · m(u) + base, where σ is the
+    /// higher of this floor and the realized volatility of the oracle price (see `rv_halflife_secs`).
     pub implied_vol_bps: u32,
     /// Extra annual funding (bps) on top of the fair convexity rate.
     pub base_funding_bps: u32,
     /// Utilization multiplier on funding, u = long claims / pool:
     /// `m(u) = base + slope·u + kink_slope·max(0, u − kink)/(1 − kink)`, in bps (10000 = 1×).
-    /// Cheaper than fair below the kink (attracts longs), steeper above it (attracts shorts).
-    /// Set base = 10000 and both slopes = 0 to switch it off.
+    /// `base` must be at least 10000: a hedged short loses roughly p(p−1)/2 · realized variance to
+    /// rebalancing, so funding below fair pays shorts less than their cost. The part above 10000 is the
+    /// short premium (12500 = +25%). Set base = 10000 and both slopes = 0 for exactly fair funding.
     pub util_mult_base_bps: u32,
     pub util_mult_slope_bps: u32,
     pub util_kink_bps: u16,
     pub util_mult_kink_slope_bps: u32,
+    /// Half-life of the realized-volatility estimate (EWMA of squared oracle returns). 0 = off, so
+    /// funding uses `implied_vol_bps` only. 21 days ≈ a 30-day window.
+    pub rv_halflife_secs: u64,
+    /// Ceiling on the realized volatility used for funding (bps), so one bad print can't spike funding.
+    pub rv_cap_bps: u32,
     /// Largest single long open, as a share of the pool before the open (bps).
     /// Not a wall: repeated opens are allowed, but each one raises utilization and funding.
     pub max_open_bps: u16,
@@ -86,11 +93,13 @@ impl Default for Params {
             power: 2,
             implied_vol_bps: 8_000,
             base_funding_bps: 0,
-            // 0.5× at u = 0, 1× (fair) at the 50% kink, 11× at 75%, 21.5× at u = 100%.
-            util_mult_base_bps: 5_000,
+            // 1.25× at u = 0 (25% short premium), 1.75× at the 50% kink, 11.5× at 75%, 22.25× at u = 100%.
+            util_mult_base_bps: 12_500,
             util_mult_slope_bps: 10_000,
             util_kink_bps: 5_000,
             util_mult_kink_slope_bps: 200_000,
+            rv_halflife_secs: 1_814_400,
+            rv_cap_bps: 30_000,
             max_open_bps: 2_000,
             funding_fee_bps: 1_000,
             trade_fee_bps: 10,
@@ -162,6 +171,11 @@ pub struct Contract {
     pub(crate) ref_price: u128,
     pub(crate) price: u128,
     pub(crate) price_ts: u64,
+    /// Realized variance of the oracle price, annualized, 1e18 (EWMA of squared returns).
+    pub(crate) realized_var_e18: u128,
+    /// Last price and time folded into `realized_var_e18`.
+    pub(crate) rv_price: u128,
+    pub(crate) rv_ts: u64,
     /// Normalization factor, 1e18 at launch, decays with funding.
     pub(crate) nf: u128,
     pub(crate) last_accrual_ts: u64,
@@ -221,6 +235,9 @@ impl Contract {
             ref_price: ref_price.0,
             price: 0,
             price_ts: 0,
+            realized_var_e18: 0,
+            rv_price: 0,
+            rv_ts: 0,
             nf: ONE,
             last_accrual_ts: now_secs(),
             total_units: 0,
@@ -291,9 +308,48 @@ impl Contract {
         self.ref_price = self.price;
     }
 
-    /// Fair convexity rate before the utilization multiplier.
+    /// Realized volatility (annualized, bps), capped at `rv_cap_bps`. 0 while switched off.
+    pub(crate) fn realized_vol_bps(&self) -> u32 {
+        if self.params.rv_halflife_secs == 0 {
+            return 0;
+        }
+        let sigma_e18 = (U256::from(self.realized_var_e18) * U256::from(ONE)).integer_sqrt().as_u128();
+        (sigma_e18 * BPS / ONE).min(self.params.rv_cap_bps as u128) as u32
+    }
+
+    /// Volatility that funding is priced at: the higher of the floor and realized volatility.
+    pub(crate) fn funding_vol_bps(&self) -> u32 {
+        self.params.implied_vol_bps.max(self.realized_vol_bps())
+    }
+
+    /// Folds a new oracle price into the realized-variance EWMA. Each return adds about
+    /// r² · YEAR · ln2 / half-life, so the estimate doesn't depend on how often prices arrive.
+    pub(crate) fn update_realized_var(&mut self, price: u128, ts: u64) {
+        let hl = self.params.rv_halflife_secs;
+        if hl == 0 || self.rv_ts == 0 || self.rv_price == 0 {
+            self.rv_price = price;
+            self.rv_ts = ts;
+            return;
+        }
+        if ts <= self.rv_ts {
+            return; // same second: keep the older anchor so the return isn't lost
+        }
+        let dt = (ts - self.rv_ts) as u128;
+        let r_e18 = mul_div(price.abs_diff(self.rv_price), ONE, self.rv_price);
+        let cap = self.params.rv_cap_bps as u128 * ONE / BPS;
+        let sample = sat_u128(U256::from(r_e18) * U256::from(r_e18) / U256::from(ONE) * U256::from(YEAR_SECS) / U256::from(dt))
+            .min(cap * cap / ONE);
+        // w = 1 − exp(−dt · ln2 / half-life)
+        const LN2_E18: u128 = 693_147_180_559_945_309;
+        let keep = exp_neg_e18(mul_div(dt, LN2_E18, hl as u128));
+        self.realized_var_e18 = mul_div(self.realized_var_e18, keep, ONE) + mul_div(sample, ONE - keep, ONE);
+        self.rv_price = price;
+        self.rv_ts = ts;
+    }
+
+    /// Fair convexity rate before the utilization multiplier, at the funding volatility.
     pub(crate) fn base_funding_rate_e18(&self) -> u128 {
-        annual_funding_rate_e18(self.params.power, self.params.implied_vol_bps, self.params.base_funding_bps)
+        annual_funding_rate_e18(self.params.power, self.funding_vol_bps(), self.params.base_funding_bps)
     }
 
     /// Utilization u = long claims / pool, in bps, capped at 100%.
