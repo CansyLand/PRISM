@@ -153,6 +153,7 @@ details.setup summary { cursor: pointer; font-weight: 600; font-size: 13px; }
           <label class="toggle"><input type="checkbox" id="showFuture" checked> Show the future</label>
         </div>
         <canvas id="price" aria-label="BTC daily candles. Click or drag to move through time."></canvas>
+        <div class="legend"><span><i style="--lc:var(--long)"></i>▲ you opened</span><span>● you closed</span><span><i style="--lc:var(--down)"></i>red dot: Curve Short wiped out</span><span><i style="--lc:var(--down)"></i>red square: your long fell below 1% of its cost</span></div>
         <div class="scrub">
           <button type="button" class="btn play" id="play">Play</button>
           <button type="button" class="btn" data-step="-30">−30d</button>
@@ -211,7 +212,7 @@ details.setup summary { cursor: pointer; font-weight: 600; font-size: 13px; }
 
       <details class="panel setup" aria-label="Market setup">
         <summary>Market setup</summary>
-        <div class="ctl"><label for="cP">Curvature p <output id="oP"></output></label><input type="range" id="cP" min="1" max="3" step="0.5" value="2"><small>The contract supports whole numbers today; 1.5 and 2.5 need extra on-chain math.</small></div>
+        <div class="ctl"><label for="cP">Curvature p <output id="oP"></output></label><input type="range" id="cP" min="1" max="10" step="0.5" value="2"><small id="pNote"></small></div>
         <div class="ctl"><label for="cIv">Implied volatility σ <output id="oIv"></output></label><input type="range" id="cIv" min="20" max="150" step="5" value="70"><small>Sets the fair funding rate p(p−1)/2 × σ².</small></div>
         <div class="ctl"><label for="cSteep">Funding steepness above 50% <output id="oSteep"></output></label><input type="range" id="cSteep" min="0" max="40" step="1" value="20"></div>
         <div class="ctl"><label for="cMo">Largest single long open <output id="oMo"></output></label><input type="range" id="cMo" min="5" max="100" step="5" value="20"></div>
@@ -262,6 +263,8 @@ details.setup summary { cursor: pointer; font-weight: 600; font-size: 13px; }
     $("oShorts").textContent = big(cfg.shorts); $("oLongs").textContent = big(cfg.longs);
     $("oInRate").textContent = Math.round(cfg.inRate * 100) + "% of pool";
     $("pPill").textContent = `p = ${cfg.p} · σ ${Math.round(cfg.iv * 100)}%`;
+    const fair = cfg.p * (cfg.p - 1) / 2 * cfg.iv ** 2;
+    $("pNote").textContent = `Fair funding at this curve: ${(fair * 100).toFixed(0)}%/yr (${(fair / 3.65).toFixed(2)}%/day), before utilization. A 1% BTC move changes a long by about ${(((1.01 ** cfg.p) - 1) * 100).toFixed(1)}%. The contract supports whole numbers 1 to 10.`;
   }
 
   // ── the exchange engine: replays every trade day by day, mirroring the contract ──
@@ -367,6 +370,10 @@ details.setup summary { cursor: pointer; font-weight: 600; font-size: 13px; }
           else v = lot.epoch === epoch && S > 0 ? lot.shares * F / S : 0;
         }
         lot.vals[t] = v;
+        if (lot.side === "long" && lot.eaten == null && Number.isFinite(v) && v < 0.01 * lot.amount) {
+          lot.eaten = t;
+          if (lot.owner === "me") log.push({ t, kind: "eaten", text: `Your Curve Long from ${dateOf(lot.day)} is worth less than 1% of what you paid.` });
+        }
         if (lot.owner === "me" && !Number.isNaN(v)) eq += v;
       }
       tl.eq[t] = eq;
@@ -451,8 +458,18 @@ details.setup summary { cursor: pointer; font-weight: 600; font-size: 13px; }
       ctx.closePath(); ctx.fill(); ctx.stroke();
     }
     ctx.globalAlpha = 1;
-    // write-downs
-    for (const l of sim.log) if (l.kind === "wipe") { ctx.fillStyle = css("--down"); ctx.globalAlpha = l.t > now ? 0.35 : 0.9; ctx.fillRect(xOf(l.t, W) - 1, M.t, 2, 8); }
+    // red dot: Curve Short wiped out (long claims hit the pool)
+    ctx.strokeStyle = css("--panel"); ctx.lineWidth = 1.5;
+    for (const l of sim.log) if (l.kind === "wipe") {
+      ctx.globalAlpha = l.t > now ? 0.4 : 1; ctx.fillStyle = css("--down");
+      ctx.beginPath(); ctx.arc(xOf(l.t, W), y(DATA.h[l.t]) - 9, 5, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    }
+    // red square: one of your longs fell below 1% of its cost
+    for (const lot of sim.lots.values()) if (lot.owner === "me" && lot.eaten != null) {
+      ctx.globalAlpha = lot.eaten > now ? 0.4 : 1; ctx.fillStyle = css("--down");
+      const x = xOf(lot.eaten, W), yy = y(DATA.l[lot.eaten]) + 10;
+      ctx.fillRect(x - 5, yy - 5, 10, 10); ctx.strokeRect(x - 5, yy - 5, 10, 10);
+    }
     ctx.globalAlpha = 1;
     // now line + price tag
     const xn = xOf(now, W);
@@ -543,7 +560,8 @@ details.setup summary { cursor: pointer; font-weight: 600; font-size: 13px; }
       const v = closed ? lot.close.out : opened ? lot.vals[now] : NaN;
       const pnl = Number.isFinite(v) ? v - lot.amount : NaN;
       const wiped = lot.side === "short" && opened && !closed && v === 0 && lot.vals[lot.day] > 0;
-      let status = !opened ? `<span class="tag">opens ${dateOf(lot.day)}</span>` : closed ? `<span class="tag">closed ${dateOf(lot.close.t)}</span>` : wiped ? `<span class="tag bad">wiped out</span>` : lot.close ? `<span class="tag">closes ${dateOf(lot.close.t)}</span>` : `<span class="tag">open</span>`;
+      const eaten = lot.side === "long" && opened && !closed && lot.eaten != null && lot.eaten <= now;
+      let status = !opened ? `<span class="tag">opens ${dateOf(lot.day)}</span>` : closed ? `<span class="tag">closed ${dateOf(lot.close.t)}</span>` : wiped ? `<span class="tag bad">wiped out</span>` : eaten ? `<span class="tag bad">below 1% of cost</span>` : lot.close ? `<span class="tag">closes ${dateOf(lot.close.t)}</span>` : `<span class="tag">open</span>`;
       const extra = lot.side === "long" ? `${(lot.units).toLocaleString("en-US", { maximumFractionDigits: 0 })} units` : `${(lot.shares).toLocaleString("en-US", { maximumFractionDigits: 0 })} shares`;
       const canClose = opened && !closed;
       return `<tr class="${opened ? "" : "dim"}">

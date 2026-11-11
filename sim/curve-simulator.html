@@ -163,8 +163,8 @@ table.mc td:first-child::before { content: ""; display: inline-block; width: 9px
         </div>
         <div class="ctl">
           <label for="p">Curvature p <output id="pOut"></output></label>
-          <input type="range" id="p" min="1" max="4" step="0.1" value="2">
-          <small>Payoff = (price / start)<sup>p</sup>. p = 1 is linear, 2 is "squared", 4 is very steep. The contract supports whole numbers 1 to 4 today.</small>
+          <input type="range" id="p" min="1" max="10" step="0.1" value="2">
+          <small>Payoff = (price / start)<sup>p</sup>. p = 1 is linear, 2 is "squared", 10 is a rocket. Steeper curves pay more funding. The contract supports whole numbers 1 to 10.</small>
         </div>
         <div class="ctl">
           <label>How the price gets there</label>

@@ -9,7 +9,7 @@ use near_sdk::serde_json::json;
 use near_sdk::{env, near, require, AccountId};
 
 pub fn validate_params(p: &Params) {
-    require!((1..=4).contains(&p.power), "power must be 1..=4");
+    require!((1..=10).contains(&p.power), "power must be 1..=10");
     require!(p.implied_vol_bps <= 50_000, "implied_vol_bps > 500%");
     require!(p.base_funding_bps <= 10_000, "base_funding_bps > 100%/yr");
     require!(p.util_mult_base_bps <= 20_000, "util_mult_base_bps > 2×");

@@ -36,10 +36,10 @@ pub mod views;
 #[cfg(test)]
 mod tests;
 
-use math::{annual_funding_rate_e18, exp_neg_e18, mul_div, power_index_e18, BPS, ONE, U256, YEAR_SECS};
+use math::{annual_funding_rate_e18, exp_neg_e18, mul_div, power_index_e18, sat_u128, BPS, ONE, U256, YEAR_SECS};
 pub use oracle::OracleConfig;
 
-/// $1,000,000 at 6dp. Keeps `price^p` well inside U256 for p ≤ 4.
+/// $1,000,000 at 6dp.
 pub const MAX_PRICE: u128 = 1_000_000_000_000;
 pub const MAX_SNAPSHOTS: u64 = 1_000;
 pub const MAX_OPERATORS: usize = 4;
@@ -47,7 +47,7 @@ pub const MAX_OPERATORS: usize = 4;
 #[near(serializers = [borsh, json])]
 #[derive(Clone, Debug, PartialEq)]
 pub struct Params {
-    /// Payoff exponent p (1..=4). Can't change while long units exist.
+    /// Payoff exponent p (1..=10). Can't change while long units exist.
     pub power: u8,
     /// Implied volatility σ (annualized, bps). Funding/yr = p(p−1)/2 · σ² + base.
     pub implied_vol_bps: u32,
@@ -260,7 +260,35 @@ impl Contract {
     }
 
     pub(crate) fn units_value(units: u128, unit_value_e18: U256) -> u128 {
-        (U256::from(units) * unit_value_e18 / U256::from(ONE)).as_u128()
+        match U256::from(units).checked_mul(unit_value_e18) {
+            Some(v) => sat_u128(v / U256::from(ONE)),
+            None => u128::MAX,
+        }
+    }
+
+    /// Steep curves move the index by orders of magnitude. Re-anchor it at the current price
+    /// (ref_price = price, NF absorbs the old index) so neither NF nor the index loses precision.
+    /// Unit values don't change.
+    pub(crate) fn maybe_rebase(&mut self) {
+        if self.price == 0 {
+            return;
+        }
+        let idx = power_index_e18(self.price, self.ref_price, self.params.power);
+        let lo = U256::from(1_000_000_000_000u128); // 1e-6
+        let hi = U256::from(1_000_000_000_000_000_000_000_000_000u128); // 1e9
+        if idx >= lo && idx <= hi && self.nf >= 1_000_000_000_000 {
+            return;
+        }
+        let vpu = U256::from(self.nf) * idx / U256::from(ONE);
+        if vpu.is_zero() || vpu > U256::from(u128::MAX) {
+            return;
+        }
+        events::emit(
+            "rebase",
+            near_sdk::serde_json::json!({ "old_ref": self.ref_price.to_string(), "ref": self.price.to_string(), "nf": vpu.as_u128().to_string() }),
+        );
+        self.nf = vpu.as_u128();
+        self.ref_price = self.price;
     }
 
     /// Fair convexity rate before the utilization multiplier.
@@ -436,7 +464,10 @@ impl Contract {
             return;
         }
         let nf_old = self.nf;
-        self.nf = mul_div(self.nf, self.risk_pool, c_raw);
+        // NF such that units × NF × idx / 1e36 = pool, computed in U256 (c_raw may have saturated).
+        let idx = power_index_e18(self.price, self.ref_price, self.params.power);
+        let denom = U256::from(self.total_units) * idx;
+        self.nf = sat_u128(U256::from(self.risk_pool) * U256::from(ONE) * U256::from(ONE) / denom).min(self.nf);
         let c_new = Self::units_value(self.total_units, self.unit_value_e18(self.nf));
         let dust = self.risk_pool - c_new.min(self.risk_pool);
         self.risk_pool -= dust;

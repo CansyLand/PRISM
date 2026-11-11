@@ -16,15 +16,24 @@ pub const YEAR_SECS: u128 = 31_536_000;
 /// exp(-0.5) in 1e18.
 const EXP_NEG_HALF: u128 = 606_530_659_712_633_423;
 
-/// Power index `(price / ref_price)^p`, scaled 1e18.
+/// Largest power index we represent (ratio^p ≤ 1e32). Long claims are capped by the pool long
+/// before this, and `Contract::maybe_rebase` re-anchors the index well below it.
+pub fn index_cap_e18() -> U256 {
+    U256::exp10(50)
+}
+
+/// Power index `(price / ref_price)^p`, scaled 1e18, multiplied one factor at a time so p up to 10
+/// stays inside U256. Saturates at `index_cap_e18()`.
 pub fn power_index_e18(price: u128, ref_price: u128, p: u8) -> U256 {
-    let mut num = U256::from(ONE);
-    let mut den = U256::one();
+    let cap = index_cap_e18();
+    let mut idx = U256::from(ONE);
     for _ in 0..p {
-        num = num * U256::from(price);
-        den = den * U256::from(ref_price);
+        idx = idx * U256::from(price) / U256::from(ref_price);
+        if idx >= cap {
+            return cap;
+        }
     }
-    num / den
+    idx
 }
 
 /// `exp(-x)` for x scaled 1e18. Splits x into 0.5 steps, then a 4th-order
@@ -62,6 +71,15 @@ pub fn mul_div(a: u128, b: u128, c: u128) -> u128 {
     (U256::from(a) * U256::from(b) / U256::from(c)).as_u128()
 }
 
+/// U256 → u128, saturating instead of panicking.
+pub fn sat_u128(v: U256) -> u128 {
+    if v > U256::from(u128::MAX) {
+        u128::MAX
+    } else {
+        v.as_u128()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -73,6 +91,11 @@ mod tests {
         assert_eq!(power_index_e18(5_500_000, 5_000_000, 2).as_u128(), 1_210_000_000_000_000_000);
         // p = 1 is linear
         assert_eq!(power_index_e18(7_500_000, 5_000_000, 1).as_u128(), 1_500_000_000_000_000_000);
+        // p = 10: +10% → 1.1^10 ≈ 2.5937
+        let v = power_index_e18(5_500_000, 5_000_000, 10).as_u128();
+        assert!(v.abs_diff(2_593_742_460_100_000_000) < 1_000, "{v}");
+        // an absurd ratio saturates instead of overflowing
+        assert_eq!(power_index_e18(1_000_000_000_000, 1, 10), index_cap_e18());
     }
 
     #[test]

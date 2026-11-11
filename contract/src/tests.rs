@@ -201,6 +201,32 @@ fn curve_value_follows_price_squared() {
 }
 
 #[test]
+fn power_ten_survives_a_moonshot_and_a_crash() {
+    let mut c = setup(Params { power: 10, ..params() });
+    deposit(&mut c, "alice.near", usd(1_000_000), T0, "");
+    ctx("alice.near", T0, 0);
+    c.open_short(U128(usd(1_000_000)), None, None);
+    deposit(&mut c, "bob.near", usd(1_000), T0, "");
+    ctx("bob.near", T0, 0);
+    c.open_long(U128(usd(1_000)), None, None);
+    push(&mut c, 5_500_000, T0); // +10% → ×2.5937
+    assert!(view(&c, "bob.near").long_value.0.abs_diff(2_593_742_460) < 10);
+    // 1.4× steps up to 40×: claims hit the pool, longs are written down, index rebases
+    let mut p = 5_500_000u128;
+    while p < 200_000_000 { p = (p * 14 / 10).min(200_000_000); push(&mut c, p, T0); }
+    let m = c.get_market();
+    assert!(m.long_claims_raw.0 <= m.risk_pool.0);
+    assert_eq!(m.short_equity.0, 0);
+    // and a 99% crash back down
+    while p > 2_000_000 { p = (p * 6 / 10).max(2_000_000); push(&mut c, p, T0); }
+    let m = c.get_market();
+    assert!(m.short_equity.0 > usd(990_000), "shorts {}", m.short_equity.0);
+    ctx("bob.near", T0, 0);
+    c.close_long(None, None, None);
+    solvent(&c);
+}
+
+#[test]
 fn funding_shrinks_longs_and_pays_shorts() {
     let mut c = seeded();
     let day = T0 + 86_400;

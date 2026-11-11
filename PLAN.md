@@ -6,8 +6,7 @@ Branch: `main`. The previous order-book perpetual lives on the `perpetual` branc
 
 One USDC treasury, two sides, priced only by the oracle.
 
-- **Curve** buys *units* of a power index `I(P) = (P / P_ref)^p` (p = 2 by default,
-  configurable 1–4). A unit's value is `NF × I(P)`. The normalization factor `NF`
+- **Curve** buys *units* of a power index `I(P) = (P / P_ref)^p` (p = 2 by default,  configurable 1–10). A unit's value is `NF × I(P)`. The normalization factor `NF`
   decays continuously at the funding rate, so a Curve Long holders pays funding by having
   the position shrink. Nobody liquidates it, and there is no margin call.
 - **Curve Short** deposits into the same pool and owns the residual:
