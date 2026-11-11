@@ -70,6 +70,7 @@ button { font: inherit; color: inherit; }
     <h1>Curve Live</h1>
     <div class="stat"><small>Day</small><b id="sDay">0</b></div>
     <div class="stat"><small>BTC</small><b id="sBtc">—</b></div>
+    <div class="stat"><small>24h volume</small><b id="sVol">—</b></div>
     <div class="stat"><small>Vault yield</small><b id="sYield">—</b></div>
     <div class="stat"><small>Funding</small><b id="sFund">—</b></div>
     <div class="stat"><small>Utilization</small><b id="sUtil">—</b></div>
@@ -178,7 +179,7 @@ button { font: inherit; color: inherit; }
   let S;
   function freshState() {
     return {
-      hour: 0, P: 30000, P0: 30000, realIdx: 0, hist: [30000], daily: [30000],
+      hour: 0, P: 30000, P0: 30000, realIdx: 0, hist: [30000], vh: [0], volNow: 0, volTotal: 0, daily: [30000],
       curves: Array.from({ length: 11 }, () => ({ U: 0, NF: 1 })),
       R: 0, K: 0, q: 0, shares: 0, navHist: [], yield: NaN, fundRate: 0, util: 0, sigma: 0.6,
       exch: 0, exAcc: 0, retailIn: 0, retailOut: 0, wins: 0, losses: 0, busts: 0, refused: 0, wipes: 0,
@@ -243,7 +244,7 @@ button { font: inherit; color: inherit; }
     if (amt > MAX_OPEN * S.R) { amt = Math.floor(MAX_OPEN * S.R / 10) * 10; if (amt < 10) { S.refused++; pl.label = "pool too small"; pl.labelT = 1.5; return; } }
     const p = 1 + Math.floor(Math.random() * pmax), net = amt * (1 - fee), c = S.curves[p];
     const units = net / (c.NF * idx(p));
-    c.U += units; S.R += net; S.exch += amt * fee; S.exAcc += amt * fee; S.retailIn += amt;
+    c.U += units; S.R += net; S.exch += amt * fee; S.exAcc += amt * fee; S.retailIn += amt; S.volNow += amt;
     pl.bank -= amt;
     const hold = num("hold", 1, 365) * HOURS;
     pl.lot = { p, units, amt, t0: S.hour, exit: S.hour + Math.max(HOURS, -Math.log(Math.max(1e-9, Math.random())) * hold), tp: rand(0.5, 4), sl: rand(0.5, 0.95), drip: 0, value: net };
@@ -252,7 +253,7 @@ button { font: inherit; color: inherit; }
   function closeLot(pl, why) {
     const lot = pl.lot, Ct = claimsRaw(), v = lotValue(lot, Ct), fee = v * num("fee", 0, 5) / 100;
     S.R -= v; S.curves[lot.p].U -= lot.units; S.exch += fee; S.exAcc += fee;
-    const out = v - fee; pl.bank += out; pl.lot = null; pl.wait = rand(6, 72); S.retailOut += out;
+    const out = v - fee; pl.bank += out; pl.lot = null; pl.wait = rand(6, 72); S.retailOut += out; S.volNow += v;
     const m = out / lot.amt;
     if (out > lot.amt) {
       S.wins++; pl.flash = 1.2; pl.flashCol = "--gold"; pl.label = "+" + usd(out - lot.amt); pl.labelT = 2.2;
@@ -316,7 +317,8 @@ button { font: inherit; color: inherit; }
     }
     // once a day: hedge, interest, yield, hunters
     if (S.hour % HOURS === 0) daily();
-    S.hist.push(S.P); if (S.hist.length > 60 * HOURS) S.hist.shift();
+    S.hist.push(S.P); S.vh.push(S.volNow); S.volTotal += S.volNow; S.volNow = 0;
+    if (S.hist.length > 60 * HOURS) { S.hist.shift(); S.vh.shift(); }
     if (Math.abs(S.P / prev - 1) > 0.03) shake = Math.max(shake, 0.25);
   }
   function daily() {
@@ -452,6 +454,11 @@ button { font: inherit; color: inherit; }
     let lo = Infinity, hi = -Infinity; for (const v of hs) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
     if (hi - lo < hi * 0.01) { hi *= 1.005; lo *= 0.995; }
     const N = 60 * HOURS, X = (k) => x + (k + N - hs.length) / (N - 1) * w, Y = (v) => y + 4 + (1 - (v - lo) / (hi - lo)) * (h - 8);
+    // daily volume bars along the bottom of the chart
+    const days = []; for (let k = 0; k < S.vh.length; k++) { const d = Math.floor((S.hour - (S.vh.length - 1 - k)) / HOURS); if (!days.length || days[days.length - 1].d !== d) days.push({ d, v: 0, k0: k, k1: k }); const b = days[days.length - 1]; b.v += S.vh[k]; b.k1 = k; }
+    const vmax = Math.max(1, ...days.map((b) => b.v)), vh = h * 0.32;
+    for (const b of days) { const x0 = X(b.k0), x1 = X(b.k1 + 1), bh = b.v / vmax * vh; ctx.fillStyle = color(C.gold, 0.45); ctx.fillRect(x0 + 0.5, y + h - bh, Math.max(1, x1 - x0 - 1), bh); }
+    ctx.fillStyle = C.muted; ctx.font = F(9.5, 500); ctx.textAlign = "left"; ctx.fillText("daily volume", days.length ? X(days[0].k0) + 2 : x + 2, y + h - vh - 3);
     ctx.strokeStyle = C.btc; ctx.lineWidth = 1.6; ctx.beginPath();
     hs.forEach((v, k) => (k ? ctx.lineTo(X(k), Y(v)) : ctx.moveTo(X(k), Y(v)))); ctx.stroke();
     MARKET.x = X(hs.length - 1); MARKET.y = Y(hs[hs.length - 1]);
@@ -536,6 +543,8 @@ button { font: inherit; color: inherit; }
   function hud() {
     $("sDay").textContent = Math.floor(S.hour / HOURS);
     $("sBtc").textContent = usd(S.P);
+    let v24 = S.volNow; for (let k = Math.max(0, S.vh.length - HOURS); k < S.vh.length; k++) v24 += S.vh[k];
+    $("sVol").textContent = big(v24);
     $("sYield").textContent = isFinite(S.yield) ? pct(S.yield) : "—";
     $("sYield").style.color = isFinite(S.yield) ? (S.yield >= num("hurdle", 0, 100) / 100 ? css("--up") : S.yield < 0 ? css("--down") : "") : "";
     $("sFund").textContent = Math.round(S.fundRate * 100) + "%/yr";
@@ -568,7 +577,7 @@ button { font: inherit; color: inherit; }
   function reset() {
     S = freshState(); coins = []; floaters = []; tickerItems.length = 0; $("ticker").innerHTML = "";
     if ($("mode").value === "real") { S.P = REAL[0]; S.realScale = 1; } else S.realScale = 0;
-    S.P0 = S.P; S.hist = [S.P]; S.daily = [S.P]; S.sigma = 0;
+    S.P0 = S.P; S.hist = [S.P]; S.vh = [0]; S.daily = [S.P]; S.sigma = 0;
     syncCounts();
     for (const i of S.inst) deposit(i);
     S.navHist = [sharePrice()];
