@@ -121,6 +121,19 @@ svg.chart text { fill: var(--muted); font-family: var(--font-num); font-size: 10
 .check { margin-top: 10px; font-size: 12.5px; color: var(--muted); }
 .check b { font-family: var(--font-num); color: var(--ink); font-weight: 500; }
 
+.mchead { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px; margin-bottom: 10px; }
+.mchead > div:first-child { min-width: 0; flex: 1 1 320px; }
+.mcctl { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.mcctl .ctl { width: 220px; }
+.btn.primary { background: var(--accent); color: var(--panel); border-color: var(--accent); font-weight: 600; }
+.btn.stale { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+table.mc { width: 100%; border-collapse: collapse; font-size: 12.5px; min-width: 560px; }
+table.mc th, table.mc td { padding: 6px 8px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+table.mc th { color: var(--muted); font-weight: 500; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.04em; }
+table.mc th:first-child, table.mc td:first-child { text-align: left; }
+table.mc td { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+table.mc td:first-child { font-family: var(--font-ui); font-weight: 600; }
+table.mc td:first-child::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 50%; background: var(--pc); margin-right: 7px; }
 .notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
 .notes .panel { margin-bottom: 0; }
 .notes p { margin: 6px 0 0; color: var(--muted); font-size: 13px; max-width: 65ch; }
@@ -183,15 +196,10 @@ svg.chart text { fill: var(--muted); font-family: var(--font-num); font-size: 10
           </div>
           <div class="ctl">
             <label for="steep">Steepness <output id="steepOut"></output></label>
-            <input type="range" id="steep" min="0" max="10" step="0.5" value="3">
+            <input type="range" id="steep" min="0" max="50" step="1" value="20">
           </div>
         </div>
         <small class="hint" id="ufHint"></small>
-        <div class="ctl">
-          <label for="cap">Max utilization for new longs <output id="capOut"></output></label>
-          <input type="range" id="cap" min="10" max="90" step="5" value="50">
-          <small>A safety rail. It sets how big a rally the shorts can absorb before they're wiped out.</small>
-        </div>
         <div class="row2">
           <div class="ctl">
             <label for="fee">Trade fee <output id="feeOut"></output></label>
@@ -255,6 +263,25 @@ svg.chart text { fill: var(--muted); font-family: var(--font-num); font-size: 10
         </section>
       </div>
 
+      <section class="panel" style="margin-top:14px" aria-label="Monte Carlo">
+        <div class="mchead">
+          <div>
+            <h3>Monte Carlo: 1,000 random futures</h3>
+            <p class="sub" id="mcSub"></p>
+          </div>
+          <div class="mcctl">
+            <div class="ctl">
+              <label for="mu">Expected NEAR trend <output id="muOut"></output></label>
+              <input type="range" id="mu" min="-100" max="100" step="5" value="0">
+            </div>
+            <button type="button" class="btn primary" id="mcRun">Run 1,000 paths</button>
+          </div>
+        </div>
+        <div style="overflow-x:auto"><table class="mc" id="mcTable"></table></div>
+        <svg class="chart" id="chHist" viewBox="0 0 640 230" role="img" aria-label="Distribution of returns for Curve Long and Curve Short"></svg>
+        <div class="legend" id="legendHist"></div>
+      </section>
+
       <div class="notes" style="margin-top:14px">
         <section class="panel">
           <h3>Why not always pick Curve Long?</h3>
@@ -262,7 +289,7 @@ svg.chart text { fill: var(--muted); font-family: var(--font-num); font-size: 10
         </section>
         <section class="panel">
           <h3>Why the PnL lines go flat</h3>
-          <p>The pool is the ceiling. Once Curve Long claims reach the whole pool, Curve Short is wiped out and longs stop gaining. Shorts are not liquidated; there is simply nothing left to pay. New shorts who join later raise the ceiling for future moves, but they never pay for losses made before they arrived.</p>
+          <p>The pool is the ceiling. When long claims reach the whole pool, Curve Short is wiped out, longs take the pool, and the claim above it is written off. Nobody is liquidated one by one. From that moment new shorts can join at the current price, with the full rally ahead of them as room. Utilization funding makes that very attractive: near 100% longs pay over 20× the fair rate.</p>
         </section>
         <section class="panel">
           <h3>Is there leverage?</h3>
@@ -285,7 +312,7 @@ svg.chart text { fill: var(--muted); font-family: var(--font-num); font-size: 10
 (() => {
   const P0 = 5;              // NEAR start price, USD
   const MAX_STEPS = 1500;    // daily steps, capped
-  const DEFAULTS = { t: 120, x: 0, p: 2, rv: 60, iv: 80, fee: 10, cut: 10, dc: 1000, dch: 1000, df: 5000, dfh: 5000, kink: 50, steep: 3, cap: 50 };
+  const DEFAULTS = { t: 120, x: 0, p: 2, rv: 60, iv: 80, fee: 10, cut: 10, dc: 1000, dch: 1000, df: 5000, dfh: 5000, kink: 50, steep: 20, mu: 0 };
   const CHECKS = { uf: true, useCH: true, useFH: true };
   const PLAYERS = [
     { id: "c", name: "Curve Long", tag: "Bull · long volatility", color: "--c-curve",
@@ -344,66 +371,107 @@ svg.chart text { fill: var(--muted); font-family: var(--font-num); font-size: 10
   const tMaxDays = (s) => { const r = rate(s) * mult(s, utilOpen(s)); return r <= 1e-9 ? 3650 : Math.min(36500, Math.log(100) / r * 365); };
   const tDays = (s) => tMaxDays(s) * (s.t / 1000) ** 2;
 
-  // ── the model: mirrors the contract's accounting, one step per day ──
+  // ── price paths ──
+  // Brownian bridge from P0 to P0·(1+x) with the realized vol (fixed seed), one point per day.
+  function bridgePath(s, x, days) {
+    const N = days <= 0 ? 1 : Math.min(MAX_STEPS, Math.max(1, Math.ceil(days)));
+    const dtY = days / 365 / N, sq = Math.sqrt(dtY), L = Math.log(1 + x), vol = s.rv / 100;
+    let Wn = 0; for (let k = 0; k < N; k++) Wn += Z[k] * sq;
+    const prices = [P0]; let W = 0;
+    for (let k = 1; k <= N; k++) {
+      W += Z[k - 1] * sq;
+      const frac = k / N;
+      const drift = s.mode === "jump" ? (k === N ? L : 0) : frac * L;
+      prices.push(k === N ? P0 * (1 + x) : P0 * Math.exp(drift + vol * (W - frac * Wn)));
+    }
+    return { prices, dtY };
+  }
   function simulate(s, x, days, record) {
+    const { prices, dtY } = bridgePath(s, x, days);
+    return run(s, prices, dtY, record);
+  }
+
+  // ── the model: mirrors the contract's accounting, one step per day ──
+  function run(s, prices, dtY, record) {
     const fee = s.fee / 1e4, cut = s.cut / 100, p = s.p, r = rate(s);
     const dep = { c: s.dc, ch: s.useCH ? s.dch : 0, f: s.df, fh: s.useFH ? s.dfh : 0 };
+    const noShorts = dep.f + dep.fh <= 0;
+    if (noShorts) { dep.c = 0; dep.ch = 0; } // the contract refuses longs with no short liquidity
     const openFees = fee * (dep.c + dep.ch + dep.f + dep.fh);
     const net = { c: dep.c * (1 - fee), ch: dep.ch * (1 - fee), f: dep.f * (1 - fee), fh: dep.fh * (1 - fee) };
     const U = net.c + net.ch;                 // Curve units (1 unit = $1 at P0, NF = 1)
     const sC = U > 0 ? net.c / U : 0, sCH = U > 0 ? net.ch / U : 0;
     const flatTot = net.f + net.fh;
     const sF = flatTot > 0 ? net.f / flatTot : 0, sFH = flatTot > 0 ? net.fh / flatTot : 0;
-    let R = U + flatTot, fundingCut = 0, fundingPaid = 0, hedgeS = 0, hedgeL = 0;
-    const N = days <= 0 ? 1 : Math.min(MAX_STEPS, Math.max(1, Math.ceil(days)));
-    const dtY = days / 365 / N, sq = Math.sqrt(dtY), L = Math.log(1 + x), vol = s.rv / 100;
-    let Wn = 0; for (let k = 0; k < N; k++) Wn += Z[k] * sq;
-    let W = 0, prevP = P0, NFprev = 1;
+    let R = U + flatTot, fundingCut = 0, fundingPaid = 0, hedgeS = 0, hedgeL = 0, writtenOff = 0, writeDowns = 0;
+    const N = prices.length - 1;
+    let prevP = P0, NF = 1, uMax = R > 0 ? U / R : 0;
     const out = record ? [] : null;
     const every = Math.max(1, Math.floor(N / 240));
-    const snap = (day, P, NF) => {
-      const idx = (P / P0) ** p, Craw = U * NF * idx, Ceff = Math.min(Craw, R), F = R - Ceff;
+    const snap = (day, P) => {
+      const Ceff = Math.min(U * NF * (P / P0) ** p, R), F = R - Ceff;
       return { day, P, c: sC * Ceff - dep.c, ch: sCH * Ceff + hedgeS - dep.ch, f: sF * F - dep.f, fh: sFH * F + hedgeL - dep.fh, ex: openFees + fundingCut };
     };
-    if (record) out.push(snap(0, P0, 1));
+    if (record) out.push(snap(0, P0));
     for (let k = 1; k <= N; k++) {
-      W += Z[k - 1] * sq;
-      const frac = k / N;
-      const bridge = vol * (W - frac * Wn);
-      const drift = s.mode === "jump" ? (k === N ? L : 0) : frac * L;
-      const P = P0 * Math.exp(drift + (k === N ? 0 : bridge));
-      // 1) funding accrues at the old price (as the contract does before a price update),
-      //    at a rate set by utilization at the start of the step
+      const P = prices[k];
+      // 1) funding accrues at the old price, at a rate set by utilization at the start of the step
       const idxPrev = (prevP / P0) ** p;
-      const u = R > 0 ? Math.min(1, U * NFprev * idxPrev / R) : 1;
-      const NF = NFprev * Math.exp(-r * mult(s, u) * dtY);
-      const before = Math.min(U * NFprev * idxPrev, R), after = Math.min(U * NF * idxPrev, R);
+      const u = R > 0 ? Math.min(1, U * NF * idxPrev / R) : 1;
+      const NFnew = NF * Math.exp(-r * mult(s, u) * dtY);
+      const before = Math.min(U * NF * idxPrev, R), after = Math.min(U * NFnew * idxPrev, R);
       const fund = before - after, take = fund * cut;
-      R -= take; fundingCut += take; fundingPaid += fund;
+      R -= take; fundingCut += take; fundingPaid += fund; NF = NFnew;
       // 2) hedges hold yesterday's delta through today's move
-      const Cnow = U * NF * idxPrev, capped = Cnow >= R;
-      const deltaCurve = capped ? 0 : p * Cnow;          // $ change per 100% move
+      const Cnow = U * NF * idxPrev;
+      const deltaCurve = Cnow >= R ? 0 : p * Cnow;       // $ change per 100% move
       const ret = P / prevP - 1;
       hedgeS += -(sCH * deltaCurve) * ret;               // short NEAR
       hedgeL += (sFH * deltaCurve) * ret;                // long NEAR
-      prevP = P; NFprev = NF;
-      if (record && (k % every === 0 || k === N)) out.push(snap(k * dtY * 365, P, NF));
+      prevP = P;
+      // 3) a rally past the pool writes the long claims down to the pool (shorts at exactly 0)
+      const Craw = U * NF * (P / P0) ** p;
+      if (U > 0 && R > 0 && Craw >= R) { writtenOff += Craw - R; NF *= R / Craw; writeDowns++; }
+      uMax = Math.max(uMax, R > 0 ? Math.min(1, U * NF * (P / P0) ** p / R) : 0);
+      if (record && (k % every === 0 || k === N)) out.push(snap(k * dtY * 365, P));
     }
-    const P1 = P0 * (1 + x), NF = NFprev;
-    const idx = (P1 / P0) ** p, Craw = U * NF * idx, Ceff = Math.min(Craw, R), F = R - Ceff;
-    const capped = Craw >= R && Craw > 0;
+    const P1 = prices[N];
+    const Craw = U * NF * (P1 / P0) ** p, Ceff = Math.min(Craw, R), F = R - Ceff;
     const pool = { c: sC * Ceff, ch: sCH * Ceff, f: sF * F, fh: sFH * F };
     const val = { c: pool.c, ch: pool.ch + hedgeS, f: pool.f, fh: pool.fh + hedgeL, ex: openFees + fundingCut };
-    const curveLev = capped ? 0 : p;
-    const flatLev = (capped || F <= 0) ? 0 : -p * Craw / F;
     return {
-      dep, pool, val, hedgeS, hedgeL, openFees, fundingCut, fundingPaid, R, Craw, Ceff, F, NF, P1, capped, path: out,
-      lev: { c: curveLev, f: flatLev, ch: 0, fh: 0 },
+      dep, pool, val, hedgeS, hedgeL, openFees, fundingCut, fundingPaid, R, Craw, Ceff, F, NF, P1, path: out,
+      writtenOff, writeDowns, noShorts, uMax,
+      lev: { c: U > 0 ? p : 0, f: F > 0 ? -p * Craw / F : 0, ch: 0, fh: 0 },
       util0: (U + flatTot) > 0 ? U / (U + flatTot) : 0,
       uEnd: R > 0 ? Math.min(1, Craw / R) : 0,
-      haircut: Craw > 0 ? Ceff / Craw : 1,
       closeFees: fee * (pool.c + pool.ch + pool.f + pool.fh),
     };
+  }
+
+  // ── Monte Carlo: many random paths with the realized vol and an expected drift ──
+  function monteCarlo(s, days, paths, mcSeed) {
+    let a = mcSeed >>> 0;
+    const rnd = () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    const gauss = () => Math.sqrt(-2 * Math.log(Math.max(rnd(), 1e-12))) * Math.cos(2 * Math.PI * rnd());
+    const N = Math.min(MAX_STEPS, Math.max(1, Math.ceil(days)));
+    const dtY = Math.max(days, 1e-9) / 365 / N, vol = s.rv / 100, mu = s.mu / 100;
+    const drift = (mu - vol * vol / 2) * dtY, sq = vol * Math.sqrt(dtY);
+    const keys = ["c", "f", "ch", "fh", "ex"];
+    const res = Object.fromEntries(keys.map((k) => [k, []]));
+    let wiped = 0, finals = [];
+    for (let i = 0; i < paths; i++) {
+      const prices = [P0]; let lp = Math.log(P0);
+      for (let k = 1; k <= N; k++) { lp += drift + sq * gauss(); prices.push(Math.exp(lp)); }
+      const o = run(s, prices, dtY, false);
+      for (const k of keys) {
+        if (k === "ex") res.ex.push(o.val.ex);
+        else if (o.dep[k] > 0) res[k].push((o.val[k] - o.dep[k]) / o.dep[k]);
+      }
+      if (o.writeDowns > 0) wiped++;
+      finals.push(prices[N] / P0 - 1);
+    }
+    return { res, wiped, paths, finals, N };
   }
 
   // ── formatting ──
@@ -469,8 +537,8 @@ svg.chart text { fill: var(--muted); font-family: var(--font-num); font-size: 10
     $("cutOut").textContent = s.cut + "%";
     for (const k of ["dc", "dch", "df", "dfh"]) $(k + "Out").textContent = usd(s[k]);
     $("kinkOut").textContent = s.kink + "%";
-    $("steepOut").textContent = s.steep.toFixed(1) + "×";
-    $("capOut").textContent = s.cap + "%";
+    $("steepOut").textContent = s.steep.toFixed(0) + "×";
+    $("muOut").textContent = (s.mu > 0 ? "+" : "") + s.mu + "% a year";
     for (const k of ["kink", "steep"]) $(k).disabled = !s.uf;
     $("dch").disabled = !s.useCH; $("dfh").disabled = !s.useFH;
 
@@ -501,8 +569,8 @@ svg.chart text { fill: var(--muted); font-family: var(--font-num); font-size: 10
     ].map(([k, v]) => `<div><span>${k}</span> <b>${v}</b></div>`).join("");
 
     const warns = [];
-    if (res.util0 > s.cap / 100) warns.push(`The contract would refuse these opens: Curve Long would be ${(res.util0 * 100).toFixed(0)}% of the pool, above the ${s.cap}% cap. Add Curve Short deposits or lower the Curve Long deposits.`);
-    if (res.capped) warns.push(`Curve Short is wiped out. Long claims (${usd(res.Craw)}) exceed the pool, so every Curve Long holder is paid ${(res.haircut * 100).toFixed(0)}% of their claim.`);
+    if (res.noShorts) warns.push("No Curve Short deposits: the contract refuses longs until there is at least one short.");
+    if (res.writeDowns) warns.push(`A rally pushed long claims past the pool. Curve Short was wiped out and ${usd(res.writtenOff)} of long claims were written off; longs kept the whole ${usd(res.R)} pool. New shorts could now join at today's price.`);
     $("warn").hidden = !warns.length;
     $("warn").innerHTML = warns.join("<br>");
 
@@ -582,9 +650,58 @@ svg.chart text { fill: var(--muted); font-family: var(--font-num); font-size: 10
     }
   }
 
+  // ── Monte Carlo panel ──
+  let mcSeed = 2026;
+  function quant(sorted, q) { if (!sorted.length) return 0; const i = Math.min(sorted.length - 1, Math.max(0, Math.round(q * (sorted.length - 1)))); return sorted[i]; }
+  function renderMC() {
+    const s = read();
+    const d = Math.max(1, tDays(s));
+    const mc = monteCarlo(s, d, 1000, mcSeed);
+    const active = PLAYERS.filter((pl) => (pl.id !== "ch" || s.useCH) && (pl.id !== "fh" || s.useFH));
+    const yrs = d / 365;
+    const rows = active.map((pl) => {
+      const xs = mc.res[pl.id].slice().sort((a, b) => a - b);
+      if (!xs.length) return "";
+      const mean = xs.reduce((a, b) => a + b, 0) / xs.length;
+      if (pl.id === "ex") return `<tr style="--pc:var(${pl.color})"><td>${pl.name}</td><td>${usd(mean, 0)} avg</td><td>${usd(quant(xs, 0.5), 0)}</td><td>—</td><td>${usd(quant(xs, 0.05), 0)}</td><td>${usd(quant(xs, 0.95), 0)}</td><td>—</td></tr>`;
+      const win = xs.filter((v) => v > 0).length / xs.length;
+      const ann = (1 + mean) > 0 ? Math.pow(1 + mean, 1 / yrs) - 1 : -1;
+      const c = (v) => `<span class="${cls(v)}">${pct(v)}</span>`;
+      return `<tr style="--pc:var(${pl.color})"><td>${pl.name}</td><td>${c(mean)}</td><td>${c(quant(xs, 0.5))}</td><td>${(win * 100).toFixed(0)}%</td><td>${c(quant(xs, 0.05))}</td><td>${c(quant(xs, 0.95))}</td><td>${c(ann)}</td></tr>`;
+    }).join("");
+    $("mcTable").innerHTML = `<thead><tr><th>Player</th><th>Average</th><th>Median</th><th>Paths in profit</th><th>Worst 5%</th><th>Best 5%</th><th>Average, per year</th></tr></thead><tbody>${rows}</tbody>`;
+    const fin = mc.finals.slice().sort((a, b) => a - b);
+    $("mcSub").textContent = `Each path runs ${days(d)} with ${s.rv}% realized volatility and a ${s.mu > 0 ? "+" : ""}${s.mu}% yearly trend. NEAR ends between ${pct(quant(fin, 0.05))} and ${pct(quant(fin, 0.95))} in 90% of paths; Curve Short was wiped out in ${(mc.wiped / mc.paths * 100).toFixed(1)}% of them.`;
+    // histogram of returns: Curve Long vs Curve Short
+    const svg = $("chHist"); svg.textContent = "";
+    const css = getComputedStyle(document.documentElement);
+    const W = 640, H = 230, m = { l: 44, r: 12, t: 10, b: 30 };
+    const lo = -1, hi = 2, nb = 30, bw = (hi - lo) / nb;
+    const hist = (arr) => { const h = new Array(nb).fill(0); for (const v of arr) h[Math.min(nb - 1, Math.max(0, Math.floor((Math.min(v, hi - 1e-9) - lo) / bw)))]++; return h.map((n) => n / Math.max(1, arr.length)); };
+    const sets = [["c", "--c-curve"], ["f", "--c-flat"]].filter(([k]) => mc.res[k].length);
+    const hs = sets.map(([k, col]) => [hist(mc.res[k]), col]);
+    const top = Math.max(0.05, ...hs.flatMap(([h]) => h));
+    const X = (v) => m.l + (v - lo) / (hi - lo) * (W - m.l - m.r);
+    const Y = (v) => m.t + (1 - v / top) * (H - m.t - m.b);
+    for (const t of niceTicks(0, top, 4)) {
+      el("line", { x1: m.l, x2: W - m.r, y1: Y(t), y2: Y(t), stroke: css.getPropertyValue("--grid").trim() }, svg);
+      const tx = el("text", { x: m.l - 6, y: Y(t) + 3.5, "text-anchor": "end" }, svg); tx.textContent = Math.round(t * 100) + "%";
+    }
+    hs.forEach(([h, col], si) => {
+      const w = (X(lo + bw) - X(lo)) / hs.length;
+      h.forEach((v, i) => { if (v > 0) el("rect", { x: X(lo + i * bw) + si * w + 0.5, y: Y(v), width: Math.max(1, w - 1), height: Y(0) - Y(v), fill: css.getPropertyValue(col).trim(), opacity: 0.85 }, svg); });
+    });
+    el("line", { x1: X(0), x2: X(0), y1: m.t, y2: H - m.b, stroke: css.getPropertyValue("--muted").trim(), "stroke-dasharray": "3 3" }, svg);
+    for (const t of [-1, -0.5, 0, 0.5, 1, 1.5, 2]) { const tx = el("text", { x: X(t), y: H - m.b + 16, "text-anchor": "middle" }, svg); tx.textContent = (t === 2 ? "≥ +200" : (t > 0 ? "+" : t < 0 ? "−" : "") + Math.abs(t * 100)) + "%"; }
+    $("legendHist").innerHTML = sets.map(([k, col]) => `<span><i style="--lc:var(${col})"></i>${PLAYERS.find((q) => q.id === k).name}: share of paths by return</span>`).join("");
+    $("mcRun").classList.remove("stale");
+  }
+
   // ── wiring ──
-  for (const k of ids) $(k).addEventListener("input", render);
-  for (const k in CHECKS) $(k).addEventListener("change", render);
+  const stale = () => $("mcRun").classList.add("stale");
+  for (const k of ids) $(k).addEventListener("input", () => { render(); stale(); });
+  for (const k in CHECKS) $(k).addEventListener("change", () => { render(); stale(); });
+  $("mcRun").addEventListener("click", () => { mcSeed = (mcSeed * 48271 + 7) % 2147483647; renderMC(); });
   const setMode = (m) => { mode = m; $("modeGrad").setAttribute("aria-pressed", m === "grad"); $("modeJump").setAttribute("aria-pressed", m === "jump"); render(); };
   $("modeGrad").addEventListener("click", () => setMode("grad"));
   $("modeJump").addEventListener("click", () => setMode("jump"));
@@ -594,5 +711,6 @@ svg.chart text { fill: var(--muted); font-family: var(--font-num); font-size: 10
   new MutationObserver(render).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
   makeNormals();
   render();
+  renderMC();
 })();
 </script>
