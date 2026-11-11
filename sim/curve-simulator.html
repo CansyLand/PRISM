@@ -91,6 +91,8 @@ hr { border: 0; border-top: 1px solid var(--line); margin: 0; }
 .pnlpct { font-family: var(--font-num); font-size: 12.5px; }
 .pos { color: var(--gain); } .neg { color: var(--loss); } .zero { color: var(--muted); }
 .expo { font-size: 12px; padding: 3px 8px; border-radius: 99px; border: 1px solid var(--line); align-self: flex-start; font-family: var(--font-num); }
+.why { font-size: 12px; line-height: 1.4; }
+.why b { font-weight: 600; color: var(--ink); }
 .holds { font-size: 12px; color: var(--muted); border-top: 1px dashed var(--line); padding-top: 6px; margin-top: 2px; }
 
 /* panels + charts */
@@ -183,10 +185,10 @@ svg.chart text { fill: var(--muted); font-family: var(--font-num); font-size: 10
       <div class="group">
         <h2>Deposits (USDC)</h2>
         <div class="row2">
-          <div class="ctl"><label for="dc">Curve <output id="dcOut"></output></label><input type="range" id="dc" min="0" max="10000" step="100" value="1000"></div>
-          <div class="ctl"><label for="dch">Curve + short <output id="dchOut"></output></label><input type="range" id="dch" min="0" max="10000" step="100" value="1000"></div>
-          <div class="ctl"><label for="df">Flat <output id="dfOut"></output></label><input type="range" id="df" min="0" max="20000" step="100" value="5000"></div>
-          <div class="ctl"><label for="dfh">Flat + long <output id="dfhOut"></output></label><input type="range" id="dfh" min="0" max="20000" step="100" value="5000"></div>
+          <div class="ctl"><label for="dc">Curve Long <output id="dcOut"></output></label><input type="range" id="dc" min="0" max="10000" step="100" value="1000"></div>
+          <div class="ctl"><label for="dch">Long + short NEAR <output id="dchOut"></output></label><input type="range" id="dch" min="0" max="10000" step="100" value="1000"></div>
+          <div class="ctl"><label for="df">Curve Short <output id="dfOut"></output></label><input type="range" id="df" min="0" max="20000" step="100" value="5000"></div>
+          <div class="ctl"><label for="dfh">Short + long NEAR <output id="dfhOut"></output></label><input type="range" id="dfh" min="0" max="20000" step="100" value="5000"></div>
         </div>
       </div>
     </aside>
@@ -221,16 +223,24 @@ svg.chart text { fill: var(--muted); font-family: var(--font-num); font-size: 10
 
       <div class="notes" style="margin-top:14px">
         <section class="panel">
+          <h3>Why not always pick Curve Long?</h3>
+          <p>Because the explosive upside is rented, not owned. At p = 2 and 80% implied volatility a Curve Long loses about half its size in a year if NEAR goes nowhere, and a 10% drop costs 19%. The card shows the price NEAR must beat just to break even. Like buying options, it pays big now and then and loses a little most of the time. Curve Short is the mirror image.</p>
+        </section>
+        <section class="panel">
+          <h3>Why the PnL lines go flat</h3>
+          <p>The pool is the ceiling. Once Curve Long claims reach the whole pool, Curve Short is wiped out and longs stop gaining. Shorts are not liquidated; there is simply nothing left to pay. New shorts who join later raise the ceiling for future moves, but they never pay for losses made before they arrived.</p>
+        </section>
+        <section class="panel">
           <h3>Is there leverage?</h3>
-          <p>Nobody borrows and nobody can be liquidated. <b>Curve carries built-in leverage of p</b>: at p = 2 a 1% move changes its value by about 2%, but it can only shrink toward zero, never below it. <b>Flat is a fully collateralized short</b> of size p × Curve claims. There are no 10× shorts; the most anyone can lose is what they deposited.</p>
+          <p>Nobody borrows and nobody can be liquidated. <b>Curve Long carries built-in leverage of p</b>: at p = 2 a 1% move changes its value by about 2%, but it can only shrink toward zero. <b>Curve Short is a fully collateralized short</b> of size p × the long claims. There are no 10× shorts; the most anyone can lose is what they deposited.</p>
         </section>
         <section class="panel">
           <h3>Three directions, two volatility bets</h3>
-          <p><b>Curve</b> is bullish and long volatility. <b>Flat</b> is bearish and short volatility. Add a hedge and the direction disappears: <b>Curve + short NEAR</b> wins on big moves either way, and <b>Flat + long NEAR</b> is the sideways "Earn" position that collects funding when the market is quiet.</p>
+          <p><b>Curve Long</b> is bullish and long volatility. <b>Curve Short</b> is bearish and short volatility. Add a hedge and the direction disappears: <b>Long + short NEAR</b> wins on big moves either way, and <b>Short + long NEAR</b> is the sideways "Earn" position that collects funding when the market is quiet.</p>
         </section>
         <section class="panel">
           <h3>How the numbers are made</h3>
-          <p>Curve units are worth NF × (P / P₀)<sup>p</sup>. NF decays at p(p−1)/2 × σ² per year; that decay is the funding. Flat owns the pool minus Curve claims. Hedges are rebalanced once a day at p × the current Curve value. Hedge trading costs and fees on the external market are left out.</p>
+          <p>Curve units are worth NF × (P / P₀)<sup>p</sup>. NF decays at p(p−1)/2 × σ² per year; that decay is the funding. Curve Short owns the pool minus the long claims. Hedges are rebalanced once a day at p × the current long value. Hedge trading costs and fees on the external market are left out.</p>
         </section>
       </div>
     </main>
@@ -243,11 +253,26 @@ svg.chart text { fill: var(--muted); font-family: var(--font-num); font-size: 10
   const MAX_STEPS = 1500;    // daily steps, capped
   const DEFAULTS = { t: 120, x: 0, p: 2, rv: 60, iv: 80, fee: 10, cut: 10, dc: 1000, dch: 1000, df: 5000, dfh: 5000 };
   const PLAYERS = [
-    { id: "c", name: "Curve", tag: "Bull · long volatility", color: "--c-curve", holds: "Curve units only." },
-    { id: "f", name: "Flat", tag: "Bear · short volatility", color: "--c-flat", holds: "Flat shares only." },
-    { id: "ch", name: "Curve + short NEAR", tag: "Neutral · long volatility", color: "--c-curveh", holds: "Curve units, plus a NEAR short of p × its value, rebalanced daily." },
-    { id: "fh", name: "Flat + long NEAR", tag: "Sideways · Earn", color: "--c-flath", holds: "Flat shares, plus NEAR worth p × its share of Curve claims, rebalanced daily." },
-    { id: "ex", name: "Exchange", tag: "House · fees", color: "--c-exch", holds: "Trade fee on every open, plus its cut of the funding Curve pays." },
+    { id: "c", name: "Curve Long", tag: "Bull · long volatility", color: "--c-curve",
+      why: "You expect NEAR to rally hard, soon. Gains accelerate on the way up and you can never be liquidated.",
+      risk: "Rent. The position shrinks every day, and a flat or falling price slowly eats it.",
+      holds: "Curve units only." },
+    { id: "f", name: "Curve Short", tag: "Bear · short volatility", color: "--c-flat",
+      why: "You expect NEAR to drift sideways or down. You collect the rent the longs pay, like an insurer collecting premiums.",
+      risk: "A sharp rally. Your losses grow with the square of the move, up to your whole deposit.",
+      holds: "Short shares only." },
+    { id: "ch", name: "Curve Long + short NEAR", tag: "Neutral · long volatility", color: "--c-curveh",
+      why: "You expect a big move but don't know which way: a listing, an unlock, a court ruling. Direction cancels out; you profit from the size of the move.",
+      risk: "Calm markets. You pay rent every day and nothing happens.",
+      holds: "Curve units, plus a NEAR short of p × their value, rebalanced daily." },
+    { id: "fh", name: "Curve Short + long NEAR", tag: "Sideways · Earn", color: "--c-flath",
+      why: "You hold NEAR anyway and want yield on it. In quiet markets this collects funding with no view on direction.",
+      risk: "Wild markets. Big moves either way cost more than the funding earns.",
+      holds: "Short shares, plus NEAR worth p × its share of Curve claims, rebalanced daily." },
+    { id: "ex", name: "Exchange", tag: "House · fees", color: "--c-exch",
+      why: "Earns on activity, not on direction: a fee on every trade and a cut of the funding.",
+      risk: "Nobody trades. It never takes the other side of a position itself.",
+      holds: "Trade fee on every open, plus its cut of the funding Curve Long pays." },
   ];
   const $ = (id) => document.getElementById(id);
   const ids = Object.keys(DEFAULTS);
@@ -398,11 +423,11 @@ svg.chart text { fill: var(--muted); font-family: var(--font-num); font-size: 10
     $("cutOut").textContent = s.cut + "%";
     for (const k of ["dc", "dch", "df", "dfh"]) $(k + "Out").textContent = usd(s[k]);
     $("rateHint").textContent = r > 0
-      ? `Curve pays ${(r * 100).toFixed(1)}% a year (${(r / 365 * 100).toFixed(3)}% a day). Flat + long breaks even at daily moves of about ${(s.iv / Math.sqrt(365)).toFixed(1)}%.`
+      ? `Curve Long pays ${(r * 100).toFixed(1)}% a year (${(r / 365 * 100).toFixed(3)}% a day). Curve Short + long NEAR breaks even at daily moves of about ${(s.iv / Math.sqrt(365)).toFixed(1)}%.`
       : "At p = 1 the payoff is a straight line, so there is no convexity to pay for and funding is zero.";
     const nfNow = Math.exp(-r * d / 365);
     $("tHint").textContent = r > 0
-      ? `Curve has shrunk ${((1 - nfNow) * 100).toFixed(1)}% from funding. Slider ends at ${days(tMaxDays(s))}, when 99% is gone.`
+      ? `Curve Long has shrunk ${((1 - nfNow) * 100).toFixed(1)}% from funding. Slider ends at ${days(tMaxDays(s))}, when 99% is gone.`
       : "No funding at p = 1, so time alone changes nothing. Slider ends at 10 years.";
 
     const res = simulate(s, x, d, true);
@@ -410,22 +435,23 @@ svg.chart text { fill: var(--muted); font-family: var(--font-num); font-size: 10
     // status strip
     $("status").innerHTML = [
       ["NEAR", `$${res.P1.toFixed(2)}`],
-      ["NF (Curve size left)", `${(res.NF * 100).toFixed(1)}%`],
+      ["NF (Long size left)", `${(res.NF * 100).toFixed(1)}%`],
       ["Pool", usd(res.R)],
-      ["Curve claims", usd(res.Ceff)],
-      ["Flat equity", usd(res.F)],
+      ["Long claims", usd(res.Ceff)],
+      ["Short equity", usd(res.F)],
       ["Funding paid so far", usd(res.fundingPaid)],
       ["Utilization at open", `${(res.util0 * 100).toFixed(0)}%`],
     ].map(([k, v]) => `<div><span>${k}</span> <b>${v}</b></div>`).join("");
 
     const warns = [];
-    if (res.util0 > 0.5) warns.push(`The contract would refuse these opens: Curve would be ${(res.util0 * 100).toFixed(0)}% of the pool, above the 50% cap. Add Flat liquidity or lower the Curve deposits.`);
-    if (res.capped) warns.push(`Flat is wiped out. Curve claims (${usd(res.Craw)}) exceed the pool, so every Curve holder is paid ${(res.haircut * 100).toFixed(0)}% of their claim.`);
+    if (res.util0 > 0.5) warns.push(`The contract would refuse these opens: Curve would be ${(res.util0 * 100).toFixed(0)}% of the pool, above the 50% cap. Add Curve Short deposits or lower the Curve Long deposits.`);
+    if (res.capped) warns.push(`Curve Short is wiped out. Long claims (${usd(res.Craw)}) exceed the pool, so every Curve Long holder is paid ${(res.haircut * 100).toFixed(0)}% of their claim.`);
     $("warn").hidden = !warns.length;
     $("warn").innerHTML = warns.join("<br>");
 
-    // cards
+    // cards. Break-even: price at which the long's units are worth what was paid (fees included).
     const v = res.val;
+    const beX = (1 / (nfNow * (1 - s.fee / 1e4) ** 2)) ** (1 / s.p) - 1;
     $("players").innerHTML = PLAYERS.map((pl) => {
       const dep = pl.id === "ex" ? 0 : res.dep[pl.id];
       const value = v[pl.id];
@@ -440,21 +466,26 @@ svg.chart text { fill: var(--muted); font-family: var(--font-num); font-size: 10
       }
       const pctTxt = pl.id === "ex" ? "earned" : dep > 0 ? pct(pnl / dep) : "—";
       const expo = pl.id === "ex" ? "No market exposure" : lev(res.lev[pl.id]);
+      const be = pl.id === "c" ? `<div class="kv"><span>Wins if NEAR is above</span><span>${pct(beX)}</span></div>`
+        : pl.id === "f" ? `<div class="kv"><span>Wins if NEAR is below</span><span>${pct(beX)}</span></div>` : "";
       return `<article class="card" style="--pc:var(${pl.color})">
         <div class="name"><span class="dot"></span>${pl.name}</div>
         <div class="tag">${pl.tag}</div>
         <div class="pnl ${cls(pnl)}">${sUsd(pnl, 2)}</div>
         <div class="pnlpct ${cls(pnl)}">${pctTxt}</div>
         ${rows.map(([a, b]) => `<div class="kv"><span>${a}</span><span>${b}</span></div>`).join("")}
+        ${be}
         <div class="expo">${expo}</div>
+        <div class="why"><b>Pick this if</b> ${pl.why}</div>
+        <div class="why"><b>Loses when</b> ${pl.risk}</div>
         <div class="holds">${pl.holds}</div>
       </article>`;
     }).join("");
 
     // pool bar
     const segs = [
-      ["Curve", res.pool.c, "--c-curve"], ["Curve + short", res.pool.ch, "--c-curveh"],
-      ["Flat", res.pool.f, "--c-flat"], ["Flat + long", res.pool.fh, "--c-flath"],
+      ["Curve Long", res.pool.c, "--c-curve"], ["Long + short NEAR", res.pool.ch, "--c-curveh"],
+      ["Curve Short", res.pool.f, "--c-flat"], ["Short + long NEAR", res.pool.fh, "--c-flath"],
       ["Exchange fees", res.openFees + res.fundingCut, "--c-exch"],
     ];
     const total = segs.reduce((a, b) => a + b[1], 0) || 1;
