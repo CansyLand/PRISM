@@ -12,6 +12,14 @@ pub fn validate_params(p: &Params) {
     require!((1..=4).contains(&p.power), "power must be 1..=4");
     require!(p.implied_vol_bps <= 50_000, "implied_vol_bps > 500%");
     require!(p.base_funding_bps <= 10_000, "base_funding_bps > 100%/yr");
+    require!(p.util_mult_base_bps <= 20_000, "util_mult_base_bps > 2×");
+    require!(p.util_mult_slope_bps <= 50_000, "util_mult_slope_bps > 5×");
+    require!((1_000..=9_500).contains(&p.util_kink_bps), "util_kink_bps must be 1000..=9500");
+    require!(p.util_mult_kink_slope_bps <= 200_000, "util_mult_kink_slope_bps > 20×");
+    require!(
+        p.util_mult_base_bps > 0 || p.util_mult_slope_bps > 0,
+        "funding multiplier can't be zero at every utilization"
+    );
     require!(p.funding_fee_bps <= 5_000, "funding_fee_bps > 50%");
     require!(p.trade_fee_bps <= 100, "trade_fee_bps > 1%");
     require!((100..=9_000).contains(&p.max_util_bps), "max_util_bps must be 100..=9000");

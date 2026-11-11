@@ -37,9 +37,70 @@ fn ctx_with_result(who: &str, ts: u64, r: PromiseResult) {
     );
 }
 
-/// Zero fees so the math is exact. 50% jump guard so we can move the price fast.
+/// Zero fees and a flat 1× funding multiplier so the math is exact. 50% jump guard so we can move the price fast.
 fn params() -> Params {
+    Params {
+        trade_fee_bps: 0,
+        funding_fee_bps: 0,
+        max_jump_bps: 5_000,
+        util_mult_base_bps: 10_000,
+        util_mult_slope_bps: 0,
+        util_mult_kink_slope_bps: 0,
+        ..Params::default()
+    }
+}
+
+/// Default multiplier: 0.5× at u = 0, 1× at the 50% kink, 4.5× at 100%.
+fn util_params() -> Params {
     Params { trade_fee_bps: 0, funding_fee_bps: 0, max_jump_bps: 5_000, ..Params::default() }
+}
+
+fn funding_after_one_day(flat: u128, curve: u128, price_after_open: u128) -> (u128, u32) {
+    let mut c = setup(util_params());
+    deposit(&mut c, "alice.near", usd(flat), T0, "");
+    ctx("alice.near", T0, 0);
+    c.open_flat(U128(usd(flat)), None, None);
+    deposit(&mut c, "bob.near", usd(curve), T0, "");
+    ctx("bob.near", T0, 0);
+    c.open_curve(U128(usd(curve)), None, None);
+    let mut p = P5;
+    while p < price_after_open {
+        p = (p * 14 / 10).min(price_after_open); // stay inside the 50% jump guard
+        push(&mut c, p, T0);
+    }
+    let mult = c.get_market().funding_multiplier_bps;
+    let before = view(&c, "bob.near").curve_value.0;
+    push(&mut c, price_after_open, T0 + 86_400);
+    (before - view(&c, "bob.near").curve_value.0, mult)
+}
+
+#[test]
+fn multiplier_curve_matches_spec() {
+    let c = setup(util_params());
+    assert_eq!(c.util_multiplier_bps(0), 5_000);
+    assert_eq!(c.util_multiplier_bps(2_500), 7_500);
+    assert_eq!(c.util_multiplier_bps(5_000), 10_000);
+    assert_eq!(c.util_multiplier_bps(7_500), 12_500 + 15_000);
+    assert_eq!(c.util_multiplier_bps(10_000), 15_000 + 30_000);
+}
+
+#[test]
+fn scarce_shorts_get_paid_more() {
+    // Same $1k long, same price, but less short liquidity → higher utilization → more funding.
+    let (deep, m_deep) = funding_after_one_day(20_000, 1_000, P5); // u ≈ 4.8%
+    let (thin, m_thin) = funding_after_one_day(2_500, 1_000, P5); // u ≈ 28.6%
+    assert!(m_thin > m_deep, "multiplier {m_thin} should exceed {m_deep}");
+    assert!(thin > deep, "funding {thin} should exceed {deep}");
+}
+
+#[test]
+fn rally_past_the_kink_makes_funding_steep() {
+    // Open at 33% utilization, then a rally pushes Curve claims to ~65% of the pool.
+    let (_, m_open) = funding_after_one_day(2_000, 1_000, P5);
+    let (paid, m_rally) = funding_after_one_day(2_000, 1_000, 7_000_000);
+    assert!(m_open < 10_000 && m_rally > 15_000, "open {m_open} rally {m_rally}");
+    // Fair rate is 0.64/yr; at m > 1.5× one day costs > 0.26% of the (now ~$1,960) claim.
+    assert!(paid > 5_000_000, "paid {paid}");
 }
 
 fn setup(p: Params) -> Contract {

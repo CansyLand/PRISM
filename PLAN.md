@@ -46,7 +46,7 @@ One USDC treasury, two sides, priced only by the oracle.
 
 ### Nice to have
 - Delta-hedge module (makes Flat truly flat)
-- Utilization-based funding premium (funding rises as the pool fills up)
+- ✅ Utilization-based funding: 0.5× fair below 50% utilization, steep above (`util_*` params, `funding_multiplier_bps` in `get_market`)
 - Flat withdrawal cooldown/queue (stops Flat from front-running a pump)
 - Telegram mini-app UI with a payoff chart (`quote_payoff` view is ready for it)
 - Fractional `p` (needs on-chain `ln`/`exp`; integer p only in v1)

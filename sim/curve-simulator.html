@@ -68,6 +68,11 @@ input[type=range]:focus-visible, button:focus-visible, select:focus-visible { ou
 .btn:hover { border-color: var(--accent); }
 .btns { display: flex; gap: 8px; flex-wrap: wrap; }
 hr { border: 0; border-top: 1px solid var(--line); margin: 0; }
+.toggle { display: flex; align-items: center; gap: 8px; font-weight: 500; cursor: pointer; }
+.toggle input { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; }
+.hint { color: var(--muted); font-size: 12px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+input:disabled { opacity: .45; }
 
 /* status strip */
 .status { display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 10px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; margin-bottom: 14px; font-size: 13px; }
@@ -170,6 +175,23 @@ svg.chart text { fill: var(--muted); font-family: var(--font-num); font-size: 10
           <input type="range" id="iv" min="10" max="200" step="5" value="80">
           <small id="rateHint"></small>
         </div>
+        <label class="toggle"><input type="checkbox" id="uf" checked> Funding follows utilization</label>
+        <div class="row2" id="ufCtl">
+          <div class="ctl">
+            <label for="kink">Kink <output id="kinkOut"></output></label>
+            <input type="range" id="kink" min="10" max="95" step="5" value="50">
+          </div>
+          <div class="ctl">
+            <label for="steep">Steepness <output id="steepOut"></output></label>
+            <input type="range" id="steep" min="0" max="10" step="0.5" value="3">
+          </div>
+        </div>
+        <small class="hint" id="ufHint"></small>
+        <div class="ctl">
+          <label for="cap">Max utilization for new longs <output id="capOut"></output></label>
+          <input type="range" id="cap" min="10" max="90" step="5" value="50">
+          <small>A safety rail. It sets how big a rally the shorts can absorb before they're wiped out.</small>
+        </div>
         <div class="row2">
           <div class="ctl">
             <label for="fee">Trade fee <output id="feeOut"></output></label>
@@ -186,9 +208,21 @@ svg.chart text { fill: var(--muted); font-family: var(--font-num); font-size: 10
         <h2>Deposits (USDC)</h2>
         <div class="row2">
           <div class="ctl"><label for="dc">Curve Long <output id="dcOut"></output></label><input type="range" id="dc" min="0" max="10000" step="100" value="1000"></div>
-          <div class="ctl"><label for="dch">Long + short NEAR <output id="dchOut"></output></label><input type="range" id="dch" min="0" max="10000" step="100" value="1000"></div>
           <div class="ctl"><label for="df">Curve Short <output id="dfOut"></output></label><input type="range" id="df" min="0" max="20000" step="100" value="5000"></div>
-          <div class="ctl"><label for="dfh">Short + long NEAR <output id="dfhOut"></output></label><input type="range" id="dfh" min="0" max="20000" step="100" value="5000"></div>
+        </div>
+        <h2>Hedged players</h2>
+        <small class="hint">Sophisticated strategies. Switch them off to see plain long-versus-short trading.</small>
+        <div class="row2">
+          <div class="ctl">
+            <label class="toggle"><input type="checkbox" id="useCH" checked> Long + short NEAR</label>
+            <label for="dch" class="sr">Long + short NEAR deposit</label>
+            <input type="range" id="dch" min="0" max="10000" step="100" value="1000"><small><output id="dchOut"></output></small>
+          </div>
+          <div class="ctl">
+            <label class="toggle"><input type="checkbox" id="useFH" checked> Short + long NEAR</label>
+            <label for="dfh" class="sr">Short + long NEAR deposit</label>
+            <input type="range" id="dfh" min="0" max="20000" step="100" value="5000"><small><output id="dfhOut"></output></small>
+          </div>
         </div>
       </div>
     </aside>
@@ -251,7 +285,8 @@ svg.chart text { fill: var(--muted); font-family: var(--font-num); font-size: 10
 (() => {
   const P0 = 5;              // NEAR start price, USD
   const MAX_STEPS = 1500;    // daily steps, capped
-  const DEFAULTS = { t: 120, x: 0, p: 2, rv: 60, iv: 80, fee: 10, cut: 10, dc: 1000, dch: 1000, df: 5000, dfh: 5000 };
+  const DEFAULTS = { t: 120, x: 0, p: 2, rv: 60, iv: 80, fee: 10, cut: 10, dc: 1000, dch: 1000, df: 5000, dfh: 5000, kink: 50, steep: 3, cap: 50 };
+  const CHECKS = { uf: true, useCH: true, useFH: true };
   const PLAYERS = [
     { id: "c", name: "Curve Long", tag: "Bull · long volatility", color: "--c-curve",
       why: "You expect NEAR to rally hard, soon. Gains accelerate on the way up and you can never be liquidated.",
@@ -295,16 +330,24 @@ svg.chart text { fill: var(--muted); font-family: var(--font-num); font-size: 10
     const s = {};
     for (const k of ids) s[k] = Number($(k).value);
     s.mode = mode;
+    for (const k in CHECKS) s[k] = $(k).checked;
     return s;
   };
-  const rate = (s) => (s.p * (s.p - 1) / 2) * (s.iv / 100) ** 2; // per year
-  const tMaxDays = (s) => { const r = rate(s); return r <= 1e-9 ? 3650 : Math.min(36500, Math.log(100) / r * 365); };
+  const rate = (s) => (s.p * (s.p - 1) / 2) * (s.iv / 100) ** 2; // fair rate per year, before utilization
+  // Same curve as the contract: 0.5× + 1×·u + steepness·max(0, u − kink)/(1 − kink)
+  const mult = (s, u) => {
+    if (!s.uf) return 1;
+    const k = s.kink / 100;
+    return 0.5 + u + s.steep * Math.max(0, u - k) / (1 - k);
+  };
+  const utilOpen = (s) => { const l = s.dc + (s.useCH ? s.dch : 0), sh = s.df + (s.useFH ? s.dfh : 0); return l + sh > 0 ? l / (l + sh) : 0; };
+  const tMaxDays = (s) => { const r = rate(s) * mult(s, utilOpen(s)); return r <= 1e-9 ? 3650 : Math.min(36500, Math.log(100) / r * 365); };
   const tDays = (s) => tMaxDays(s) * (s.t / 1000) ** 2;
 
   // ── the model: mirrors the contract's accounting, one step per day ──
   function simulate(s, x, days, record) {
     const fee = s.fee / 1e4, cut = s.cut / 100, p = s.p, r = rate(s);
-    const dep = { c: s.dc, ch: s.dch, f: s.df, fh: s.dfh };
+    const dep = { c: s.dc, ch: s.useCH ? s.dch : 0, f: s.df, fh: s.useFH ? s.dfh : 0 };
     const openFees = fee * (dep.c + dep.ch + dep.f + dep.fh);
     const net = { c: dep.c * (1 - fee), ch: dep.ch * (1 - fee), f: dep.f * (1 - fee), fh: dep.fh * (1 - fee) };
     const U = net.c + net.ch;                 // Curve units (1 unit = $1 at P0, NF = 1)
@@ -329,9 +372,11 @@ svg.chart text { fill: var(--muted); font-family: var(--font-num); font-size: 10
       const bridge = vol * (W - frac * Wn);
       const drift = s.mode === "jump" ? (k === N ? L : 0) : frac * L;
       const P = P0 * Math.exp(drift + (k === N ? 0 : bridge));
-      const NF = Math.exp(-r * k * dtY);
-      // 1) funding accrues at the old price (as the contract does before a price update)
+      // 1) funding accrues at the old price (as the contract does before a price update),
+      //    at a rate set by utilization at the start of the step
       const idxPrev = (prevP / P0) ** p;
+      const u = R > 0 ? Math.min(1, U * NFprev * idxPrev / R) : 1;
+      const NF = NFprev * Math.exp(-r * mult(s, u) * dtY);
       const before = Math.min(U * NFprev * idxPrev, R), after = Math.min(U * NF * idxPrev, R);
       const fund = before - after, take = fund * cut;
       R -= take; fundingCut += take; fundingPaid += fund;
@@ -355,6 +400,7 @@ svg.chart text { fill: var(--muted); font-family: var(--font-num); font-size: 10
       dep, pool, val, hedgeS, hedgeL, openFees, fundingCut, fundingPaid, R, Craw, Ceff, F, NF, P1, capped, path: out,
       lev: { c: curveLev, f: flatLev, ch: 0, fh: 0 },
       util0: (U + flatTot) > 0 ? U / (U + flatTot) : 0,
+      uEnd: R > 0 ? Math.min(1, Craw / R) : 0,
       haircut: Craw > 0 ? Ceff / Craw : 1,
       closeFees: fee * (pool.c + pool.ch + pool.f + pool.fh),
     };
@@ -405,8 +451,8 @@ svg.chart text { fill: var(--muted); font-family: var(--font-num); font-size: 10
       if (marker != null && s.markY != null) el("circle", { cx: X(marker), cy: Y(s.markY), r: 3.5, fill: css.getPropertyValue(s.color).trim(), stroke: css.getPropertyValue("--panel").trim(), "stroke-width": 1.5 }, svg);
     }
   }
-  function legend(node) {
-    node.innerHTML = PLAYERS.map((p) => `<span><i style="--lc:var(${p.color})"></i>${p.name}</span>`).join("");
+  function legend(node, list) {
+    node.innerHTML = list.map((p) => `<span><i style="--lc:var(${p.color})"></i>${p.name}</span>`).join("");
   }
 
   // ── render ──
@@ -422,15 +468,25 @@ svg.chart text { fill: var(--muted); font-family: var(--font-num); font-size: 10
     $("feeOut").textContent = (s.fee / 100).toFixed(2) + "%";
     $("cutOut").textContent = s.cut + "%";
     for (const k of ["dc", "dch", "df", "dfh"]) $(k + "Out").textContent = usd(s[k]);
-    $("rateHint").textContent = r > 0
-      ? `Curve Long pays ${(r * 100).toFixed(1)}% a year (${(r / 365 * 100).toFixed(3)}% a day). Curve Short + long NEAR breaks even at daily moves of about ${(s.iv / Math.sqrt(365)).toFixed(1)}%.`
-      : "At p = 1 the payoff is a straight line, so there is no convexity to pay for and funding is zero.";
-    const nfNow = Math.exp(-r * d / 365);
-    $("tHint").textContent = r > 0
-      ? `Curve Long has shrunk ${((1 - nfNow) * 100).toFixed(1)}% from funding. Slider ends at ${days(tMaxDays(s))}, when 99% is gone.`
-      : "No funding at p = 1, so time alone changes nothing. Slider ends at 10 years.";
+    $("kinkOut").textContent = s.kink + "%";
+    $("steepOut").textContent = s.steep.toFixed(1) + "×";
+    $("capOut").textContent = s.cap + "%";
+    for (const k of ["kink", "steep"]) $(k).disabled = !s.uf;
+    $("dch").disabled = !s.useCH; $("dfh").disabled = !s.useFH;
 
     const res = simulate(s, x, d, true);
+    const nfNow = res.NF;
+    const m0 = mult(s, res.util0), m1 = mult(s, res.uEnd);
+    $("rateHint").textContent = r > 0
+      ? `Fair rate p(p−1)/2 × σ² = ${(r * 100).toFixed(1)}% a year. ` + (s.uf ? `With utilization: ${(r * m1 * 100).toFixed(1)}% a year right now.` : "Fixed, whatever the utilization.")
+      : "At p = 1 the payoff is a straight line, so there is no convexity to pay for and funding is zero.";
+    $("ufHint").textContent = s.uf
+      ? `Multiplier ${m0.toFixed(2)}× at open (${(res.util0 * 100).toFixed(0)}% utilization), ${m1.toFixed(2)}× now (${(res.uEnd * 100).toFixed(0)}%). Below the kink longs pay less than fair; above it shorts are paid more.`
+      : "Off: longs pay the fair rate even when shorts are scarce.";
+    $("tHint").textContent = r > 0
+      ? `Curve Long has shrunk ${((1 - nfNow) * 100).toFixed(1)}% from funding. Slider ends at about ${days(tMaxDays(s))}, when 99% would be gone at the opening rate.`
+      : "No funding at p = 1, so time alone changes nothing. Slider ends at 10 years.";
+    const active = PLAYERS.filter((pl) => (pl.id !== "ch" || s.useCH) && (pl.id !== "fh" || s.useFH));
 
     // status strip
     $("status").innerHTML = [
@@ -440,11 +496,12 @@ svg.chart text { fill: var(--muted); font-family: var(--font-num); font-size: 10
       ["Long claims", usd(res.Ceff)],
       ["Short equity", usd(res.F)],
       ["Funding paid so far", usd(res.fundingPaid)],
-      ["Utilization at open", `${(res.util0 * 100).toFixed(0)}%`],
+      ["Utilization", `${(res.util0 * 100).toFixed(0)}% → ${(res.uEnd * 100).toFixed(0)}%`],
+      ["Funding now", `${(r * m1 * 100).toFixed(1)}%/yr`],
     ].map(([k, v]) => `<div><span>${k}</span> <b>${v}</b></div>`).join("");
 
     const warns = [];
-    if (res.util0 > 0.5) warns.push(`The contract would refuse these opens: Curve would be ${(res.util0 * 100).toFixed(0)}% of the pool, above the 50% cap. Add Curve Short deposits or lower the Curve Long deposits.`);
+    if (res.util0 > s.cap / 100) warns.push(`The contract would refuse these opens: Curve Long would be ${(res.util0 * 100).toFixed(0)}% of the pool, above the ${s.cap}% cap. Add Curve Short deposits or lower the Curve Long deposits.`);
     if (res.capped) warns.push(`Curve Short is wiped out. Long claims (${usd(res.Craw)}) exceed the pool, so every Curve Long holder is paid ${(res.haircut * 100).toFixed(0)}% of their claim.`);
     $("warn").hidden = !warns.length;
     $("warn").innerHTML = warns.join("<br>");
@@ -452,7 +509,7 @@ svg.chart text { fill: var(--muted); font-family: var(--font-num); font-size: 10
     // cards. Break-even: price at which the long's units are worth what was paid (fees included).
     const v = res.val;
     const beX = (1 / (nfNow * (1 - s.fee / 1e4) ** 2)) ** (1 / s.p) - 1;
-    $("players").innerHTML = PLAYERS.map((pl) => {
+    $("players").innerHTML = active.map((pl) => {
       const dep = pl.id === "ex" ? 0 : res.dep[pl.id];
       const value = v[pl.id];
       const pnl = pl.id === "ex" ? value : value - dep;
@@ -484,17 +541,17 @@ svg.chart text { fill: var(--muted); font-family: var(--font-num); font-size: 10
 
     // pool bar
     const segs = [
-      ["Curve Long", res.pool.c, "--c-curve"], ["Long + short NEAR", res.pool.ch, "--c-curveh"],
-      ["Curve Short", res.pool.f, "--c-flat"], ["Short + long NEAR", res.pool.fh, "--c-flath"],
+      ["Curve Long", res.pool.c, "--c-curve"], s.useCH && ["Long + short NEAR", res.pool.ch, "--c-curveh"],
+      ["Curve Short", res.pool.f, "--c-flat"], s.useFH && ["Short + long NEAR", res.pool.fh, "--c-flath"],
       ["Exchange fees", res.openFees + res.fundingCut, "--c-exch"],
-    ];
+    ].filter(Boolean);
     const total = segs.reduce((a, b) => a + b[1], 0) || 1;
     $("bar").innerHTML = segs.map(([n, val, c]) => `<div title="${n}: ${usd(val, 2)}" style="--pc:var(${c});width:${(val / total * 100).toFixed(3)}%"></div>`).join("");
     $("barLegend").innerHTML = segs.map(([n, val, c]) => `<div style="--pc:var(${c})"><span>${n}</span><span class="num">${usd(val, 2)}</span></div>`).join("");
-    const depTot = s.dc + s.dch + s.df + s.dfh;
+    const depTot = res.dep.c + res.dep.ch + res.dep.f + res.dep.fh;
     const hedgeTot = res.hedgeS + res.hedgeL;
-    $("check").innerHTML = `Inside the pool: claims <b>${usd(total, 2)}</b> = deposits <b>${usd(depTot, 2)}</b>. Money only moves between players. `
-      + `Outside the pool, the two hedges made <b>${sUsd(hedgeTot, 2)}</b> against the external market.`;
+    $("check").innerHTML = `Inside the pool: claims <b>${usd(total, 2)}</b> = deposits <b>${usd(depTot, 2)}</b>. Money only moves between players.`
+      + (s.useCH || s.useFH ? ` Outside the pool, the hedges made <b>${sUsd(hedgeTot, 2)}</b> against the external market.` : "");
 
     // chart 1: PnL across price at current time
     const grid = []; for (let q = -90; q <= 300; q += 5) grid.push(q);
@@ -504,8 +561,9 @@ svg.chart text { fill: var(--muted); font-family: var(--font-num); font-size: 10
     const mk = (key) => key === "ex" ? v.ex : v[key] - res.dep[key];
     lineChart($("chPrice"), {
       xs: grid, xFmt: (q) => (q > 0 ? "+" : "") + q + "%", marker: s.x, xTicks: [-90, -50, 0, 50, 100, 150, 200, 250, 300],
-      series: PLAYERS.map((pl) => ({ color: pl.color, ys: ser(pl.id), markY: mk(pl.id), dash: pl.id === "ex" ? "4 3" : "", w: pl.id === "ex" ? 1.6 : 2.2 })),
+      series: active.map((pl) => ({ color: pl.color, ys: ser(pl.id), markY: mk(pl.id), dash: pl.id === "ex" ? "4 3" : "", w: pl.id === "ex" ? 1.6 : 2.2 })),
     });
+    legend($("legend1"), active); legend($("legend2"), active);
     $("priceSub").textContent = `After ${days(d)}, for every final NEAR price. The dotted line is the current price slider.`;
 
     // chart 2: PnL over time along the path
@@ -513,7 +571,7 @@ svg.chart text { fill: var(--muted); font-family: var(--font-num); font-size: 10
     if (path.length > 1) {
       lineChart($("chTime"), {
         xs: path.map((q) => q.day), xFmt: (q) => q >= 730 ? (q / 365).toFixed(1) + "y" : Math.round(q) + "d",
-        series: PLAYERS.map((pl) => ({ color: pl.color, ys: path.map((q) => q[pl.id]), dash: pl.id === "ex" ? "4 3" : "", w: pl.id === "ex" ? 1.6 : 2.2 })),
+        series: active.map((pl) => ({ color: pl.color, ys: path.map((q) => q[pl.id]), dash: pl.id === "ex" ? "4 3" : "", w: pl.id === "ex" ? 1.6 : 2.2 })),
       });
       $("timeSub").textContent = s.mode === "jump"
         ? `Price chops around $${P0.toFixed(2)} for ${days(d)}, then jumps to $${res.P1.toFixed(2)} at the end.`
@@ -526,14 +584,14 @@ svg.chart text { fill: var(--muted); font-family: var(--font-num); font-size: 10
 
   // ── wiring ──
   for (const k of ids) $(k).addEventListener("input", render);
+  for (const k in CHECKS) $(k).addEventListener("change", render);
   const setMode = (m) => { mode = m; $("modeGrad").setAttribute("aria-pressed", m === "grad"); $("modeJump").setAttribute("aria-pressed", m === "jump"); render(); };
   $("modeGrad").addEventListener("click", () => setMode("grad"));
   $("modeJump").addEventListener("click", () => setMode("jump"));
   $("reseed").addEventListener("click", () => { seed = (seed * 48271 + 11) % 2147483647; makeNormals(); render(); });
-  $("reset").addEventListener("click", () => { for (const k of ids) $(k).value = DEFAULTS[k]; seed = 7; makeNormals(); setMode("grad"); });
+  $("reset").addEventListener("click", () => { for (const k of ids) $(k).value = DEFAULTS[k]; for (const k in CHECKS) $(k).checked = CHECKS[k]; seed = 7; makeNormals(); setMode("grad"); });
   window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", render);
   new MutationObserver(render).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
-  legend($("legend1")); legend($("legend2"));
   makeNormals();
   render();
 })();

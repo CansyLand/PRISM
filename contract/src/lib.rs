@@ -51,6 +51,14 @@ pub struct Params {
     pub implied_vol_bps: u32,
     /// Extra annual funding (bps) on top of the fair convexity rate.
     pub base_funding_bps: u32,
+    /// Utilization multiplier on funding, u = Curve claims / pool:
+    /// `m(u) = base + slope·u + kink_slope·max(0, u − kink)/(1 − kink)`, in bps (10000 = 1×).
+    /// Cheaper than fair below the kink (attracts longs), steeper above it (attracts shorts).
+    /// Set base = 10000 and both slopes = 0 to switch it off.
+    pub util_mult_base_bps: u32,
+    pub util_mult_slope_bps: u32,
+    pub util_kink_bps: u16,
+    pub util_mult_kink_slope_bps: u32,
     /// Protocol share of funding paid by Curve (bps of funding).
     pub funding_fee_bps: u16,
     /// Fee on every open/close (bps of amount).
@@ -75,6 +83,11 @@ impl Default for Params {
             power: 2,
             implied_vol_bps: 8_000,
             base_funding_bps: 0,
+            // 0.5× at u = 0, 1× (fair) at the 50% kink, 4.5× at u = 100%.
+            util_mult_base_bps: 5_000,
+            util_mult_slope_bps: 10_000,
+            util_kink_bps: 5_000,
+            util_mult_kink_slope_bps: 30_000,
             funding_fee_bps: 1_000,
             trade_fee_bps: 10,
             max_util_bps: 5_000,
@@ -242,20 +255,50 @@ impl Contract {
         (U256::from(units) * unit_value_e18 / U256::from(ONE)).as_u128()
     }
 
-    pub(crate) fn funding_rate_e18(&self) -> u128 {
+    /// Fair convexity rate before the utilization multiplier.
+    pub(crate) fn base_funding_rate_e18(&self) -> u128 {
         annual_funding_rate_e18(self.params.power, self.params.implied_vol_bps, self.params.base_funding_bps)
     }
 
+    /// Utilization u = Curve claims / pool, in bps, capped at 100%.
+    pub(crate) fn utilization_bps(c_raw: u128, risk_pool: u128) -> u128 {
+        if c_raw == 0 {
+            0
+        } else if risk_pool == 0 {
+            BPS
+        } else {
+            mul_div(c_raw, BPS, risk_pool).min(BPS)
+        }
+    }
+
+    /// Funding multiplier m(u) in bps (10000 = 1×).
+    pub(crate) fn util_multiplier_bps(&self, util_bps: u128) -> u128 {
+        let p = &self.params;
+        let kink = p.util_kink_bps as u128;
+        let above = util_bps.saturating_sub(kink);
+        p.util_mult_base_bps as u128
+            + p.util_mult_slope_bps as u128 * util_bps / BPS
+            + p.util_mult_kink_slope_bps as u128 * above / (BPS - kink)
+    }
+
+    /// Effective annual funding rate (1e18) at the given utilization.
+    pub(crate) fn funding_rate_at_e18(&self, util_bps: u128) -> u128 {
+        mul_div(self.base_funding_rate_e18(), self.util_multiplier_bps(util_bps), BPS)
+    }
+
     /// (new NF, funding paid by Curve, protocol fee) for time since the last accrual.
+    /// The rate uses utilization at the start of the interval; keepers poke often.
     pub(crate) fn pending_accrual(&self) -> (u128, u128, u128) {
         let now = now_secs();
         if now <= self.last_accrual_ts || self.price == 0 || self.total_units == 0 {
             return (self.nf, 0, 0);
         }
         let dt = (now - self.last_accrual_ts) as u128;
-        let x = mul_div(self.funding_rate_e18(), dt, YEAR_SECS);
+        let c_raw = Self::units_value(self.total_units, self.unit_value_e18(self.nf));
+        let rate = self.funding_rate_at_e18(Self::utilization_bps(c_raw, self.risk_pool));
+        let x = mul_div(rate, dt, YEAR_SECS);
         let nf_new = mul_div(self.nf, exp_neg_e18(x), ONE);
-        let before = Self::units_value(self.total_units, self.unit_value_e18(self.nf)).min(self.risk_pool);
+        let before = c_raw.min(self.risk_pool);
         let after = Self::units_value(self.total_units, self.unit_value_e18(nf_new)).min(self.risk_pool);
         let funding = before - after;
         let fee = funding * self.params.funding_fee_bps as u128 / BPS;
