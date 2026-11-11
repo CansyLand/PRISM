@@ -16,7 +16,7 @@ pays all gas, so users never see NEAR.
 | [`intents/`](intents) | 1Click client, relayer for Telegram accounts, oracle/funding keeper |
 | [`sim/curve-simulator.html`](sim/curve-simulator.html) | Interactive simulator: Curve Long, Curve Short, both hedged variants, the exchange, and a Monte Carlo panel |
 | [`sim/MONTECARLO.md`](sim/MONTECARLO.md) | Monte Carlo findings on long vs short balance (`node sim/montecarlo.js`) |
-| [`sim/btc-replay.html`](sim/btc-replay.html) | Exchange mockup replayed on real BTC daily prices, Jul 2020 – Mar 2023 (data: `sim/btc-2020-2023.json`, Binance) |
+| [`sim/btc-replay.html`](sim/btc-replay.html) | Exchange mockup replayed on real BTC prices: daily Jul 2020 – Mar 2023 and 1-minute for the 16–23 May 2021 crash week (data: `sim/btc-*.json`, Binance) |
 
 ```bash
 cd contract && cargo test
