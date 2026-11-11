@@ -20,6 +20,7 @@ pub fn validate_params(p: &Params) {
         p.util_mult_base_bps > 0 || p.util_mult_slope_bps > 0,
         "funding multiplier can't be zero at every utilization"
     );
+    require!((100..=10_000).contains(&p.max_open_bps), "max_open_bps must be 100..=10000");
     require!(p.funding_fee_bps <= 5_000, "funding_fee_bps > 50%");
     require!(p.trade_fee_bps <= 100, "trade_fee_bps > 1%");
     require!((5..=3_600).contains(&p.max_price_age_secs), "max_price_age_secs must be 5..=3600");

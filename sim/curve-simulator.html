@@ -200,6 +200,11 @@ table.mc td:first-child::before { content: ""; display: inline-block; width: 9px
           </div>
         </div>
         <small class="hint" id="ufHint"></small>
+        <div class="ctl">
+          <label for="mo">Largest single long open <output id="moOut"></output></label>
+          <input type="range" id="mo" min="5" max="100" step="5" value="20">
+          <small>Share of the pool one long open may use. Bigger longs must be split into several opens, and each one raises funding.</small>
+        </div>
         <div class="row2">
           <div class="ctl">
             <label for="fee">Trade fee <output id="feeOut"></output></label>
@@ -312,7 +317,7 @@ table.mc td:first-child::before { content: ""; display: inline-block; width: 9px
 (() => {
   const P0 = 5;              // NEAR start price, USD
   const MAX_STEPS = 1500;    // daily steps, capped
-  const DEFAULTS = { t: 120, x: 0, p: 2, rv: 60, iv: 80, fee: 10, cut: 10, dc: 1000, dch: 1000, df: 5000, dfh: 5000, kink: 50, steep: 20, mu: 0 };
+  const DEFAULTS = { t: 120, x: 0, p: 2, rv: 60, iv: 80, fee: 10, cut: 10, dc: 1000, dch: 1000, df: 5000, dfh: 5000, kink: 50, steep: 20, mu: 0, mo: 20 };
   const CHECKS = { uf: true, useCH: true, useFH: true };
   const PLAYERS = [
     { id: "c", name: "Curve Long", tag: "Bull · long volatility", color: "--c-curve",
@@ -538,6 +543,7 @@ table.mc td:first-child::before { content: ""; display: inline-block; width: 9px
     for (const k of ["dc", "dch", "df", "dfh"]) $(k + "Out").textContent = usd(s[k]);
     $("kinkOut").textContent = s.kink + "%";
     $("steepOut").textContent = s.steep.toFixed(0) + "×";
+    $("moOut").textContent = s.mo + "% of the pool";
     $("muOut").textContent = (s.mu > 0 ? "+" : "") + s.mu + "% a year";
     for (const k of ["kink", "steep"]) $(k).disabled = !s.uf;
     $("dch").disabled = !s.useCH; $("dfh").disabled = !s.useFH;
@@ -569,6 +575,17 @@ table.mc td:first-child::before { content: ""; display: inline-block; width: 9px
     ].map(([k, v]) => `<div><span>${k}</span> <b>${v}</b></div>`).join("");
 
     const warns = [];
+    // Longs open after the shorts, each open at most mo% of the pool at that moment.
+    const opensNeeded = (amount, pool) => { let n = 0, left = amount; while (left > 1e-9 && n < 999) { const take = Math.min(left, pool * s.mo / 100); if (take <= 0) return Infinity; left -= take; pool += take; n++; } return n; };
+    if (!res.noShorts) {
+      let pool = res.dep.f + res.dep.fh;
+      const n1 = opensNeeded(res.dep.c, pool); pool += res.dep.c;
+      const n2 = opensNeeded(res.dep.ch, pool);
+      const parts = [];
+      if (n1 > 1) parts.push(`Curve Long's ${usd(res.dep.c)} needs ${n1} separate opens`);
+      if (n2 > 1) parts.push(`Long + short NEAR's ${usd(res.dep.ch)} needs ${n2}`);
+      if (parts.length) warns.push(`${parts.join("; ")}. One open may use at most ${s.mo}% of the pool, so the long has to build up step by step while funding climbs. The simulation shows the end state.`);
+    }
     if (res.noShorts) warns.push("No Curve Short deposits: the contract refuses longs until there is at least one short.");
     if (res.writeDowns) warns.push(`A rally pushed long claims past the pool. Curve Short was wiped out and ${usd(res.writtenOff)} of long claims were written off; longs kept the whole ${usd(res.R)} pool. New shorts could now join at today's price.`);
     $("warn").hidden = !warns.length;

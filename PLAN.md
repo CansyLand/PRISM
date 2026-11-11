@@ -108,7 +108,7 @@ its own sub-namespace. The relayer pays all gas.
    a timelock on params, and no full-access key on the contract account.
 4. **Curve Short bears the tail.** A large upward move can wipe out Curve Short equity.
    Curve Long holders then share the whole pool and the claim above it is written off.
-   Steep utilization funding is the only buffer in v1; there is no size limit on opens.
+   Buffers in v1: steep utilization funding, and one long open may use at most 20% of the pool (`max_open_bps`), so a big long has to build up over many opens while funding climbs. Short opens are unlimited.
 5. **Withdraw safety.** Balances are debited before the transfer and restored in
    the callback if `ft_transfer` fails. `withdraw` requires 1 yoctoNEAR, which forces
    a full-access key, so a leaked bot function-call key can't move funds out.

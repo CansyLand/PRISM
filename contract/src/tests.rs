@@ -43,6 +43,7 @@ fn params() -> Params {
         trade_fee_bps: 0,
         funding_fee_bps: 0,
         max_jump_bps: 5_000,
+        max_open_bps: 10_000,
         util_mult_base_bps: 10_000,
         util_mult_slope_bps: 0,
         util_mult_kink_slope_bps: 0,
@@ -52,7 +53,44 @@ fn params() -> Params {
 
 /// Default multiplier: 0.5× at u = 0, 1× at the 50% kink, 21.5× at 100%.
 fn util_params() -> Params {
-    Params { trade_fee_bps: 0, funding_fee_bps: 0, max_jump_bps: 5_000, ..Params::default() }
+    Params { trade_fee_bps: 0, funding_fee_bps: 0, max_jump_bps: 5_000, max_open_bps: 10_000, ..Params::default() }
+}
+
+#[test]
+#[should_panic(expected = "open too large")]
+fn one_long_open_is_limited_to_20pct_of_the_pool() {
+    // $100 of shorts, someone tries a $5,000 long.
+    let mut c = setup(Params { trade_fee_bps: 0, ..Params::default() });
+    deposit(&mut c, "alice.near", usd(100), T0, "");
+    ctx("alice.near", T0, 0);
+    c.open_short(U128(usd(100)), None, None);
+    deposit(&mut c, "bob.near", usd(5_000), T0, "");
+    ctx("bob.near", T0, 0);
+    c.open_long(U128(usd(5_000)), None, None);
+}
+
+#[test]
+fn repeated_long_opens_are_allowed_and_get_expensive() {
+    let mut c = setup(Params { trade_fee_bps: 0, ..Params::default() });
+    deposit(&mut c, "alice.near", usd(100), T0, "");
+    ctx("alice.near", T0, 0);
+    c.open_short(U128(usd(100)), None, None);
+    deposit(&mut c, "bob.near", usd(5_000), T0, "");
+    assert_eq!(c.get_market().max_long_open.0, usd(20));
+    let mut opens = 0;
+    for _ in 0..8 {
+        let max = c.get_market().max_long_open.0;
+        ctx("bob.near", T0, 0);
+        c.open_long(U128(max), None, None);
+        opens += 1;
+    }
+    let m = c.get_market();
+    // 8 opens of 20% each: pool 100 → 430, longs hold 330 of it.
+    assert_eq!(opens, 8);
+    assert!(approx(m.risk_pool.0, 429_981_696, 10), "pool {}", m.risk_pool.0);
+    assert!(m.utilization_bps > 7_600, "util {}", m.utilization_bps);
+    assert!(m.funding_multiplier_bps > 100_000, "multiplier {}", m.funding_multiplier_bps);
+    solvent(&c);
 }
 
 fn funding_after_one_day(flat: u128, curve: u128, price_after_open: u128) -> (u128, u32) {
@@ -416,7 +454,10 @@ fn previews_match_execution() {
     let units = c.open_long(U128(usd(500)), None, None);
     assert_eq!(units.0, p.quote.unwrap().out.0);
     let p = c.preview_open_long(U128(usd(100_000)));
-    assert!(p.ok && p.quote.unwrap().utilization_after_bps > 9_000, "no cap: funding does the balancing");
+    assert!(!p.ok && p.error.unwrap().contains("open too large"));
+    let max = c.get_market().max_long_open;
+    let p = c.preview_open_long(max);
+    assert!(p.ok && p.quote.unwrap().utilization_after_bps > 5_000, "up to the whole pool in one go with max_open_bps = 100%");
 }
 
 #[test]

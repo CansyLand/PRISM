@@ -31,6 +31,11 @@ fn util_bps(c_raw: u128, risk_pool: u128) -> u32 {
 }
 
 impl Contract {
+    /// Largest amount a single long open may use right now.
+    pub(crate) fn max_long_open(&self, l: &Live) -> u128 {
+        mul_div(l.risk_pool, self.params.max_open_bps as u128, BPS)
+    }
+
     fn fee_of(&self, amount: u128) -> u128 {
         amount * self.params.trade_fee_bps as u128 / BPS
     }
@@ -53,6 +58,9 @@ impl Contract {
         }
         if self.short_shares == 0 {
             return Err("no Curve Short liquidity yet");
+        }
+        if amount > self.max_long_open(l) {
+            return Err("open too large: one long can be at most max_open_bps of the pool; split it up");
         }
         if l.c_raw > l.risk_pool {
             return Err("pool is capped until the next price update");

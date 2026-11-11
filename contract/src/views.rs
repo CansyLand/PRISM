@@ -29,6 +29,8 @@ pub struct MarketView {
     pub short_shares: U128,
     pub short_share_price_e18: U128,
     pub utilization_bps: u32,
+    /// Largest single long open allowed right now (max_open_bps of the pool).
+    pub max_long_open: U128,
     /// Curve Short epoch; bumps when wiped-out shorts are replaced by new ones.
     pub short_epoch: u64,
     /// Funding Curve Long pays per year right now, as a fraction of its value (bps).
@@ -153,6 +155,7 @@ impl Contract {
             short_shares: U128(self.short_shares),
             short_share_price_e18: U128(self.short_share_price_e18(&l)),
             utilization_bps: util,
+            max_long_open: U128(self.max_long_open(&l)),
             short_epoch: self.short_epoch,
             funding_rate_annual_bps: (self.funding_rate_at_e18(Self::utilization_bps(l.c_raw, l.risk_pool)) * BPS / ONE) as u32,
             funding_base_annual_bps: (self.base_funding_rate_e18() * BPS / ONE) as u32,

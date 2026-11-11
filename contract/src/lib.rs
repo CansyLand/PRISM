@@ -61,6 +61,9 @@ pub struct Params {
     pub util_mult_slope_bps: u32,
     pub util_kink_bps: u16,
     pub util_mult_kink_slope_bps: u32,
+    /// Largest single long open, as a share of the pool before the open (bps).
+    /// Not a wall: repeated opens are allowed, but each one raises utilization and funding.
+    pub max_open_bps: u16,
     /// Protocol share of funding paid by Curve Long (bps of funding).
     pub funding_fee_bps: u16,
     /// Fee on every open/close (bps of amount).
@@ -88,6 +91,7 @@ impl Default for Params {
             util_mult_slope_bps: 10_000,
             util_kink_bps: 5_000,
             util_mult_kink_slope_bps: 200_000,
+            max_open_bps: 2_000,
             funding_fee_bps: 1_000,
             trade_fee_bps: 10,
             max_price_age_secs: 120,
