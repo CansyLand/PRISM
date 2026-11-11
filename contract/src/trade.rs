@@ -51,12 +51,14 @@ impl Contract {
         if units == 0 {
             return Err("amount too small for one unit");
         }
-        let c_after = Self::units_value(self.total_units + units, l.unit_value_e18);
-        let r_after = l.risk_pool + net;
-        let util = util_bps(c_after, r_after);
-        if util > self.params.max_util_bps as u32 {
-            return Err("utilization cap: not enough Flat liquidity");
+        if self.flat_shares == 0 {
+            return Err("no Curve Short liquidity yet");
         }
+        if l.c_raw > l.risk_pool {
+            return Err("pool is capped until the next price update");
+        }
+        let c_after = Self::units_value(self.total_units + units, l.unit_value_e18);
+        let util = util_bps(c_after, l.risk_pool + net);
         Ok(TradeQuote { amount: U128(amount), fee: U128(fee), out: U128(units), utilization_after_bps: util })
     }
 
@@ -89,12 +91,10 @@ impl Contract {
         }
         let fee = self.fee_of(amount);
         let net = amount - fee;
-        let shares = if self.flat_shares == 0 {
+        // Wiped-out shorts (equity 0) are worth nothing: a new short starts a fresh epoch.
+        let shares = if self.flat_shares == 0 || l.flat_equity == 0 {
             net
         } else {
-            if l.flat_equity == 0 {
-                return Err("flat pool has no equity (curve claims capped)");
-            }
             mul_div(net, self.flat_shares, l.flat_equity)
         };
         if shares == 0 {
@@ -113,11 +113,7 @@ impl Contract {
             return Err("bad shares");
         }
         let value = mul_div(shares, l.flat_equity, self.flat_shares);
-        let r_after = l.risk_pool - value;
-        let util = util_bps(l.c_raw, r_after);
-        if l.c_raw > 0 && util > self.params.max_util_bps as u32 {
-            return Err("utilization cap: Flat is locked while Curve exposure is high");
-        }
+        let util = util_bps(l.c_raw, l.risk_pool - value);
         let fee = self.fee_of(value);
         Ok(TradeQuote { amount: U128(value), fee: U128(fee), out: U128(value - fee), utilization_after_bps: util })
     }
@@ -186,6 +182,11 @@ impl Contract {
     pub(crate) fn internal_open_flat(&mut self, who: &AccountId, amount: u128, min_shares: u128) -> u128 {
         self.require_fresh_price();
         let l = self.live();
+        if self.flat_shares > 0 && l.flat_equity == 0 {
+            self.flat_epoch += 1;
+            emit("shorts_reset", json!({ "epoch": self.flat_epoch, "old_shares": self.flat_shares.to_string() }));
+            self.flat_shares = 0;
+        }
         let q = self.quote_open_flat(&l, amount).unwrap_or_else(|e| near_sdk::env::panic_str(e));
         let shares = q.out.0;
         require!(shares >= min_shares, "slippage: fewer shares than min_shares");

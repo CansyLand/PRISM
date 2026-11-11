@@ -15,14 +15,13 @@ pub fn validate_params(p: &Params) {
     require!(p.util_mult_base_bps <= 20_000, "util_mult_base_bps > 2×");
     require!(p.util_mult_slope_bps <= 50_000, "util_mult_slope_bps > 5×");
     require!((1_000..=9_500).contains(&p.util_kink_bps), "util_kink_bps must be 1000..=9500");
-    require!(p.util_mult_kink_slope_bps <= 200_000, "util_mult_kink_slope_bps > 20×");
+    require!(p.util_mult_kink_slope_bps <= 1_000_000, "util_mult_kink_slope_bps > 100×");
     require!(
         p.util_mult_base_bps > 0 || p.util_mult_slope_bps > 0,
         "funding multiplier can't be zero at every utilization"
     );
     require!(p.funding_fee_bps <= 5_000, "funding_fee_bps > 50%");
     require!(p.trade_fee_bps <= 100, "trade_fee_bps > 1%");
-    require!((100..=9_000).contains(&p.max_util_bps), "max_util_bps must be 100..=9000");
     require!((5..=3_600).contains(&p.max_price_age_secs), "max_price_age_secs must be 5..=3600");
     require!(p.max_conf_bps <= 1_000, "max_conf_bps > 10%");
     require!(p.max_jump_bps <= 5_000, "max_jump_bps > 50%");

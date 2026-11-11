@@ -59,6 +59,8 @@ impl Contract {
         self.accrue();
         self.price = price;
         self.price_ts = ts;
+        self.write_down_if_capped();
+        self.sweep_orphan_equity();
         emit("price", json!({ "price": price.to_string(), "ts": ts, "source": source }));
         self.maybe_snapshot();
     }

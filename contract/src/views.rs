@@ -29,7 +29,8 @@ pub struct MarketView {
     pub flat_shares: U128,
     pub flat_share_price_e18: U128,
     pub utilization_bps: u32,
-    pub max_util_bps: u16,
+    /// Curve Short epoch; bumps when wiped-out shorts are replaced by new ones.
+    pub flat_epoch: u64,
     /// Funding Curve pays per year right now, as a fraction of its value (bps).
     pub funding_rate_annual_bps: u32,
     /// Fair convexity rate p(p−1)/2·σ² before the utilization multiplier (bps/yr).
@@ -101,6 +102,9 @@ fn preview(r: Result<TradeQuote, &'static str>) -> Preview {
 
 impl Contract {
     fn account_view(&self, id: &AccountId, a: &Account, l: &Live) -> AccountView {
+        let mut a = a.clone();
+        self.normalize(&mut a);
+        let a = &a;
         let raw = Self::units_value(a.curve_units, l.unit_value_e18);
         let curve_value = if l.c_raw > l.risk_pool { mul_div(raw, l.risk_pool, l.c_raw) } else { raw };
         let flat_value = if self.flat_shares == 0 { 0 } else { mul_div(a.flat_shares, l.flat_equity, self.flat_shares) };
@@ -149,7 +153,7 @@ impl Contract {
             flat_shares: U128(self.flat_shares),
             flat_share_price_e18: U128(self.flat_share_price_e18(&l)),
             utilization_bps: util,
-            max_util_bps: self.params.max_util_bps,
+            flat_epoch: self.flat_epoch,
             funding_rate_annual_bps: (self.funding_rate_at_e18(Self::utilization_bps(l.c_raw, l.risk_pool)) * BPS / ONE) as u32,
             funding_base_annual_bps: (self.base_funding_rate_e18() * BPS / ONE) as u32,
             funding_multiplier_bps: self.util_multiplier_bps(Self::utilization_bps(l.c_raw, l.risk_pool)) as u32,

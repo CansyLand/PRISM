@@ -11,7 +11,9 @@
 //!
 //! Solvency comes from the structure: `C_eff = min(C_raw, R)` (pro-rata haircut),
 //! so `free + C_eff + F + fees == treasury` always holds. Every mutation checks
-//! it. Curve opens and Flat exits are refused above `max_util_bps`.
+//! it. Nothing is blocked by utilization: funding rises steeply instead. If a rally
+//! pushes Curve claims past the pool, the excess is written off (NF is cut so claims
+//! equal the pool) and Curve Short starts a fresh epoch that new shorts can join.
 //!
 //! Modules: `math` (fixed point), `oracle` (Pyth adapter + testnet pusher),
 //! `treasury` (NEP-141 deposits, withdrawals, fees), `trade` (open/close),
@@ -63,8 +65,6 @@ pub struct Params {
     pub funding_fee_bps: u16,
     /// Fee on every open/close (bps of amount).
     pub trade_fee_bps: u16,
-    /// Max Curve claims / risk pool after a Curve open or Flat exit (bps, ≤ 9000).
-    pub max_util_bps: u16,
     /// Trades revert when the oracle price is older than this.
     pub max_price_age_secs: u64,
     /// Pyth: reject when conf / price exceeds this (bps).
@@ -83,14 +83,13 @@ impl Default for Params {
             power: 2,
             implied_vol_bps: 8_000,
             base_funding_bps: 0,
-            // 0.5× at u = 0, 1× (fair) at the 50% kink, 4.5× at u = 100%.
+            // 0.5× at u = 0, 1× (fair) at the 50% kink, 11× at 75%, 21.5× at u = 100%.
             util_mult_base_bps: 5_000,
             util_mult_slope_bps: 10_000,
             util_kink_bps: 5_000,
-            util_mult_kink_slope_bps: 30_000,
+            util_mult_kink_slope_bps: 200_000,
             funding_fee_bps: 1_000,
             trade_fee_bps: 10,
-            max_util_bps: 5_000,
             max_price_age_secs: 120,
             max_conf_bps: 200,
             max_jump_bps: 2_000,
@@ -109,6 +108,8 @@ pub struct Account {
     pub curve_cost: u128,
     pub flat_shares: u128,
     pub flat_cost: u128,
+    /// Shares from an older epoch were wiped out by a long write-down.
+    pub flat_epoch: u64,
     pub realized_pnl: i128,
     pub deposited: u128,
     pub withdrawn: u128,
@@ -164,6 +165,8 @@ pub struct Contract {
     /// R: USDC backing Curve claims + Flat equity.
     pub(crate) risk_pool: u128,
     pub(crate) flat_shares: u128,
+    /// Bumped when Curve Short is wiped out and a new short joins; older shares are worth 0.
+    pub(crate) flat_epoch: u64,
     pub(crate) free_total: u128,
     pub(crate) fees: u128,
     /// Tracked USDC we owe in total. Must be ≤ the real token balance.
@@ -219,6 +222,7 @@ impl Contract {
             total_units: 0,
             risk_pool: 0,
             flat_shares: 0,
+            flat_epoch: 0,
             free_total: 0,
             fees: 0,
             treasury: 0,
@@ -336,6 +340,7 @@ impl Contract {
         self.nf = nf;
         self.risk_pool -= fee;
         self.fees += fee;
+        self.sweep_orphan_equity();
         self.stats.funding_paid.0 += funding;
         self.stats.fees_earned.0 += fee;
         if funding > 0 {
@@ -399,7 +404,60 @@ impl Contract {
     }
 
     pub(crate) fn account(&self, id: &AccountId) -> Account {
-        self.accounts.get(id).cloned().unwrap_or_else(|| env::panic_str("unknown account"))
+        let mut acc = self.accounts.get(id).cloned().unwrap_or_else(|| env::panic_str("unknown account"));
+        self.normalize(&mut acc);
+        acc
+    }
+
+    /// Writes off Curve Short shares from a wiped-out epoch (realized loss = their cost).
+    pub(crate) fn normalize(&self, acc: &mut Account) {
+        if acc.flat_epoch != self.flat_epoch {
+            if acc.flat_shares > 0 {
+                acc.realized_pnl -= acc.flat_cost as i128;
+                acc.flat_shares = 0;
+                acc.flat_cost = 0;
+            }
+            acc.flat_epoch = self.flat_epoch;
+        }
+    }
+
+    /// If a rally pushed Curve claims past the pool, cut NF so claims equal the pool.
+    /// The excess claim is gone for good; Curve Short equity is exactly 0 afterwards.
+    pub(crate) fn write_down_if_capped(&mut self) {
+        if self.total_units == 0 || self.risk_pool == 0 {
+            return;
+        }
+        let c_raw = Self::units_value(self.total_units, self.unit_value_e18(self.nf));
+        if c_raw < self.risk_pool {
+            return;
+        }
+        let nf_old = self.nf;
+        self.nf = mul_div(self.nf, self.risk_pool, c_raw);
+        let c_new = Self::units_value(self.total_units, self.unit_value_e18(self.nf));
+        let dust = self.risk_pool - c_new.min(self.risk_pool);
+        self.risk_pool -= dust;
+        self.fees += dust;
+        events::emit(
+            "longs_written_down",
+            near_sdk::serde_json::json!({
+                "claim": c_raw.to_string(), "pool": (c_new + dust).to_string(),
+                "nf_old": nf_old.to_string(), "nf": self.nf.to_string(), "price": self.price.to_string(),
+            }),
+        );
+    }
+
+    /// With no Curve Short shares, any equity left in the pool belongs to nobody: sweep it to fees.
+    pub(crate) fn sweep_orphan_equity(&mut self) {
+        if self.flat_shares > 0 {
+            return;
+        }
+        let c = Self::units_value(self.total_units, self.unit_value_e18(self.nf)).min(self.risk_pool);
+        let orphan = self.risk_pool - c;
+        if orphan > 0 {
+            self.risk_pool -= orphan;
+            self.fees += orphan;
+            events::emit("orphan_equity", near_sdk::serde_json::json!({ "amount": orphan.to_string() }));
+        }
     }
 
     pub(crate) fn save_account(&mut self, id: &AccountId, acc: Account) {

@@ -92,6 +92,7 @@ impl Contract {
     pub(crate) fn internal_deposit(&mut self, sender: &AccountId, receiver: &AccountId, amount: u128) {
         require!(amount >= self.params.min_amount.0, "deposit below minimum");
         let mut acc = self.accounts.get(receiver).cloned().unwrap_or_default();
+        self.normalize(&mut acc);
         acc.free += amount;
         acc.deposited += amount;
         self.save_account(receiver, acc);

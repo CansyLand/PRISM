@@ -50,7 +50,7 @@ fn params() -> Params {
     }
 }
 
-/// Default multiplier: 0.5× at u = 0, 1× at the 50% kink, 4.5× at 100%.
+/// Default multiplier: 0.5× at u = 0, 1× at the 50% kink, 21.5× at 100%.
 fn util_params() -> Params {
     Params { trade_fee_bps: 0, funding_fee_bps: 0, max_jump_bps: 5_000, ..Params::default() }
 }
@@ -80,8 +80,8 @@ fn multiplier_curve_matches_spec() {
     assert_eq!(c.util_multiplier_bps(0), 5_000);
     assert_eq!(c.util_multiplier_bps(2_500), 7_500);
     assert_eq!(c.util_multiplier_bps(5_000), 10_000);
-    assert_eq!(c.util_multiplier_bps(7_500), 12_500 + 15_000);
-    assert_eq!(c.util_multiplier_bps(10_000), 15_000 + 30_000);
+    assert_eq!(c.util_multiplier_bps(7_500), 12_500 + 100_000);
+    assert_eq!(c.util_multiplier_bps(10_000), 15_000 + 200_000);
 }
 
 #[test]
@@ -206,7 +206,7 @@ fn round_trip_close_both_sides_and_withdraw() {
 }
 
 #[test]
-#[should_panic(expected = "utilization cap: not enough Flat liquidity")]
+#[should_panic(expected = "no Curve Short liquidity yet")]
 fn curve_needs_flat_liquidity() {
     let mut c = setup(params());
     deposit(&mut c, "bob.near", usd(100), T0, "");
@@ -215,8 +215,7 @@ fn curve_needs_flat_liquidity() {
 }
 
 #[test]
-#[should_panic(expected = "Flat is locked")]
-fn flat_cannot_exit_when_curve_exposure_is_high() {
+fn shorts_can_exit_any_time_and_funding_turns_extreme() {
     let mut c = setup(params());
     deposit(&mut c, "alice.near", usd(1_000), T0, "");
     ctx("alice.near", T0, 0);
@@ -225,11 +224,17 @@ fn flat_cannot_exit_when_curve_exposure_is_high() {
     ctx("bob.near", T0, 0);
     c.open_curve(U128(usd(400)), None, None);
     ctx("alice.near", T0, 0);
-    c.close_flat(None, None, None);
+    c.close_flat(Some(U128(usd(900))), None, None); // leaves $100 of short equity: u = 80%
+    ctx("owner.near", T0, 0);
+    c.set_params(util_params());
+    let m = c.get_market();
+    assert_eq!(m.utilization_bps, 8_000);
+    assert_eq!(m.funding_multiplier_bps, 5_000 + 8_000 + 120_000); // 13.3× fair
+    solvent(&c);
 }
 
 #[test]
-fn curve_is_haircut_pro_rata_when_flat_is_wiped() {
+fn rally_past_the_pool_writes_longs_down_and_new_shorts_can_join() {
     let mut c = setup(params());
     deposit(&mut c, "alice.near", usd(1_000), T0, "");
     ctx("alice.near", T0, 0);
@@ -238,13 +243,43 @@ fn curve_is_haircut_pro_rata_when_flat_is_wiped() {
     ctx("bob.near", T0, 0);
     c.open_curve(U128(usd(500)), None, None);
     push(&mut c, 7_500_000, T0);
-    push(&mut c, 10_000_000, T0); // 2× → raw claim 2000 > pool 1500
+    push(&mut c, 10_000_000, T0); // 2× → claim would be 2000 > pool 1500: written down to 1500
     let m = c.get_market();
-    assert_eq!(m.curve_claims_raw.0, usd(2_000));
-    assert_eq!(m.curve_claims.0, usd(1_500));
+    assert!(approx(m.curve_claims_raw.0, usd(1_500), 1), "claims {}", m.curve_claims_raw.0);
     assert_eq!(m.flat_equity.0, 0);
+    assert_eq!(view(&c, "alice.near").flat_value.0, 0);
+    // A new short joins the wiped-out pool and gets a fresh, fully backed position.
+    deposit(&mut c, "carol.near", usd(1_000), T0, "");
+    ctx("carol.near", T0, 0);
+    c.open_flat(U128(usd(1_000)), None, None);
+    assert_eq!(c.get_market().flat_epoch, 1);
+    assert_eq!(view(&c, "carol.near").flat_value.0, usd(1_000));
+    let alice = view(&c, "alice.near");
+    assert_eq!((alice.flat_shares.0, alice.flat_value.0), (0, 0));
+    // Price falls back 25%: the new short gains, the old one stays wiped out.
+    push(&mut c, 7_500_000, T0);
+    assert!(view(&c, "carol.near").flat_value.0 > usd(1_600));
+    assert_eq!(view(&c, "alice.near").realized_pnl.0, -(usd(1_000) as i128)); // written off on read
     ctx("bob.near", T0, 0);
-    assert_eq!(c.close_curve(None, None, None).0, usd(1_500));
+    c.close_curve(None, None, None);
+    solvent(&c);
+}
+
+#[test]
+fn equity_with_no_shorts_goes_to_fees() {
+    let mut c = setup(params());
+    deposit(&mut c, "alice.near", usd(1_000), T0, "");
+    ctx("alice.near", T0, 0);
+    c.open_flat(U128(usd(1_000)), None, None);
+    deposit(&mut c, "bob.near", usd(500), T0, "");
+    ctx("bob.near", T0, 0);
+    c.open_curve(U128(usd(500)), None, None);
+    ctx("alice.near", T0, 0);
+    c.close_flat(None, None, None); // last short leaves
+    push(&mut c, 4_000_000, T0); // longs lose 36%, nobody is short to receive it
+    let m = c.get_market();
+    assert_eq!(m.flat_equity.0, 0);
+    assert_eq!(m.fees.0, usd(180));
     solvent(&c);
 }
 
@@ -381,7 +416,7 @@ fn previews_match_execution() {
     let units = c.open_curve(U128(usd(500)), None, None);
     assert_eq!(units.0, p.quote.unwrap().out.0);
     let p = c.preview_open_curve(U128(usd(100_000)));
-    assert!(!p.ok && p.error.unwrap().contains("utilization"));
+    assert!(p.ok && p.quote.unwrap().utilization_after_bps > 9_000, "no cap: funding does the balancing");
 }
 
 #[test]
