@@ -125,6 +125,14 @@ details.setup summary { cursor: pointer; font-weight: 600; font-size: 13px; }
 .log li { display: grid; grid-template-columns: 84px 1fr; gap: 8px; }
 .log li time { font-family: var(--font-num); color: var(--muted); }
 .log li.future { opacity: .45; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; margin: 8px 0 12px; }
+.tile { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--panel2); display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.tile small { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; }
+.tile b { font-family: var(--font-num); font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.tile span { color: var(--muted); font-size: 11.5px; }
+.tile.good { border-color: color-mix(in srgb, var(--up) 55%, var(--line)); }
+.tile.bad { border-color: color-mix(in srgb, var(--down) 60%, var(--line)); }
+.pdot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
 .warnbox { background: var(--warn-bg); color: var(--warn-ink); border-radius: 8px; padding: 8px 12px; font-size: 13px; }
 </style>
 
@@ -184,6 +192,13 @@ details.setup summary { cursor: pointer; font-weight: 600; font-size: 13px; }
         <div class="legend" id="lowerLegend"></div>
       </section>
 
+      <section class="panel tablebox" aria-label="Pool health" id="healthBox" hidden>
+        <h3 id="healthTitle">Pool health</h3>
+        <div class="tiles" id="healthTiles"></div>
+        <div class="tablescroll"><table id="healthTable"></table></div>
+        <p class="why" id="healthNote" style="margin:8px 0 0"></p>
+      </section>
+
       <section class="panel tablebox" aria-label="Positions">
         <h3>My positions</h3>
         <div class="tablescroll"><table id="posTable"></table></div>
@@ -217,9 +232,25 @@ details.setup summary { cursor: pointer; font-weight: 600; font-size: 13px; }
         <div class="kv"><span>Funding paid / earned</span><span id="wFund">—</span></div>
       </section>
 
+      <section class="panel wallet" aria-label="Crowd simulation">
+        <h3>Crowd simulation</h3>
+        <div class="why">1,000 traders join over the period: 80% open longs on a curvature they choose, 20% are retail shorts. Longs take profit, stop out or time out; all share one short pool.</div>
+        <div class="ctl" style="margin-top:4px"><label for="cMix">Curvature they pick</label>
+          <select id="cMix" class="btn" style="width:100%;text-align:left">
+            <option value="uniform">Any from 1 to 10, equally likely</option>
+            <option value="gentle">Mostly gentle (1–3)</option>
+            <option value="steep">Mostly steep (7–10)</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px">
+          <button type="button" class="go" id="crowdRun" style="flex:1">Simulate 1,000 traders</button>
+          <button type="button" class="small" id="crowdClear">Remove crowd</button>
+        </div>
+      </section>
+
       <details class="panel setup" aria-label="Market setup">
         <summary>Market setup</summary>
-        <div class="ctl"><label for="cP">Curvature p <output id="oP"></output></label><input type="range" id="cP" min="1" max="10" step="0.5" value="2"><small id="pNote"></small></div>
+        <div class="ctl"><label for="cP">Your curvature p <output id="oP"></output></label><input type="range" id="cP" min="1" max="10" step="0.5" value="2"><small id="pNote"></small></div>
         <div class="ctl"><label for="cIv">Implied volatility σ <output id="oIv"></output></label><input type="range" id="cIv" min="20" max="150" step="5" value="70"><small>Sets the fair funding rate p(p−1)/2 × σ².</small></div>
         <div class="ctl"><label for="cSteep">Funding steepness above 50% <output id="oSteep"></output></label><input type="range" id="cSteep" min="0" max="40" step="1" value="20"></div>
         <div class="ctl"><label for="cMo">Largest single long open <output id="oMo"></output></label><input type="range" id="cMo" min="5" max="100" step="5" value="20"></div>
@@ -271,6 +302,7 @@ details.setup summary { cursor: pointer; font-weight: 600; font-size: 13px; }
   // ── state ──
   const cfg = {};
   let side = "long", now = 0, events = [], nextId = 1, lowerTab = "me", playing = null, sim = null;
+  let crowd = null, crowdSeed = 1;
 
   function readCfg() {
     cfg.p = +$("cP").value; cfg.iv = +$("cIv").value / 100; cfg.steep = +$("cSteep").value;
@@ -287,138 +319,222 @@ details.setup summary { cursor: pointer; font-weight: 600; font-size: 13px; }
     $("pNote").textContent = `Fair funding at this curve: ${(fair * 100).toFixed(0)}%/yr (${(fair / 3.65).toFixed(2)}%/day), before utilization. A 1% BTC move changes a long by about ${(((1.01 ** cfg.p) - 1) * 100).toFixed(1)}%. The contract supports whole numbers 1 to 10.`;
   }
 
-  // ── the exchange engine: replays every trade day by day, mirroring the contract ──
-  // Per day t: trades at price P[t] → new shorts if funding is high → snapshot →
-  // funding over the day at P[t] (rate set by utilization) → price moves to P[t+1] → write-down if needed.
-  function replay(evs) {
-    const p = cfg.p, rBase = p * (p - 1) / 2 * cfg.iv ** 2;
+  // ── the exchange engine: replays every trade step by step, mirroring the contract ──
+  // One shared Curve Short pool underwrites longs on every curvature p. Each curve keeps its own
+  // units U_p and shrink factor NF_p; utilization, the funding multiplier and write-downs are pool-wide.
+  // Per step t: trades at P[t] → crowd exits → new shorts if funding is high → snapshot →
+  // funding over the step (curve p pays p(p−1)/2·σ² × multiplier) → price moves → write-down if needed.
+  function replay(evs, crowdEvs = crowd) {
+    const sig2 = cfg.iv ** 2, base = (p) => p * (p - 1) / 2 * sig2;
     const mult = (u) => 0.5 + u + cfg.steep * Math.max(0, u - KINK) / (1 - KINK);
-    let R = 0, U = 0, NF = 1, S = 0, epoch = 0, fees = 0, cash = CASH0;
-    const lots = new Map(), errors = new Map(), log = [];
-    const tl = { util: new Float64Array(D), rate: new Float64Array(D), R: new Float64Array(D), C: new Float64Array(D), F: new Float64Array(D),
-      fees: new Float64Array(D), cash: new Float64Array(D), eq: new Float64Array(D), head: new Float64Array(D), yld: new Float64Array(D) };
-    const idxAt = (t) => (P[t] / P0) ** p;
-    const claims = (t) => U * NF * idxAt(t);
+    let R = 0, S = 0, epoch = 0, fees = 0, cash = CASH0;
+    const curves = new Map();
+    const curve = (p) => { let c = curves.get(p); if (!c) { c = { U: 0, NF: 1, arr: new Float64Array(D) }; curves.set(p, c); } return c; };
+    const lots = new Map(), active = new Set(), errors = new Map(), log = [], crowdFails = [];
+    const tl = { util: new Float64Array(D), rate: new Float64Array(D), mult: new Float64Array(D), R: new Float64Array(D), C: new Float64Array(D), F: new Float64Array(D),
+      fees: new Float64Array(D), cash: new Float64Array(D), eq: new Float64Array(D), head: new Float64Array(D), yld: new Float64Array(D), curves };
+    const idxP = (t, p) => (P[t] / P0) ** p;
+    const claims = (t) => { let s = 0; for (const [p, c] of curves) if (c.U > 0) s += c.U * c.NF * idxP(t, p); return s; };
     const shortEq = (t) => R - Math.min(claims(t), R);
+    const longVal = (lot, t, Ct) => { const raw = lot.units * curves.get(lot.p).NF * idxP(t, lot.p); return Ct > R ? raw * R / Ct : raw; };
     const all = [
       { id: "mkt-s", day: 0, kind: "open", side: "short", amount: cfg.shorts, owner: "mkt" },
-      ...(cfg.longs > 0 ? [{ id: "mkt-l", day: 0, kind: "open", side: "long", amount: cfg.longs, owner: "mkt" }] : []),
-      ...evs.map((e) => ({ ...e, owner: "me" })),
+      ...(cfg.longs > 0 ? [{ id: "mkt-l", day: 0, kind: "open", side: "long", amount: cfg.longs, owner: "mkt", p: cfg.p }] : []),
+      ...(crowdEvs || []),
+      ...evs.map((e) => ({ ...e, p: e.p ?? cfg.p, owner: "me" })),
     ];
     const byDay = new Map();
     for (const e of all) { if (!byDay.has(e.day)) byDay.set(e.day, []); byDay.get(e.day).push(e); }
     let inflowLot = null;
 
     function openLot(e, t) {
-      const fee = e.owner === "mkt" ? 0 : e.amount * cfg.fee, net = e.amount - fee;
-      if (e.owner === "me" && e.amount > cash + 1e-6) return "Not enough cash on " + dateOf(t);
-      if (!(e.amount > 0)) return "Enter an amount";
+      let amount = e.amount;
+      if (!(amount > 0)) return "Enter an amount";
+      if (e.owner === "me" && amount > cash + 1e-6) return "Not enough cash on " + dateOf(t);
+      let trimmed = false;
       if (e.side === "long") {
         if (S <= 0) return "No Curve Short liquidity yet";
         if (shortEq(t) <= 1e-9) return "Curve Short is wiped out; wait for new shorts to join";
-        if (e.owner === "me" && e.amount > cfg.mo * R + 1e-6) return `Too large: one long open may use at most ${Math.round(cfg.mo * 100)}% of the pool (${usd(cfg.mo * R)} now). Split it up.`;
-        const units = net / (NF * idxAt(t));
-        R += net; U += units;
-        lots.set(e.id, { id: e.id, owner: e.owner, side: "long", day: t, price: P[t], amount: e.amount, units, fee, funding: 0, fundT: new Float64Array(D), vals: new Float64Array(D).fill(NaN), close: null });
+        const cap = cfg.mo * R;
+        if (e.owner !== "mkt" && amount > cap + 1e-6) {
+          if (e.owner === "me") return `Too large: one long open may use at most ${Math.round(cfg.mo * 100)}% of the pool (${usd(cap)} now). Split it up.`;
+          amount = Math.floor(cap); trimmed = true;
+          if (amount < 10) return "pool too small";
+        }
+      }
+      const fee = e.owner === "mkt" ? 0 : amount * cfg.fee, net = amount - fee;
+      const lot = { id: e.id, owner: e.owner, side: e.side, day: t, price: P[t], amount, fee, funding: 0, close: null, eaten: null, last: net, strat: e.strat, trimmed };
+      if (e.side === "long") {
+        const c = curve(e.p), units = net / (c.NF * idxP(t, e.p));
+        R += net; c.U += units; lot.p = e.p; lot.units = units;
       } else {
-        let F = shortEq(t);
+        const F = shortEq(t);
         if (S > 0 && F <= 1e-9) { epoch++; S = 0; log.push({ t, kind: "reset", text: "New shorts join a wiped-out pool: fresh start at today's price." }); }
         const shares = S === 0 ? net : net * S / F;
-        R += net; S += shares;
-        lots.set(e.id, { id: e.id, owner: e.owner, side: "short", day: t, price: P[t], amount: e.amount, shares, epoch, fee, funding: 0, fundT: new Float64Array(D), vals: new Float64Array(D).fill(NaN), close: null });
+        R += net; S += shares; lot.shares = shares; lot.epoch = epoch;
       }
+      if (e.owner !== "crowd") { lot.fundT = new Float64Array(D); lot.vals = new Float64Array(D).fill(NaN); }
+      lots.set(e.id, lot); active.add(lot);
       fees += fee;
-      if (e.owner === "me") cash -= e.amount;
+      if (e.owner === "me") cash -= amount;
       return null;
     }
-    function closeLot(e, t) {
+    function closeLot(e, t, reason) {
       const lot = lots.get(e.lot);
       if (!lot) return "That position doesn't exist yet on " + dateOf(t);
       if (lot.close) return "Already closed";
       let value;
       if (lot.side === "long") {
-        const C = claims(t), raw = lot.units * NF * idxAt(t);
-        value = C > R ? raw * R / C : raw;
-        R -= value; U -= lot.units;
+        value = longVal(lot, t, claims(t));
+        R -= value; curves.get(lot.p).U -= lot.units;
       } else {
         value = lot.epoch === epoch && S > 0 ? lot.shares * shortEq(t) / S : 0;
         if (lot.epoch === epoch) { R -= value; S -= lot.shares; }
       }
       const fee = value * cfg.fee, out = value - fee;
       fees += fee; cash += lot.owner === "me" ? out : 0;
-      lot.close = { t, out, fee };
+      lot.close = { t, out, fee, reason };
+      if (lot.fundT) lot.fundT.fill(lot.funding, t);
+      active.delete(lot);
       return null;
     }
 
     for (let t = 0; t < D; t++) {
       for (const e of byDay.get(t) || []) {
-        const err = e.kind === "open" ? openLot(e, t) : closeLot(e, t);
-        if (err) { if (e.owner === "me") errors.set(e.id, err); }
-        else if (e.owner === "me") log.push({ t, kind: e.kind + "-" + (e.kind === "open" ? e.side : lots.get(e.lot).side), text: e.kind === "open" ? `You opened Curve ${e.side === "long" ? "Long" : "Short"} ${usd(e.amount)} at ${usd(P[t])}` : `You closed a Curve ${lots.get(e.lot).side === "long" ? "Long" : "Short"} for ${usd(lots.get(e.lot).close.out, 2)}` });
+        const err = e.kind === "open" ? openLot(e, t) : closeLot(e, t, "manual");
+        if (err) { if (e.owner === "me") errors.set(e.id, err); else if (e.owner === "crowd") crowdFails.push({ e, err }); }
+        else if (e.owner === "me") log.push({ t, kind: e.kind + "-" + (e.kind === "open" ? e.side : lots.get(e.lot).side), text: e.kind === "open" ? `You opened Curve ${e.side === "long" ? `Long (p = ${e.p})` : "Short"} ${usd(e.amount)} at ${usd(P[t])}` : `You closed a Curve ${lots.get(e.lot).side === "long" ? "Long" : "Short"} for ${usd(lots.get(e.lot).close.out, 2)}` });
+      }
+      // crowd traders follow their own exit rules: take profit, stop loss, or time is up
+      if (crowdEvs) for (const lot of [...active]) {
+        if (lot.owner !== "crowd" || lot.day === t) continue;
+        const s = lot.strat, v = lot.side === "long" ? longVal(lot, t, claims(t)) : (lot.epoch === epoch && S > 0 ? lot.shares * shortEq(t) / S : 0);
+        let reason = null;
+        if (t >= s.exit) reason = "time";
+        else if (lot.side === "long" && v >= lot.amount * (1 + s.tp)) reason = "profit";
+        else if (lot.side === "long" && v <= lot.amount * (1 - s.sl)) reason = "stop";
+        if (reason) closeLot({ lot: lot.id }, t, reason);
       }
       // outside shorts arrive when utilization is above the kink (funding is expensive)
-      if (cfg.inflow && t > 0 && R > 0 && U > 0) {
+      if (cfg.inflow && t > 0 && R > 0) {
         const C = claims(t), u = C / R;
         if (u > KINK) {
           const add = Math.min(C / KINK - R, cfg.inRate * R / SPD);
           if (add > 1) {
-            if (!inflowLot || inflowLot.epoch !== epoch || inflowLot.close) {
+            const F = shortEq(t);
+            if (!inflowLot || inflowLot.epoch !== epoch || inflowLot.close || (S > 0 && F <= 1e-9)) {
               const id = "mkt-in-" + t;
               openLot({ id, side: "short", amount: add, owner: "mkt" }, t);
               inflowLot = lots.get(id);
             } else {
-              const F = shortEq(t), shares = S === 0 || F <= 1e-9 ? add : add * S / F;
-              if (S > 0 && F <= 1e-9) { epoch++; S = 0; inflowLot = null; openLot({ id: "mkt-in-" + t, side: "short", amount: add, owner: "mkt" }, t); inflowLot = lots.get("mkt-in-" + t); }
-              else { R += add; S += shares; inflowLot.shares += shares; inflowLot.amount += add; }
+              const shares = add * S / F;
+              R += add; S += shares; inflowLot.shares += shares; inflowLot.amount += add;
             }
             if (!log.length || log[log.length - 1].kind !== "inflow" || log[log.length - 1].t < t - 7 * SPD) log.push({ t, kind: "inflow", text: `High funding pulls in new shorts (${big(add)} today).` });
           }
         }
       }
-      // snapshot at the end of day t's trading
-      const C = Math.min(claims(t), R), F = R - C, u = R > 0 ? Math.min(1, claims(t) / R) : 0;
-      tl.util[t] = u; tl.rate[t] = rBase * mult(u); tl.R[t] = R; tl.C[t] = C; tl.F[t] = F; tl.fees[t] = fees; tl.cash[t] = cash;
-      tl.head[t] = C > 0 ? R / C : Infinity; tl.yld[t] = F > 0 ? tl.rate[t] * C * (1 - cfg.cut) / F : 0;
+      // snapshot after this step's trading
+      const Ct = claims(t), C = Math.min(Ct, R), F = R - C, u = R > 0 ? Math.min(1, Ct / R) : 0, m = mult(u);
+      tl.util[t] = u; tl.mult[t] = m; tl.rate[t] = base(cfg.p) * m; tl.R[t] = R; tl.C[t] = C; tl.F[t] = F; tl.fees[t] = fees; tl.cash[t] = cash;
+      tl.head[t] = C > 0 ? R / C : Infinity;
+      let paying = 0;
+      for (const [p, c] of curves) { const v = c.U > 0 ? c.U * c.NF * idxP(t, p) * (Ct > R ? R / Ct : 1) : 0; c.arr[t] = v; paying += base(p) * m * v; }
+      tl.yld[t] = F > 0 ? paying * (1 - cfg.cut) / F : 0;
       let eq = cash;
-      for (const lot of lots.values()) {
-        if (lot.day > t) continue;
-        lot.fundT[t] = lot.funding;
-        let v;
-        if (lot.close) v = t >= lot.close.t ? NaN : null;
-        if (v === undefined || v === null) {
-          if (lot.side === "long") { const raw = lot.units * NF * idxAt(t); v = claims(t) > R ? raw * R / claims(t) : raw; }
-          else v = lot.epoch === epoch && S > 0 ? lot.shares * F / S : 0;
-        }
-        lot.vals[t] = v;
-        if (lot.side === "long" && lot.eaten == null && Number.isFinite(v) && v < 0.01 * lot.amount) {
+      for (const lot of active) {
+        if (lot.fundT) lot.fundT[t] = lot.funding;
+        const v = lot.side === "long" ? longVal(lot, t, Ct) : (lot.epoch === epoch && S > 0 ? lot.shares * F / S : 0);
+        lot.last = v;
+        if (lot.vals) lot.vals[t] = v;
+        if (lot.side === "long" && lot.eaten == null && v < 0.01 * lot.amount) {
           lot.eaten = t;
           if (lot.owner === "me") log.push({ t, kind: "eaten", text: `Your Curve Long from ${dateOf(lot.day)} is worth less than 1% of what you paid.` });
         }
-        if (lot.owner === "me" && !Number.isNaN(v)) eq += v;
+        if (lot.owner === "me") eq += v;
       }
       tl.eq[t] = eq;
       if (t === D - 1) break;
-      // funding over the day, at today's price and utilization
-      const idx = idxAt(t), NFn = NF * Math.exp(-tl.rate[t] * STEP_YR);
-      const before = Math.min(U * NF * idx, R), after = Math.min(U * NFn * idx, R);
-      const fund = before - after, take = fund * cfg.cut;
-      R -= take; fees += take;
-      if (fund > 0) for (const lot of lots.values()) {
-        if (lot.close || lot.day > t) continue;
-        if (lot.side === "long" && U > 0) lot.funding -= fund * lot.units / U;
-        if (lot.side === "short" && lot.epoch === epoch && S > 0) lot.funding += (fund - take) * lot.shares / S;
+      // funding over the step, at this step's price and utilization; steeper curves pay more
+      const before = Math.min(Ct, R), drops = new Map();
+      for (const [p, c] of curves) {
+        if (c.U <= 0) continue;
+        const idx = idxP(t, p), v0 = c.U * c.NF * idx;
+        c.NF *= Math.exp(-base(p) * m * STEP_YR);
+        drops.set(p, v0 - c.U * c.NF * idx);
       }
-      NF = NFn;
-      // price moves to tomorrow; a rally past the pool writes the long claims down
-      const Craw = U * NF * idxAt(t + 1);
-      if (U > 0 && R > 0 && Craw >= R) {
+      const after = Math.min(claims(t), R), fund = before - after, take = fund * cfg.cut;
+      R -= take; fees += take;
+      if (fund > 0) {
+        let sum = 0; for (const d of drops.values()) sum += d;
+        const perUnit = new Map(); for (const [p, d] of drops) perUnit.set(p, sum > 0 ? fund * d / sum / curves.get(p).U : 0);
+        for (const lot of active) {
+          if (lot.side === "long") lot.funding -= (perUnit.get(lot.p) || 0) * lot.units;
+          else if (lot.epoch === epoch && S > 0) lot.funding += (fund - take) * lot.shares / S;
+        }
+      }
+      // price moves; a rally past the pool writes every curve's claims down by the same factor
+      const Craw = claims(t + 1);
+      if (R > 0 && Craw >= R && Craw > 0) {
         log.push({ t: t + 1, kind: "wipe", text: `BTC ${usd(P[t + 1])}: long claims hit the pool. Curve Short is wiped out and ${big(Craw - R)} of long claims are written off.` });
-        NF *= R / Craw;
+        const f = R / Craw; for (const c of curves.values()) c.NF *= f;
       }
       // with no shorts left, equity in the pool belongs to nobody
-      if (S <= 0) { const orphan = R - Math.min(U * NF * idxAt(t + 1), R); if (orphan > 0) { R -= orphan; fees += orphan; } }
+      if (S <= 0) { const orphan = R - Math.min(claims(t + 1), R); if (orphan > 0) { R -= orphan; fees += orphan; } }
     }
-    return { tl, lots, errors, log };
+    return { tl, lots, errors, log, crowdFails };
+  }
+
+  // ── crowd: 1,000 traders, 80% longs on a curvature they pick, 20% retail shorts ──
+  const MIXES = {
+    uniform: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+    gentle: [25, 30, 20, 10, 5, 4, 3, 1.5, 1, 0.5],
+    steep: [0.5, 1, 1.5, 3, 4, 5, 10, 20, 25, 30],
+  };
+  function makeCrowd(seed, mix) {
+    let a = seed >>> 0;
+    const rnd = () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    const gauss = () => Math.sqrt(-2 * Math.log(Math.max(rnd(), 1e-12))) * Math.cos(2 * Math.PI * rnd());
+    const w = MIXES[mix], wsum = w.reduce((x, y) => x + y, 0);
+    const pickP = () => { let r = rnd() * wsum; for (let i = 0; i < 10; i++) { r -= w[i]; if (r <= 0) return i + 1; } return 10; };
+    const H = STEP >= 86400 ? 30 : 120; // average holding time in steps (30 days, or 2 hours on 1-minute data)
+    const evs = [];
+    for (let i = 0; i < 1000; i++) {
+      const long = rnd() < 0.8;
+      const t = 1 + Math.floor(rnd() * (D - 2));
+      const amount = Math.round(Math.min(100000, Math.max(20, Math.exp(Math.log(long ? 400 : 2500) + 1.1 * gauss()))));
+      const hold = Math.max(1, Math.ceil(-Math.log(Math.max(1e-9, rnd())) * H * (long ? 1 : 2)));
+      evs.push({ id: "c" + i, day: t, kind: "open", side: long ? "long" : "short", amount, p: long ? pickP() : undefined, owner: "crowd",
+        strat: { exit: Math.min(D - 1, t + hold), tp: 0.3 + rnd() * 3, sl: 0.4 + rnd() * 0.55 } });
+    }
+    return evs;
+  }
+  function health(r) {
+    const per = new Map(), shorts = { n: 0, vol: 0, pnl: 0, wins: 0, rets: [] };
+    for (const lot of r.lots.values()) {
+      if (lot.owner !== "crowd") continue;
+      const end = lot.close ? lot.close.out : lot.last, pnl = end - lot.amount;
+      if (lot.side === "short") { shorts.n++; shorts.vol += lot.amount; shorts.pnl += pnl; shorts.wins += pnl > 0; shorts.rets.push(pnl / lot.amount); continue; }
+      if (!per.has(lot.p)) per.set(lot.p, { p: lot.p, n: 0, vol: 0, pnl: 0, wins: 0, funding: 0, eaten: 0, trimmed: 0, rets: [], profit: 0, stop: 0 });
+      const g = per.get(lot.p);
+      g.n++; g.vol += lot.amount; g.pnl += pnl; g.wins += pnl > 0; g.funding -= lot.funding; g.eaten += lot.eaten != null; g.trimmed += lot.trimmed; g.rets.push(pnl / lot.amount);
+      if (lot.close && lot.close.reason === "profit") g.profit++;
+      if (lot.close && lot.close.reason === "stop") g.stop++;
+    }
+    let lpIn = 0, lpEnd = 0;
+    for (const lot of r.lots.values()) if (lot.owner === "mkt" && lot.side === "short") { lpIn += lot.amount; lpEnd += lot.close ? lot.close.out : lot.last; }
+    const tl = r.tl;
+    let above = 0, maxU = 0, sumU = 0;
+    for (let t = 0; t < D; t++) { maxU = Math.max(maxU, tl.util[t]); sumU += tl.util[t]; above += tl.util[t] > KINK; }
+    const med = (xs) => { const s = xs.slice().sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : 0; };
+    return {
+      per: [...per.values()].sort((x, y) => x.p - y.p).map((g) => ({ ...g, median: med(g.rets) })),
+      shorts: { ...shorts, median: med(shorts.rets) },
+      lp: { in: lpIn, end: lpEnd },
+      wipes: r.log.filter((l) => l.kind === "wipe").length,
+      maxU, avgU: sumU / D, above: above / D, fees: tl.fees[D - 1], pool: tl.R[D - 1],
+      refused: r.crowdFails.length,
+    };
   }
 
   // ── charts ──
@@ -514,9 +630,39 @@ details.setup summary { cursor: pointer; font-weight: 600; font-size: 13px; }
     const tw = ctx.measureText(label).width + 10, tx = Math.min(W - M.r - tw, xn + 6), ty = y(P[now]) - 9;
     ctx.fillStyle = css("--accent"); ctx.fillRect(tx, ty, tw, 18); ctx.fillStyle = "#fff"; ctx.textAlign = "left"; ctx.fillText(label, tx + 5, ty + 12.5);
   }
+  const pColor = (p) => `hsl(${(35 - (p - 1) * 8.5 + 360) % 360} 80% ${62 - p * 1.6}%)`;
+  function drawPool(ctx, W, H) {
+    const tl = sim.tl, ps = [...tl.curves.keys()].sort((a, b) => a - b);
+    const hi = Math.max(...tl.R) * 1.05 || 1;
+    const y = (v) => M.t + (hi - v) / hi * (H - M.t - M.b);
+    ctx.font = "10.5px " + css("--font-num"); ctx.textAlign = "right";
+    for (let i = 0; i <= 4; i++) { const v = hi * i / 4; ctx.fillStyle = css("--grid"); ctx.fillRect(M.l, Math.round(y(v)), W - M.l - M.r, 1); ctx.fillStyle = css("--muted"); ctx.fillText(big(v), M.l - 6, y(v) + 3.5); }
+    timeAxis(ctx, W, H);
+    const step = Math.max(1, Math.floor(D / (W - M.l - M.r)));
+    const cum = new Float64Array(D);
+    const band = (vals, col) => {
+      ctx.beginPath();
+      for (let t = 0; t < D; t += step) ctx.lineTo(xOf(t, W), y(cum[t] + vals(t)));
+      for (let t = D - 1 - ((D - 1) % step); t >= 0; t -= step) ctx.lineTo(xOf(t, W), y(cum[t]));
+      ctx.closePath(); ctx.fillStyle = col; ctx.globalAlpha = 0.85; ctx.fill(); ctx.globalAlpha = 1;
+      for (let t = 0; t < D; t++) cum[t] += vals(t);
+    };
+    for (const p of ps) band((t) => tl.curves.get(p).arr[t], pColor(p));
+    band((t) => tl.F[t], css("--short"));
+    ctx.beginPath();
+    for (let t = 0; t < D; t += step) { const x = xOf(t, W), yy = M.t + (1 - tl.util[t]) * (H - M.t - M.b); t ? ctx.lineTo(x, yy) : ctx.moveTo(x, yy); }
+    ctx.strokeStyle = css("--ink"); ctx.lineWidth = 1; ctx.setLineDash([3, 3]); ctx.stroke(); ctx.setLineDash([]);
+    ctx.textAlign = "left"; ctx.fillStyle = css("--muted");
+    ctx.fillText("util 100%", W - M.r - 58, M.t + 10); ctx.fillText("50%", W - M.r - 26, M.t + (H - M.t - M.b) / 2 + 4);
+    ctx.fillStyle = css("--accent"); ctx.fillRect(Math.round(xOf(now, W)), M.t, 1.5, H - M.t - M.b);
+    $("lowerLegend").innerHTML = ps.map((p) => `<span><i style="--lc:${pColor(p)}"></i>Longs p = ${p}</span>`).join("")
+      + `<span><i style="--lc:var(--short)"></i>Short equity</span><span><i style="--lc:var(--ink)"></i>Utilization (dashed)</span>`;
+    $("lowerNote").textContent = "Who owns the pool: long claims by curvature, stacked, with short equity on top.";
+  }
   function drawLower() {
     const cv = $("lower"), { ctx, W, H } = setupCanvas(cv);
     ctx.clearRect(0, 0, W, H);
+    if (lowerTab === "pool") return drawPool(ctx, W, H);
     const tl = sim.tl;
     let series, lo = 0, hi = 0, fmt = big, note = "";
     if (lowerTab === "me") {
@@ -626,7 +772,7 @@ details.setup summary { cursor: pointer; font-weight: 600; font-size: 13px; }
     $("sideWhy").textContent = side === "long"
       ? `Gains grow with BTC${cfg.p === 1 ? "" : `^${cfg.p}`}. No liquidation; the position shrinks a little every day (funding).`
       : "Collect the funding longs pay. Lose when BTC rallies hard; never more than you put in.";
-    const trial = [...events, { id: "preview", day: now, kind: "open", side, amount: amt }];
+    const trial = [...events, { id: "preview", day: now, kind: "open", side, amount: amt, p: side === "long" ? cfg.p : undefined }];
     const r = replay(trial);
     const err = r.errors.get("preview");
     const lot = r.lots.get("preview"), t = now, tl = r.tl;
@@ -651,15 +797,41 @@ details.setup summary { cursor: pointer; font-weight: 600; font-size: 13px; }
     $("tradeErr").textContent = err || (r.errors.size > (err ? 1 : 0) ? "This trade would make one of your later trades fail." : "");
     $("go").disabled = !!err || amt <= 0;
   }
-  function renderAll() {
+  function renderHealth() {
+    $("healthBox").hidden = !crowd;
+    if (!crowd) return;
+    const h = health(sim);
+    const ret = h.lp.in > 0 ? h.lp.end / h.lp.in - 1 : 0;
+    let longPnl = 0, longVol = 0, longN = 0; for (const g of h.per) { longPnl += g.pnl; longVol += g.vol; longN += g.n; }
+    const tile = (label, value, sub, mood) => `<div class="tile ${mood || ""}"><small>${label}</small><b>${value}</b><span>${sub}</span></div>`;
+    $("healthTitle").textContent = `Pool health after 1,000 traders · ${dateOf(0)} to ${dateOf(D - 1)}`;
+    $("healthTiles").innerHTML = [
+      tile("Short wipe-outs", h.wipes, h.wipes ? "long claims hit the pool" : "shorts were never wiped out", h.wipes ? "bad" : "good"),
+      tile("Peak utilization", (h.maxU * 100).toFixed(0) + "%", `average ${(h.avgU * 100).toFixed(0)}%, above 50% for ${(h.above * 100).toFixed(0)}% of the time`, h.maxU > 0.9 ? "bad" : h.maxU < 0.6 ? "good" : ""),
+      tile("Big short LPs", pct(ret), `${big(h.lp.in)} in, ${big(h.lp.end)} at the end`, ret >= 0 ? "good" : "bad"),
+      tile("Retail shorts", sUsd(h.shorts.pnl, 0), `${h.shorts.n} traders, ${h.shorts.n ? Math.round(h.shorts.wins / h.shorts.n * 100) : 0}% in profit, median ${pct(h.shorts.median, 0)}`, h.shorts.pnl >= 0 ? "good" : "bad"),
+      tile("Long traders", sUsd(longPnl, 0), `${longN} traders, ${big(longVol)} volume`, longPnl >= 0 ? "good" : "bad"),
+      tile("Exchange revenue", big(h.fees), "trade fees plus its cut of funding", "good"),
+    ].join("");
+    $("healthTable").innerHTML = `<thead><tr><th>Curvature</th><th>Traders</th><th>Volume</th><th>Funding paid</th><th>Total PnL</th><th>In profit</th><th>Median</th><th>Took profit</th><th>Stopped out</th><th>Below 1%</th></tr></thead><tbody>`
+      + h.per.map((g) => `<tr><td><span class="pdot" style="background:${pColor(g.p)}"></span>p = ${g.p}</td><td>${g.n}</td><td>${big(g.vol)}</td><td>${big(g.funding)}</td><td class="${cls(g.pnl)}">${sUsd(g.pnl, 0)}</td><td>${Math.round(g.wins / g.n * 100)}%</td><td class="${cls(g.median)}">${pct(g.median, 0)}</td><td>${g.profit}</td><td>${g.stop}</td><td>${g.eaten}</td></tr>`).join("")
+      + `<tr><td><span class="pdot" style="background:var(--short)"></span>Retail shorts</td><td>${h.shorts.n}</td><td>${big(h.shorts.vol)}</td><td>—</td><td class="${cls(h.shorts.pnl)}">${sUsd(h.shorts.pnl, 0)}</td><td>${h.shorts.n ? Math.round(h.shorts.wins / h.shorts.n * 100) : 0}%</td><td class="${cls(h.shorts.median)}">${pct(h.shorts.median, 0)}</td><td>—</td><td>—</td><td>—</td></tr></tbody>`;
+    const trimmed = h.per.reduce((x, g) => x + g.trimmed, 0);
+    $("healthNote").textContent = `Results at the end of the period; open positions are marked to market. ${trimmed} long orders were cut to the 20% open limit${h.refused ? `, ${h.refused} were refused (no short equity at the time)` : ""}. Switch the lower chart to Pool to see who owned the pool over time.`;
+  }
+  // The trade preview replays the whole market, so while scrubbing it waits until the slider rests.
+  let ticketTimer = null;
+  function renderAll(scrubbing) {
     $("now").value = now;
-    renderMarket(); renderWallet(); renderPositions(); renderLog(); renderTicket();
+    renderMarket(); renderWallet(); renderPositions(); renderLog(); renderHealth();
+    clearTimeout(ticketTimer);
+    if (scrubbing) ticketTimer = setTimeout(renderTicket, 150); else renderTicket();
     drawPrice(); drawLower();
   }
   function recompute() { readCfg(); sim = replay(events); renderAll(); }
 
   // ── actions ──
-  function setNow(t) { now = Math.max(0, Math.min(D - 1, Math.round(t))); renderAll(); }
+  function setNow(t) { now = Math.max(0, Math.min(D - 1, Math.round(t))); renderAll(true); }
   function addEvent(e) {
     const trial = [...events, e], r = replay(trial);
     const err = r.errors.get(e.id) || [...r.errors.keys()].filter((k) => !sim.errors.has(k)).map((k) => r.errors.get(k))[0];
@@ -668,7 +840,7 @@ details.setup summary { cursor: pointer; font-weight: 600; font-size: 13px; }
   }
   $("go").addEventListener("click", () => {
     const amt = parseFloat(($("amount").value || "0").replace(/[^0-9.]/g, "")) || 0;
-    addEvent({ id: "e" + nextId++, day: now, kind: "open", side, amount: amt });
+    addEvent({ id: "e" + nextId++, day: now, kind: "open", side, amount: amt, p: side === "long" ? cfg.p : undefined });
   });
   $("posTable").addEventListener("click", (ev) => {
     const b = ev.target.closest("[data-close]"); if (!b) return;
@@ -715,6 +887,7 @@ details.setup summary { cursor: pointer; font-weight: 600; font-size: 13px; }
   function useSet(name) {
     if (playing) $("play").click();
     loadSet(name);
+    crowd = null; $("crowdRun").textContent = "Simulate 1,000 traders";
     $("dsDaily").setAttribute("aria-pressed", name === "daily"); $("ds1m").setAttribute("aria-pressed", name === "minute");
     $("chartTitle").textContent = SETS[name].title;
     document.querySelectorAll("[data-step]").forEach((b, i) => { b.dataset.step = SETS[name].steps[i][0]; b.textContent = SETS[name].steps[i][1]; });
@@ -725,6 +898,15 @@ details.setup summary { cursor: pointer; font-weight: 600; font-size: 13px; }
     sim = replay(events);
     renderAll();
   }
+  $("crowdRun").addEventListener("click", () => {
+    crowd = makeCrowd(crowdSeed++, $("cMix").value);
+    sim = replay(events);
+    lowerTab = "pool"; $("tabPool").setAttribute("aria-pressed", true); $("tabMe").setAttribute("aria-pressed", false);
+    renderAll();
+    $("crowdRun").textContent = "Run another 1,000";
+    $("healthBox").scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+  $("crowdClear").addEventListener("click", () => { crowd = null; $("crowdRun").textContent = "Simulate 1,000 traders"; recompute(); });
   $("dsDaily").addEventListener("click", () => setName !== "daily" && useSet("daily"));
   $("ds1m").addEventListener("click", () => setName !== "minute" && useSet("minute"));
   // start in a realistic state: early in the bull run, with an example long already open
