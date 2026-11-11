@@ -21,7 +21,7 @@ cd contract && cargo test
 ```
 
 ```bash
-cd contract && RUSTFLAGS="-C target-cpu=mvp" rustup run stable cargo build --target wasm32-unknown-unknown --release
+cd contract && RUSTC=$(rustup which rustc) RUSTFLAGS="-C link-arg=-s -C target-cpu=mvp" rustup run stable cargo build --target wasm32-unknown-unknown --release
 ```
 
 ```bash
