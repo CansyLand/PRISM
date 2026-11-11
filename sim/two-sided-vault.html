@@ -57,7 +57,7 @@ select { font: inherit; color: var(--ink); background: var(--panel2); border: 1p
 .rail h3 { margin: 14px 0 0; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
 .rail h3:first-child { margin-top: 0; }
 canvas { display: block; width: 100%; }
-#navChart { height: 280px; } #sweepChart { height: 260px; } #mcChart { height: 220px; }
+#navChart, #tvlChart { height: 260px; } .bar { height: 10px; border-radius: 3px; background: var(--bc); min-width: 1px; } td.barcell { width: 40%; text-align: left; } #sweepChart { height: 260px; } #mcChart { height: 220px; }
 .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); margin-top: 6px; }
 .legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; background: var(--lc); vertical-align: middle; margin-right: 5px; }
 .tablescroll { overflow-x: auto; }
@@ -97,10 +97,17 @@ tr.total td { font-weight: 600; border-bottom: none; }
       </section>
 
       <section class="panel">
-        <h2>Vault value over time</h2>
-        <p class="why">Hedged vault (blue) against the same money staked at the benchmark rate (gold). BTC price for context (grey, right axis).</p>
+        <h2>What $1,000 in the vault becomes</h2>
+        <p class="why">One depositor who joins on day one and stays. Hedged vault against the same vault without a hedge and against benchmark staking. BTC price for context (grey, right axis).</p>
         <canvas id="navChart"></canvas>
         <div class="legend"><span><i style="--lc:var(--short)"></i>Hedged vault</span><span><i style="--lc:var(--down)"></i>Same vault, no hedge</span><span><i style="--lc:var(--bench)"></i>Benchmark staking</span><span><i style="--lc:var(--muted)"></i>BTC</span></div>
+      </section>
+
+      <section class="panel">
+        <h2>Vault size and the yield depositors see</h2>
+        <p class="why" id="tvlNote"></p>
+        <canvas id="tvlChart"></canvas>
+        <div class="legend"><span><i style="--lc:var(--short)"></i>Vault size</span><span><i style="--lc:var(--long)"></i>Retail long claims</span><span><i style="--lc:var(--accent)"></i>Trailing 30-day yield (right axis)</span><span><i style="--lc:var(--bench)"></i>Target yield</span></div>
       </section>
 
       <div class="two">
@@ -115,6 +122,44 @@ tr.total td { font-weight: 600; border-bottom: none; }
           <div class="tablescroll"><table id="retailTable"></table></div>
         </section>
       </div>
+
+      <section class="panel">
+        <div style="display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;align-items:center">
+          <h2>How individual longs ended</h2>
+          <select id="cBand" style="width:auto"><option value="all">All curvatures</option><option value="1-3">p = 1 to 3</option><option value="4-6">p = 4 to 6</option><option value="7-10">p = 7 to 10</option></select>
+        </div>
+        <p class="why">Every closed Curve Long in this run, grouped by what it returned (payout ÷ ticket, after fees).</p>
+        <div class="tiles" id="distTiles" style="margin:8px 0 10px"></div>
+        <div class="tablescroll"><table id="distTable"></table></div>
+        <p class="why" id="distNote" style="margin-top:8px"></p>
+      </section>
+
+      <section class="panel">
+        <h2>Search: which settings make both sides want in</h2>
+        <p class="why">750 settings (players, short premium, highest curvature, steep-curve surcharge), each run on 32 random years: calm, wild, bull and bear BTC. Vault $1M, $400 tickets, 30-day holds. A setting passes if the vault's median year beats 7% and 9 of 10 years beat 3% staking. Among those, the table shows the one that pays retail back the most.</p>
+        <div class="tablescroll"><table>
+          <thead><tr><th>Open players</th><th>Premium</th><th>Highest p</th><th>Surcharge</th><th>Vault median</th><th>Vault bad year</th><th>Retail paid back per $1</th><th>Chance to win</th><th>Chance of 2×+</th></tr></thead>
+          <tbody>
+            <tr><td>50</td><td>0%</td><td>10</td><td>+200%</td><td class="pos">+7.3%</td><td class="pos">+5.6%</td><td>$0.72</td><td>24%</td><td>2.9%</td></tr>
+            <tr><td>100</td><td>+100%</td><td>4</td><td>+200%</td><td class="pos">+7.9%</td><td class="pos">+6.3%</td><td>$0.84</td><td>31%</td><td>1.1%</td></tr>
+            <tr><td>200</td><td>+50%</td><td>4</td><td>+50%</td><td class="pos">+7.5%</td><td class="pos">+5.1%</td><td>$0.91</td><td>35%</td><td>2.1%</td></tr>
+            <tr><td>400</td><td>+25%</td><td>3</td><td>+50%</td><td class="pos">+7.5%</td><td class="pos">+3.3%</td><td>$0.93</td><td>37%</td><td>1.2%</td></tr>
+            <tr><td>800</td><td>+100%</td><td>2</td><td>0%</td><td class="pos">+14.7%</td><td class="pos">+5.4%</td><td>$0.94</td><td>38%</td><td>0.3%</td></tr>
+            <tr class="total"><td>200, today's contract</td><td>−50%</td><td>10</td><td>0%</td><td class="neg">−11.7%</td><td class="neg">−21.6%</td><td>$1.00</td><td>36%</td><td>9.5%</td></tr>
+          </tbody></table></div>
+        <ul class="verdict" style="margin:10px 0 0;padding-left:18px">
+          <li><b>Scale is the lever.</b> With more players per dollar of vault, the same yield takes a smaller cut of each ticket: retail payback rises from $0.72 at 50 players to $0.94 at 800.</li>
+          <li><b>Steep curves are the vault's income and retail's lottery.</b> At 200 players and +25% premium, raising the cap from p = 4 to p = 10 lifts the vault from 3.4% to 9.2% and the chance of 2× from 2.5% to 6.3%, but lowers payback from $0.94 to $0.86 and doubles the vault's drawdown (−2.2%).</li>
+          <li><b>Today's multiplier can't work:</b> retail gets every dollar back on average, and the vault loses 1% to 12% a year. No depositor stays.</li>
+          <li><b>Payback below $1 is the price of the ticket.</b> A casino slot pays back about $0.90 to $0.95 and a state lottery about $0.50. Around $0.90 is a fair target for a long that can't be liquidated and can't lose more than the ticket.</li>
+        </ul>
+        <div style="margin-top:10px;display:flex;flex-wrap:wrap;gap:8px">
+          <button class="btn" data-preset="lottery">Load: big lottery (p ≤ 10, +25%)</button>
+          <button class="btn" data-preset="fair">Load: fairer payback (p ≤ 5, +50%)</button>
+          <button class="btn" data-preset="today" style="background:var(--down)">Load: today's contract</button>
+        </div>
+        <p class="why" style="margin-top:6px">Each preset uses 200 open players and resets everything else to the defaults. Script: sim/search.js, full output in sim/search-results.txt.</p>
+      </section>
 
       <section class="panel">
         <h2>How many players does the vault need?</h2>
@@ -135,6 +180,12 @@ tr.total td { font-weight: 600; border-bottom: none; }
       <section class="panel verdict">
         <h2>Does the two-product setup work?</h2>
         <div id="verdict"></div>
+        <h2 style="margin-top:14px">How the vault works, step by step</h2>
+        <p><b>A long claim</b> is what the pool owes a Curve Long right now: ticket × (BTC now ÷ BTC at entry)<sup>p</sup>, minus funding paid so far. A $100 long at p = 3 is owed $133 after a 10% rally (1.1³ = 1.331) and $73 after a 10% drop. The pool pays every claim out of the same USDC, and whatever is left belongs to the short side.</p>
+        <p><b>Why p × claims of BTC.</b> When BTC moves 1%, a claim at curvature p moves about p%. A $1,000 claim at p = 10 grows by about $100 for a 1% rally, the same as holding $10,000 of BTC. So the vault cancels that move by holding $10,000 of BTC, ten times the claim. At p = 2 it needs only $2,000. This is why steep curves tie up the most capital.</p>
+        <p><b>Daily rebalancing.</b> The amount needed changes as BTC moves: after a 10% rally that $1,000 claim at p = 10 is worth about $2,594, so the vault now needs about $25,900 of BTC, not $10,000. Once a day the keeper reads the oracle, computes p × claims for every curve, and buys or sells BTC to match. It always buys after a rise and sells after a fall. That small loss on every move is the cost of being short convexity, and the funding has to cover it.</p>
+        <p><b>Deposits in USD only.</b> A depositor sends USDC (or any token through NEAR Intents, swapped to USDC). The vault itself splits the money: part goes into the pool as Curve Short, part buys BTC for the hedge. Depositors own vault shares, not BTC. When BTC rises, the BTC in the vault gains about what the short side loses, so the share price stays roughly flat and moves up by the funding earned. The depositor never sees the BTC leg.</p>
+        <p><b>Capital and yield find a balance.</b> Yield ≈ net spread × claims ÷ vault size. A small vault next to many players earns a lot, which draws in deposits; deposits grow the vault, and the same funding is split over more capital, so yield falls until it is just above what depositors can get elsewhere. Switch on "Capital follows yield" to watch this: the vault settles at a size set by retail activity, not by its starting capital. A small starting fund is fine; it starts with a high yield.</p>
         <h2 style="margin-top:14px">Why the hedge isn't free</h2>
         <p>Curve Short holds <span class="num">−(claims)</span>, and claims grow like <span class="num">P<sup>p</sup></span>. The vault cancels the first-order move by holding <span class="num">p × claims</span> worth of BTC, rebalanced daily. What's left each day is:</p>
         <div class="formula">vault PnL per day ≈ claims × p(p−1)/2 × (funding variance × multiplier − realized variance) × dt</div>
@@ -158,9 +209,13 @@ tr.total td { font-weight: 600; border-bottom: none; }
         <div class="ctl"><label for="cH">Average holding time <output id="oH"></output></label><input type="range" id="cH" min="3" max="120" step="1" value="30"></div>
         <div class="ctl"><label for="cMix">Curvature they pick</label>
           <select id="cMix"><option value="gentle">Mostly gentle (p = 1 to 4)</option><option value="uniform" selected>Anything from p = 1 to 10</option><option value="steep">Mostly steep (p = 7 to 10)</option></select></div>
+        <div class="ctl"><label for="cPmax">Highest curvature offered <output id="oPmax"></output></label><input type="range" id="cPmax" min="2" max="10" step="1" value="10"><small>Players who want more pick the highest one offered.</small></div>
         <h3>Hedged vault (the only short)</h3>
-        <div class="ctl"><label for="cV">Vault capital <output id="oV"></output></label><input type="range" id="cV" min="0" max="8" step="1" value="3"></div>
+        <div class="ctl"><label for="cV">Starting vault capital <output id="oV"></output></label><input type="range" id="cV" min="0" max="8" step="1" value="3"></div>
         <div class="ctl"><label for="cS">Share deposited as Curve Short <output id="oS"></output></label><input type="range" id="cS" min="20" max="100" step="5" value="50"><small>The rest buys the BTC hedge. A shortfall is borrowed.</small></div>
+        <label class="check"><input type="checkbox" id="cFlow">Capital follows yield (deposits in, withdrawals out)</label>
+        <div class="ctl"><label for="cFlowSpread">Depositors want benchmark + <output id="oFlowSpread"></output></label><input type="range" id="cFlowSpread" min="0" max="20" step="0.5" value="4"><small>Money flows in when the trailing 30-day yield is above this, and out when below.</small></div>
+        <div class="ctl"><label for="cFlowSpeed">How fast money moves <output id="oFlowSpeed"></output></label><input type="range" id="cFlowSpeed" min="0.1" max="3" step="0.1" value="0.5"><small>Share of the vault per day for every 10 points of extra yield (at most 3% a day).</small></div>
         <div class="ctl"><label for="cBorrow">Borrow rate for the hedge <output id="oBorrow"></output></label><input type="range" id="cBorrow" min="0" max="15" step="0.5" value="6"></div>
         <div class="ctl"><label for="cSlip">Hedge trading cost <output id="oSlip"></output></label><input type="range" id="cSlip" min="0" max="30" step="1" value="5"></div>
         <h3>Funding</h3>
@@ -168,6 +223,7 @@ tr.total td { font-weight: 600; border-bottom: none; }
         <label class="check"><input type="checkbox" id="cRV" checked>Follow 30-day realized volatility when it's higher</label>
         <div class="ctl"><label for="cPrem">Short premium <output id="oPrem"></output></label><input type="range" id="cPrem" min="-50" max="150" step="5" value="30"><small>Multiplier at zero utilization = 1 + premium. −50% is today's contract (0.5).</small></div>
         <div class="ctl"><label for="cSlope">Extra multiplier per 100% utilization <output id="oSlope"></output></label><input type="range" id="cSlope" min="0" max="3" step="0.25" value="1"></div>
+        <div class="ctl"><label for="cSur">Steep-curve surcharge <output id="oSur"></output></label><input type="range" id="cSur" min="0" max="200" step="10" value="0"><small>Extra funding that grows with curvature: p = 10 pays 1 + surcharge times.</small></div>
         <div class="ctl"><label for="cCut">Exchange cut of funding <output id="oCut"></output></label><input type="range" id="cCut" min="0" max="30" step="1" value="10"></div>
         <h3>Compare with</h3>
         <div class="ctl"><label for="cBench">Benchmark yield (ETH staking) <output id="oBench"></output></label><input type="range" id="cBench" min="0" max="10" step="0.1" value="3"></div>
@@ -215,21 +271,24 @@ tr.total td { font-weight: 600; border-bottom: none; }
 
   // ── engine: one pool, retail longs on many curves, one hedged short vault ──
   function run(P, cfg, seed, keep) {
-    const D = P.length, r = rng(seed), w = MIXES[cfg.mix], wsum = w.reduce((a, b) => a + b, 0);
-    const pickP = () => { let x = r.u() * wsum; for (let i = 0; i < 10; i++) { x -= w[i]; if (x <= 0) return i + 1; } return 10; };
+    const D = P.length, r = rng(seed), pmax = cfg.pmax || 10;
+    const w = MIXES[cfg.mix].map((x, i) => (i + 1 <= pmax ? x : 0)), wsum = w.reduce((a, b) => a + b, 0) || 1;
+    const pickP = () => { let x = r.u() * wsum; for (let i = 0; i < pmax; i++) { x -= w[i]; if (x <= 0) return i + 1; } return pmax; };
     const P0 = P[0], idx = (t, p) => (P[t] / P0) ** p;
     const curves = []; for (let p = 0; p <= 10; p++) curves.push({ U: 0, NF: 1 });
     let R = cfg.V * cfg.s;                    // pool: vault's short deposit plus retail premiums
     let K = cfg.V - R, q = 0;                // vault's outside account: cash and BTC held as hedge
-    let K2 = K;                              // same vault without a hedge (for comparison)
+    let shares = cfg.V;                      // vault shares; one share starts at $1
     const lots = new Set(), done = [];
-    const acc = { funding: 0, hedge: 0, slip: 0, borrow: 0, exFees: 0, exCut: 0, written: 0, premiums: 0, payouts: 0, wipes: 0, refused: 0, longFunding: 0 };
+    const acc = { funding: 0, hedge: 0, slip: 0, borrow: 0, exFees: 0, exCut: 0, written: 0, premiums: 0, payouts: 0, wipes: 0, refused: 0, longFunding: 0, deposits: 0, withdrawals: 0 };
     const claims = (t) => { let s = 0; for (let p = 1; p <= 10; p++) { const c = curves[p]; if (c.U > 0) s += c.U * c.NF * idx(t, p); } return s; };
     const delta = (t) => { let s = 0; for (let p = 1; p <= 10; p++) { const c = curves[p]; if (c.U > 0) s += p * c.U * c.NF * idx(t, p); } return s; };
     const value = (lot, t, Ct) => { const v = lot.units * curves[lot.p].NF * idx(t, lot.p); return Ct > R ? v * R / Ct : v; };
+    const surcharge = (p) => 1 + (cfg.sur || 0) * (p - 1) / 9;
     const lam = cfg.N / cfg.H;
-    const series = keep ? { nav: new Float64Array(D), nav0: new Float64Array(D), util: new Float64Array(D) } : null;
-    let rets = [], sumU = 0, maxU = 0, peak = cfg.V, mdd = 0;
+    const series = keep ? { nav: new Float64Array(D), price: new Float64Array(D), util: new Float64Array(D), claims: new Float64Array(D), apy30: new Float64Array(D) } : null;
+    const priceHist = new Float64Array(D);
+    let rets = [], sumU = 0, maxU = 0, peak = 1, mdd = 0;
     for (let t = 0; t < D; t++) {
       // retail arrivals
       if (t < D - 1) {
@@ -243,7 +302,7 @@ tr.total td { font-weight: 600; border-bottom: none; }
           if (amt < 10) { acc.refused++; continue; }
           const fee = amt * TRADE_FEE, net = amt - fee, c = curves[p], units = net / (c.NF * idx(t, p));
           c.U += units; R += net; acc.exFees += fee; acc.premiums += amt;
-          lots.add({ p, units, amt, t0: t, exit: t + Math.max(1, Math.ceil(-Math.log(Math.max(1e-9, r.u())) * cfg.H)), tp: 0.3 + r.u() * 3, sl: 0.4 + r.u() * 0.55, funding: 0 });
+          lots.add({ p, units, amt, t0: t, exit: t + Math.max(1, Math.ceil(-Math.log(Math.max(1e-9, r.u())) * cfg.H)), tp: 0.3 + r.u() * 3, sl: 0.4 + r.u() * 0.55, funding: 0, peak: 1 });
         }
       }
       // retail exits: time, take profit, stop loss
@@ -251,20 +310,32 @@ tr.total td { font-weight: 600; border-bottom: none; }
       for (const lot of lots) {
         if (lot.t0 === t) continue;
         const v = value(lot, t, Ct);
+        if (v / lot.amt > lot.peak) lot.peak = v / lot.amt;
         if (t >= lot.exit || v >= lot.amt * (1 + lot.tp) || v <= lot.amt * (1 - lot.sl) || t === D - 1) {
           const fee = t === D - 1 ? 0 : v * TRADE_FEE;
           R -= v; curves[lot.p].U -= lot.units; acc.exFees += fee; acc.payouts += v - fee;
           Ct = claims(t);
-          done.push({ p: lot.p, amt: lot.amt, out: v - fee, funding: lot.funding }); lots.delete(lot);
+          done.push({ p: lot.p, amt: lot.amt, out: v - fee, funding: lot.funding, days: t - lot.t0, peak: lot.peak }); lots.delete(lot);
         }
       }
       // marks
-      const C = Math.min(Ct, R), F = R - C, u = R > 0 ? Ct / R : 0;
-      const nav = F + K + q * P[t], nav0 = F + K2;
+      let C = Math.min(Ct, R), F = R - C, u = R > 0 ? Ct / R : 0;
+      let nav = F + K + q * P[t], price = nav / shares;
+      priceHist[t] = price;
+      // capital follows yield: deposits when the trailing 30-day yield beats the target, withdrawals when it trails
+      const look = Math.min(t, 30), y30 = look >= 7 ? Math.max(-1, Math.min(3, Math.pow(price / priceHist[t - look], 365 / look) - 1)) : 0;
+      if (cfg.flow && look >= 7 && t < D - 1) {
+        const frac = Math.max(-0.03, Math.min(0.03, cfg.flowSpeed * (y30 - cfg.bench - cfg.flowSpread) / 0.10));
+        const X = frac * nav;
+        if (X > 0) { R += X * cfg.s; K += X * (1 - cfg.s); shares += X / price; acc.deposits += X; }
+        else if (X < 0) { const out = Math.min(-X, nav * 0.5), fromPool = Math.min(out * cfg.s, F * 0.9); R -= fromPool; K -= out - fromPool; shares -= out / price; acc.withdrawals += out; }
+        C = Math.min(Ct, R); F = R - C; u = R > 0 ? Ct / R : 0; nav = F + K + q * P[t];
+      }
+      acc.navSum = (acc.navSum || 0) + nav;
       sumU += Math.min(1, u); maxU = Math.max(maxU, Math.min(1, u));
-      peak = Math.max(peak, nav); mdd = Math.max(mdd, 1 - nav / peak);
-      if (series) { series.nav[t] = nav; series.nav0[t] = nav0; series.util[t] = Math.min(1, u); }
-      if (t === D - 1) { acc.nav = nav; acc.nav0 = nav0; acc.F = F; acc.K = K; acc.q = q; break; }
+      peak = Math.max(peak, price); mdd = Math.max(mdd, 1 - price / peak);
+      if (series) { series.nav[t] = nav; series.price[t] = price; series.util[t] = Math.min(1, u); series.claims[t] = C; series.apy30[t] = y30; }
+      if (t === D - 1) { acc.nav = nav; acc.price = price; acc.F = F; acc.K = K; acc.q = q; break; }
       // hedge: hold p × claims of BTC (zero once the pool is capped), rebalanced daily
       if (cfg.hedge) {
         const target = (Ct < R ? delta(t) : 0) / P[t], trade = target - q;
@@ -277,40 +348,41 @@ tr.total td { font-weight: 600; border-bottom: none; }
       let sig = cfg.iv;
       if (cfg.rv && rets.length >= 10) { let m = 0, s2 = 0; for (const x of rets) m += x; m /= rets.length; for (const x of rets) s2 += (x - m) ** 2; sig = Math.max(sig, Math.sqrt(s2 / (rets.length - 1) * 365)); }
       const mult = (1 + cfg.prem) + cfg.slope * Math.min(1, u) + STEEP * Math.max(0, Math.min(1, u) - KINK) / (1 - KINK);
-      const before = Math.min(Ct, R);
-      for (let p = 2; p <= 10; p++) {
-        const c = curves[p]; if (c.U <= 0) continue;
-        const f = Math.exp(-p * (p - 1) / 2 * sig * sig * mult * DT);
-        c.NF *= f;
+      const before = Math.min(Ct, R), decay = [];
+      for (let p = 1; p <= 10; p++) {
+        const c = curves[p]; decay[p] = Math.exp(-p * (p - 1) / 2 * sig * sig * mult * surcharge(p) * DT);
+        if (c.U > 0) c.NF *= decay[p];
       }
-      if (lots.size) { for (const lot of lots) { const c = curves[lot.p]; const f = Math.exp(-lot.p * (lot.p - 1) / 2 * sig * sig * mult * DT); lot.funding += lot.units * c.NF / f * (1 - f) * idx(t, lot.p); } }
+      for (const lot of lots) { const c = curves[lot.p], f = decay[lot.p]; lot.funding += lot.units * c.NF / f * (1 - f) * idx(t, lot.p); }
       const fund = before - Math.min(claims(t), R), cut = fund * cfg.cut;
       R -= cut; acc.exCut += cut; acc.funding += fund - cut; acc.longFunding += fund;
       // hedge carry
       if (K < 0) { const b = -K * cfg.borrow * DT; K -= b; acc.borrow += b; }
-      if (K2 < 0) K2 -= -K2 * cfg.borrow * DT;
       acc.hedge += q * (P[t + 1] - P[t]);
       // price moves; a rally past the pool writes claims down
       const Craw = claims(t + 1);
       if (R > 0 && Craw >= R) { acc.wipes++; acc.written += Craw - R; const f = R / Craw; for (let p = 1; p <= 10; p++) curves[p].NF *= f; }
     }
     const years = (D - 1) / 365;
-    return { acc, done, series, D, years, apy: Math.pow(Math.max(acc.nav, 1e-9) / cfg.V, 1 / years) - 1, apy0: Math.pow(Math.max(acc.nav0, 1e-9) / cfg.V, 1 / years) - 1, avgU: sumU / D, maxU, mdd };
+    return { acc, done, series, D, years, apy: Math.pow(Math.max(acc.price, 1e-9), 1 / years) - 1, avgU: sumU / D, maxU, mdd };
   }
 
   // ── controls ──
   const cfg = {};
   function read() {
-    cfg.path = $("cPath").value;
+    cfg.path = $("cPath").value; cfg.bench = +$("cBench").value / 100;
     cfg.N = N_STEPS[+$("cN").value]; cfg.T = T_STEPS[+$("cT").value]; cfg.H = +$("cH").value; cfg.mix = $("cMix").value;
     cfg.V = V_STEPS[+$("cV").value]; cfg.s = +$("cS").value / 100; cfg.borrow = +$("cBorrow").value / 100; cfg.slip = +$("cSlip").value / 1e4;
     cfg.iv = +$("cIV").value / 100; cfg.rv = $("cRV").checked; cfg.prem = +$("cPrem").value / 100; cfg.slope = +$("cSlope").value; cfg.cut = +$("cCut").value / 100;
+    cfg.pmax = +$("cPmax").value; cfg.sur = +$("cSur").value / 100; cfg.flow = $("cFlow").checked; cfg.flowSpread = +$("cFlowSpread").value / 100; cfg.flowSpeed = +$("cFlowSpeed").value;
+    $("oPmax").textContent = "p = " + cfg.pmax; $("oSur").textContent = "+" + Math.round(cfg.sur * 100) + "%"; $("oFlowSpread").textContent = (cfg.flowSpread * 100).toFixed(1) + "% = " + ((cfg.bench + cfg.flowSpread) * 100).toFixed(1) + "%"; $("oFlowSpeed").textContent = cfg.flowSpeed.toFixed(1) + "%";
     cfg.bench = +$("cBench").value / 100; cfg.vol = +$("cVol").value / 100; cfg.drift = +$("cDrift").value / 100; cfg.hedge = true;
     $("oN").textContent = cfg.N.toLocaleString("en-US"); $("oT").textContent = big(cfg.T); $("oH").textContent = cfg.H + " days";
     $("oV").textContent = big(cfg.V); $("oS").textContent = Math.round(cfg.s * 100) + "%"; $("oBorrow").textContent = (cfg.borrow * 100).toFixed(1) + "%"; $("oSlip").textContent = (cfg.slip * 1e4) + " bps";
     $("oIV").textContent = Math.round(cfg.iv * 100) + "%"; $("oPrem").textContent = (cfg.prem >= 0 ? "+" : "−") + Math.abs(Math.round(cfg.prem * 100)) + "% → " + (1 + cfg.prem).toFixed(2) + "×"; $("oSlope").textContent = "+" + cfg.slope.toFixed(2) + "×"; $("oCut").textContent = Math.round(cfg.cut * 100) + "%";
     $("oBench").textContent = (cfg.bench * 100).toFixed(1) + "%"; $("oVol").textContent = Math.round(cfg.vol * 100) + "%"; $("oDrift").textContent = (cfg.drift >= 0 ? "+" : "−") + Math.abs(Math.round(cfg.drift * 100)) + "%";
   }
+  let lastRes = null;
   const realPath = () => { const [a, b] = PATHS[cfg.path]; return Float64Array.from(CLOSE.slice(a, b + 1)); };
 
   // ── charts ──
@@ -339,23 +411,45 @@ tr.total td { font-weight: 600; border-bottom: none; }
     ctx.stroke(); ctx.setLineDash([]);
   }
 
+  function dates(ctx, xs, D, H) {
+    ctx.fillStyle = css("--muted"); ctx.textAlign = "center";
+    const [a] = PATHS[cfg.path];
+    for (let t = 0; t < D; t += Math.ceil(D / 6)) { const d = new Date(START.getTime() + (a + t) * 864e5); ctx.fillText(d.toISOString().slice(0, 7), xs(t), H - 7); }
+  }
   function drawNav(res, res0, P) {
-    const { ctx, W, H } = canvas($("navChart")), D = res.D, s = res.series;
-    const bench = Array.from({ length: D }, (_, t) => cfg.V * Math.pow(1 + cfg.bench, t / 365));
+    const { ctx, W, H } = canvas($("navChart")), D = res.D;
+    const v1 = Array.from(res.series.price, (x) => x * 1000), v0 = Array.from(res0.series.price, (x) => x * 1000);
+    const bench = Array.from({ length: D }, (_, t) => 1000 * Math.pow(1 + cfg.bench, t / 365));
     let lo = Infinity, hi = -Infinity;
-    for (const arr of [s.nav, res0.series.nav0, bench]) for (const v of arr) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
-    const pad = (hi - lo) * 0.08 || cfg.V * 0.05; lo -= pad; hi += pad;
+    for (const arr of [v1, v0, bench]) for (const v of arr) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
+    const pad = (hi - lo) * 0.08 || 50; lo -= pad; hi += pad;
     const xs = (t) => M.l + t / (D - 1) * (W - M.l - M.r);
-    const y = yAxis(ctx, W, H, lo, hi, big);
+    const y = yAxis(ctx, W, H, lo, hi, (v) => "$" + Math.round(v).toLocaleString("en-US"));
     let plo = Infinity, phi = -Infinity; for (const v of P) { plo = Math.min(plo, v); phi = Math.max(phi, v); }
     const yp = yAxis(ctx, W, H, plo, phi, (v) => "$" + Math.round(v / 1000) + "k", true);
     line(ctx, xs, P, yp, color(css("--muted"), 0.6), 1);
     line(ctx, xs, bench, y, css("--bench"), 1.6, [5, 4]);
-    line(ctx, xs, res0.series.nav0, y, css("--down"), 1.4);
+    line(ctx, xs, v0, y, css("--down"), 1.4);
+    line(ctx, xs, v1, y, css("--short"), 2.2);
+    dates(ctx, xs, D, H);
+  }
+  function drawTvl(res) {
+    const { ctx, W, H } = canvas($("tvlChart")), D = res.D, s = res.series;
+    let hi = 0; for (let t = 0; t < D; t++) hi = Math.max(hi, s.nav[t], s.claims[t]);
+    const xs = (t) => M.l + t / (D - 1) * (W - M.l - M.r);
+    const y = yAxis(ctx, W, H, 0, hi * 1.08, big);
+    const ylo = -0.2, yhi = 1;
+    const yy = yAxis(ctx, W, H, ylo, yhi, (v) => Math.round(v * 100) + "%", true);
+    const clip = Array.from(s.apy30, (v) => Math.max(ylo, Math.min(yhi, v)));
+    ctx.strokeStyle = css("--bench"); ctx.setLineDash([5, 4]); ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(M.l, yy(cfg.bench + (cfg.flow ? cfg.flowSpread : 0))); ctx.lineTo(W - M.r, yy(cfg.bench + (cfg.flow ? cfg.flowSpread : 0))); ctx.stroke(); ctx.setLineDash([]);
+    line(ctx, xs, clip, yy, color(css("--accent"), 0.8), 1.2);
+    line(ctx, xs, s.claims, y, css("--long"), 1.6);
     line(ctx, xs, s.nav, y, css("--short"), 2.2);
-    ctx.fillStyle = css("--muted"); ctx.textAlign = "center";
-    const [a] = PATHS[cfg.path];
-    for (let t = 0; t < D; t += Math.ceil(D / 6)) { const d = new Date(START.getTime() + (a + t) * 864e5); ctx.fillText(d.toISOString().slice(0, 7), xs(t), H - 7); }
+    dates(ctx, xs, D, H);
+    const a = res.acc, avg = a.navSum / D;
+    $("tvlNote").textContent = cfg.flow
+      ? `Capital follows yield: depositors added ${big(a.deposits)} and took out ${big(a.withdrawals)}. The vault started at ${big(cfg.V)}, averaged ${big(avg)} and ended at ${big(a.nav)}. When yield is high, money comes in, the vault gets bigger relative to retail claims, and yield falls back toward the target.`
+      : `Vault size stays at the starting capital plus profits (switch on "Capital follows yield" on the right to let depositors come and go). Average size ${big(avg)}; retail claims are what the vault earns on.`;
   }
   function color(c, a) { return `color-mix(in srgb, ${c} ${Math.round(a * 100)}%, transparent)`; }
 
@@ -382,13 +476,13 @@ tr.total td { font-weight: 600; border-bottom: none; }
   }
 
   function tables(res) {
-    const a = res.acc, shortPnl = a.F - cfg.V * cfg.s - a.funding; // pool equity change apart from funding
+    const a = res.acc, net = a.nav - cfg.V - a.deposits + a.withdrawals, avg = a.navSum / res.D;
+    const shortPnl = net - (a.funding + a.hedge - a.slip - a.borrow); // pool equity moves apart from funding
     const rows = [
       ["Funding received", a.funding], ["Curve Short price moves", shortPnl], ["BTC hedge gains", a.hedge], ["Hedge trading cost", -a.slip], ["Borrowing for the hedge", -a.borrow],
     ];
-    const net = a.nav - cfg.V;
-    $("pnlTable").innerHTML = `<thead><tr><th>Source</th><th>Amount</th><th>Per year, of capital</th></tr></thead><tbody>`
-      + rows.map(([k, v]) => `<tr><td>${k}</td><td class="${cls(v)}">${sBig(v)}</td><td class="${cls(v)}">${pct(v / cfg.V / res.years)}</td></tr>`).join("")
+    $("pnlTable").innerHTML = `<thead><tr><th>Source</th><th>Amount</th><th>Per year, of average capital</th></tr></thead><tbody>`
+      + rows.map(([k, v]) => `<tr><td>${k}</td><td class="${cls(v)}">${sBig(v)}</td><td class="${cls(v)}">${pct(v / avg / res.years)}</td></tr>`).join("")
       + `<tr class="total"><td>Vault net</td><td class="${cls(net)}">${sBig(net)}</td><td class="${cls(res.apy)}">${pct(res.apy)} APY</td></tr></tbody>`;
     const by = new Map();
     for (const d of res.done) { const band = d.p <= 3 ? "p = 1 to 3" : d.p <= 6 ? "p = 4 to 6" : "p = 7 to 10"; if (!by.has(band)) by.set(band, { n: 0, vol: 0, pnl: 0, wins: 0, fund: 0, rets: [] }); const g = by.get(band); g.n++; g.vol += d.amt; g.pnl += d.out - d.amt; g.wins += d.out > d.amt; g.fund += d.funding; g.rets.push(d.out / d.amt - 1); }
@@ -398,13 +492,43 @@ tr.total td { font-weight: 600; border-bottom: none; }
       + (res.done.length ? "" : `<tr><td colspan="6" class="zero">No retail trades with these settings.</td></tr>`) + `</tbody>`;
   }
 
+  const BUCKETS = [
+    [0, 0.01, "Lost everything (over 99%)"], [0.01, 0.5, "Lost 50% to 99%"], [0.5, 0.9, "Lost 10% to 50%"], [0.9, 1, "Lost up to 10%"],
+    [1, 1.5, "Won up to 50%"], [1.5, 2, "1.5× to 2×"], [2, 3, "2× to 3×"], [3, 5, "3× to 5×"], [5, 10, "5× to 10×"], [10, Infinity, "10× or more"],
+  ];
+  function renderDist(res) {
+    const band = $("cBand").value, [lo, hi] = band === "all" ? [1, 10] : band.split("-").map(Number);
+    const xs = res.done.filter((d) => d.p >= lo && d.p <= hi);
+    const tile = (l, v, s, m) => `<div class="tile ${m || ""}"><small>${l}</small><b>${v}</b><span>${s}</span></div>`;
+    if (!xs.length) { $("distTiles").innerHTML = ""; $("distTable").innerHTML = `<tbody><tr><td class="zero">No closed longs in this group.</td></tr></tbody>`; $("distNote").textContent = ""; return; }
+    const m = xs.map((d) => d.out / d.amt).sort((a, b) => a - b), n = xs.length;
+    const paidIn = xs.reduce((a, d) => a + d.amt, 0), paidOut = xs.reduce((a, d) => a + d.out, 0);
+    const wins = m.filter((x) => x > 1).length, top = xs.reduce((a, d) => (d.out - d.amt > a.out - a.amt ? d : a), xs[0]);
+    const bestX = xs.reduce((a, d) => (d.out / d.amt > a.out / a.amt ? d : a), xs[0]);
+    const profits = xs.map((d) => Math.max(0, d.out - d.amt)).sort((a, b) => b - a), totProfit = profits.reduce((a, b) => a + b, 0);
+    const top1 = profits.slice(0, Math.max(1, Math.ceil(n * 0.01))).reduce((a, b) => a + b, 0);
+    const ge = (k) => m.filter((x) => x >= k).length / n;
+    $("distTiles").innerHTML = [
+      tile("Chance to win", Math.round(wins / n * 100) + "%", `${wins.toLocaleString("en-US")} of ${n.toLocaleString("en-US")} longs`, ""),
+      tile("Chance of 2× or more", (ge(2) * 100).toFixed(1) + "%", `5× or more: ${(ge(5) * 100).toFixed(2)}%`, ""),
+      tile("Median long", pct(m[Math.floor(n / 2)] - 1, 0), "half did better, half worse", ""),
+      tile("Paid back per $1", "$" + (paidOut / paidIn).toFixed(2), "all payouts ÷ all tickets", paidOut >= paidIn ? "good" : ""),
+      tile("Biggest win", sBig(top.out - top.amt), `${big(top.amt)} ticket → ${big(top.out)}, p = ${top.p}, ${top.days} days`, "good"),
+      tile("Best multiple", (bestX.out / bestX.amt).toFixed(1) + "×", `${big(bestX.amt)} → ${big(bestX.out)}, p = ${bestX.p}`, "good"),
+    ].join("");
+    const rows = BUCKETS.map(([a, b, label]) => { const g = xs.filter((d) => d.out / d.amt >= a && d.out / d.amt < b); return { label, n: g.length, in: g.reduce((x, d) => x + d.amt, 0), out: g.reduce((x, d) => x + d.out, 0), win: a >= 1 }; });
+    const mx = Math.max(...rows.map((r) => r.n), 1);
+    $("distTable").innerHTML = `<thead><tr><th>Outcome</th><th>Longs</th><th>Share</th><th></th><th>Tickets</th><th>Paid out</th></tr></thead><tbody>`
+      + rows.map((r) => `<tr><td>${r.label}</td><td>${r.n.toLocaleString("en-US")}</td><td>${(r.n / n * 100).toFixed(1)}%</td><td class="barcell"><div class="bar" style="width:${r.n / mx * 100}%;--bc:${r.win ? "var(--up)" : "var(--down)"}"></div></td><td>${big(r.in)}</td><td>${big(r.out)}</td></tr>`).join("") + `</tbody>`;
+    $("distNote").textContent = `The top 1% of longs (${Math.max(1, Math.ceil(n * 0.01))}) took ${totProfit > 0 ? Math.round(top1 / totProfit * 100) : 0}% of all profits. Every $1 of tickets paid back $${(paidOut / paidIn).toFixed(2)}; the rest went to the vault as funding and to the exchange as fees.`;
+  }
   function renderTiles(res, res0) {
     const a = res.acc, beat = res.apy - cfg.bench;
     const tile = (l, v, s, m) => `<div class="tile ${m || ""}"><small>${l}</small><b>${v}</b><span>${s}</span></div>`;
     const retail = a.payouts - a.premiums;
     $("tiles").innerHTML = [
       tile("Hedged vault APY", pct(res.apy), `${beat >= 0 ? "beats" : "trails"} ${(cfg.bench * 100).toFixed(1)}% staking by ${pct(Math.abs(beat)).replace(/^[+−]/, "")}`, beat >= 0 ? "good" : "bad"),
-      tile("Same vault, no hedge", pct(res0.apy0), "Curve Short on its own", res0.apy0 >= cfg.bench ? "good" : "bad"),
+      tile("Same vault, no hedge", pct(res0.apy), "Curve Short on its own", res0.apy >= cfg.bench ? "good" : "bad"),
       tile("Worst drawdown", pct(-res.mdd), "hedged vault, peak to trough", res.mdd > 0.15 ? "bad" : res.mdd < 0.05 ? "good" : ""),
       tile("Utilization", Math.round(res.avgU * 100) + "%", `average; peak ${Math.round(res.maxU * 100)}%`, ""),
       tile("Retail longs", sBig(retail), `${res.done.length.toLocaleString("en-US")} trades, ${big(a.premiums)} paid in`, retail >= 0 ? "good" : "bad"),
@@ -472,7 +596,7 @@ tr.total td { font-weight: 600; border-bottom: none; }
       if (my !== job) return;
       for (let j = 0; j < 20 && k < 200; j++, k++) {
         const P = gbm(5000 + k, 365, base.vol, base.drift), r = run(P, base, 900 + k, false), r0 = run(P, { ...base, hedge: false }, 900 + k, false);
-        apys.push(r.apy); apys0.push(r0.apy0); dds.push(r.mdd); ret.push(r.acc.payouts - r.acc.premiums);
+        apys.push(r.apy); apys0.push(r0.apy); dds.push(r.mdd); ret.push(r.acc.payouts - r.acc.premiums);
       }
       $("mcStatus").textContent = `${k} of 200 paths`;
       if (k < 200) setTimeout(step, 0); else { mcData = { apys, apys0, dds, ret }; $("mcRun").disabled = false; drawMC(); }
@@ -506,8 +630,8 @@ tr.total td { font-weight: 600; border-bottom: none; }
   let timer = null;
   function render() {
     read();
-    const P = realPath(), res = run(P, cfg, 42, true), res0 = run(P, { ...cfg, hedge: false }, 42, true);
-    renderTiles(res, res0); drawFlow(res); drawNav(res, res0, P); tables(res); renderVerdict(res);
+    const P = realPath(), res = run(P, cfg, 42, true), res0 = run(P, { ...cfg, hedge: false }, 42, true); lastRes = res;
+    renderTiles(res, res0); drawFlow(res); drawNav(res, res0, P); drawTvl(res); tables(res); renderDist(res); renderVerdict(res);
     drawSweep(); drawMC();
   }
   function changed() {
@@ -516,6 +640,17 @@ tr.total td { font-weight: 600; border-bottom: none; }
   }
   document.querySelectorAll("input, select").forEach((el) => el.addEventListener("input", changed));
   $("sweepRun").addEventListener("click", runSweep);
+  const PRESETS = {
+    lottery: { cN: 5, cPrem: 25, cPmax: 10, cSur: 0 },
+    fair: { cN: 5, cPrem: 50, cPmax: 5, cSur: 0 },
+    today: { cN: 5, cPrem: -50, cPmax: 10, cSur: 0 },
+  };
+  document.querySelectorAll("[data-preset]").forEach((b) => b.addEventListener("click", () => {
+    document.querySelectorAll(".rail input[type=range]").forEach((el) => { el.value = el.defaultValue; });
+    for (const [id, v] of Object.entries(PRESETS[b.dataset.preset])) $(id).value = v;
+    changed(); window.scrollTo({ top: 0, behavior: "smooth" });
+  }));
+  $("cBand").removeEventListener("input", changed); $("cBand").addEventListener("input", (e) => { e.stopPropagation(); if (lastRes) renderDist(lastRes); });
   $("mcRun").addEventListener("click", runMC);
   window.addEventListener("resize", () => { clearTimeout(timer); timer = setTimeout(render, 100); });
   new MutationObserver(render).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
