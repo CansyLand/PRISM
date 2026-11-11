@@ -1,15 +1,19 @@
-node_modules/
+# build output
 target/
 *.wasm
+node_modules/
+
+# secrets
 .env
 .deploy.env
 .account
-tools/node_modules/
-tools/*.tgz
+intents/.relayer-state.json*
+
 .DS_Store
 
+# private drafts
 hackathon-submission.json
 hackathon-x-post.md
 
-# live collected emails (personal data)
-demo/email_list.txt
+# personal data (legacy perpetual demo)
+demo/

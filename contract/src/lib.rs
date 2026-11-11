@@ -1,953 +1,396 @@
-use near_sdk::borsh::{BorshDeserialize, BorshSerialize};
-use near_sdk::json_types::{I128, U128};
-use near_sdk::{env, log, near, require, AccountId, PanicOnDefault};
-use std::collections::HashMap;
+//! Curve Ledger: a continuous-expiry power perpetual on NEAR.
+//!
+//! One USDC treasury, two sides, priced only by the oracle:
+//!
+//! * **Curve** holds *units* of the power index `I(P) = (P / P_ref)^p`.
+//!   One unit is worth `NF × I(P)` raw USDC, where the normalization factor
+//!   `NF` (1e18 at launch) decays at the funding rate. Curve pays funding by
+//!   shrinking. It can't be liquidated and has no margin.
+//! * **Flat/Earn** owns shares of the residual `F = R − C`, where `R` is the
+//!   risk pool and `C` the Curve claims. NF decay flows into `F` automatically.
+//!
+//! Solvency comes from the structure: `C_eff = min(C_raw, R)` (pro-rata haircut),
+//! so `free + C_eff + F + fees == treasury` always holds. Every mutation checks
+//! it. Curve opens and Flat exits are refused above `max_util_bps`.
+//!
+//! Modules: `math` (fixed point), `oracle` (Pyth adapter + testnet pusher),
+//! `treasury` (NEP-141 deposits, withdrawals, fees), `trade` (open/close),
+//! `views` (bot/UI reads), `admin` (bounded owner params), `events` (NEP-297).
+//!
+//! Units: USDC raw (6 decimals) for amounts and prices, unix seconds for time.
 
-/// Amounts/prices are USDC raw units (6 decimals), u128.
-/// `size` is signed base units: positive = long, negative = short.
-#[derive(
-    BorshSerialize, BorshDeserialize, serde::Serialize, serde::Deserialize, Clone, PartialEq,
-)]
-pub struct Position {
-    pub owner: AccountId,
-    pub size: i128,
-    pub entry_price: u128,
-    pub margin: u128,
-    pub is_open: bool,
+use near_sdk::json_types::U128;
+use near_sdk::store::{IterableMap, IterableSet, LookupMap};
+use near_sdk::{env, near, require, AccountId, BorshStorageKey, PanicOnDefault};
+
+pub mod admin;
+pub mod events;
+pub mod math;
+pub mod oracle;
+pub mod trade;
+pub mod treasury;
+pub mod views;
+
+#[cfg(test)]
+mod tests;
+
+use math::{annual_funding_rate_e18, exp_neg_e18, mul_div, power_index_e18, BPS, ONE, U256, YEAR_SECS};
+pub use oracle::OracleConfig;
+
+/// $1,000,000 at 6dp. Keeps `price^p` well inside U256 for p ≤ 4.
+pub const MAX_PRICE: u128 = 1_000_000_000_000;
+pub const MAX_SNAPSHOTS: u64 = 1_000;
+pub const MAX_OPERATORS: usize = 4;
+
+#[near(serializers = [borsh, json])]
+#[derive(Clone, Debug, PartialEq)]
+pub struct Params {
+    /// Payoff exponent p (1..=4). Can't change while Curve units exist.
+    pub power: u8,
+    /// Implied volatility σ (annualized, bps). Funding/yr = p(p−1)/2 · σ² + base.
+    pub implied_vol_bps: u32,
+    /// Extra annual funding (bps) on top of the fair convexity rate.
+    pub base_funding_bps: u32,
+    /// Protocol share of funding paid by Curve (bps of funding).
+    pub funding_fee_bps: u16,
+    /// Fee on every open/close (bps of amount).
+    pub trade_fee_bps: u16,
+    /// Max Curve claims / risk pool after a Curve open or Flat exit (bps, ≤ 9000).
+    pub max_util_bps: u16,
+    /// Trades revert when the oracle price is older than this.
+    pub max_price_age_secs: u64,
+    /// Pyth: reject when conf / price exceeds this (bps).
+    pub max_conf_bps: u16,
+    /// Pusher mode: max jump vs. the last fresh price (bps).
+    pub max_jump_bps: u16,
+    /// Minimum deposit / trade size (USDC raw). Makes storage-spam expensive.
+    pub min_amount: U128,
+    /// Minimum spacing between on-chain snapshots.
+    pub snapshot_interval_secs: u64,
 }
 
-/// Result of a liquidation: PnL at mark, remaining owner equity
-/// (clamped at zero) and the liquidator's reward share.
-#[derive(
-    BorshSerialize, BorshDeserialize, serde::Serialize, serde::Deserialize, Clone, PartialEq, Debug,
-)]
-pub struct LiquidationResult {
-    pub pnl: i128,          // size * (mark - entry), USDC raw 6dp
-    pub owner_equity: u128, // max(0, margin + pnl) - reward, USDC raw 6dp
-    pub liquidator_reward: u128,
+impl Default for Params {
+    fn default() -> Self {
+        Self {
+            power: 2,
+            implied_vol_bps: 8_000,
+            base_funding_bps: 0,
+            funding_fee_bps: 1_000,
+            trade_fee_bps: 10,
+            max_util_bps: 5_000,
+            max_price_age_secs: 120,
+            max_conf_bps: 200,
+            max_jump_bps: 2_000,
+            min_amount: U128(1_000_000),
+            snapshot_interval_secs: 300,
+        }
+    }
 }
 
-#[derive(
-    BorshSerialize, BorshDeserialize, serde::Serialize, serde::Deserialize, Clone, PartialEq, Debug,
-)]
+#[near(serializers = [borsh])]
+#[derive(Clone, Default, Debug)]
+pub struct Account {
+    pub free: u128,
+    pub curve_units: u128,
+    /// Gross USDC paid for the units still held (cost basis, includes fees).
+    pub curve_cost: u128,
+    pub flat_shares: u128,
+    pub flat_cost: u128,
+    pub realized_pnl: i128,
+    pub deposited: u128,
+    pub withdrawn: u128,
+    /// Bots allowed to trade (never withdraw) for this account.
+    pub operators: Vec<AccountId>,
+}
+
+#[near(serializers = [borsh, json])]
+#[derive(Clone, Debug)]
+pub struct Snapshot {
+    pub ts: u64,
+    pub price: U128,
+    pub nf: U128,
+    pub risk_pool: U128,
+    pub curve_claims: U128,
+    pub flat_equity: U128,
+    pub flat_share_price_e18: U128,
+}
+
+#[near(serializers = [borsh, json])]
+#[derive(Clone, Debug, Default)]
 pub struct Stats {
-    pub open_positions: u64,
-    pub total_notional: u128, // sum |size| * mark, USDC raw 6dp
-    pub total_margin: u128,   // sum of open margins, USDC raw 6dp
-    pub funding_bps: i128,    // current per-interval funding rate
-    pub last_funding_ts: u64, // unix seconds
+    pub volume: U128,
+    pub funding_paid: U128,
+    pub fees_earned: U128,
+    pub trades: u64,
+    pub accounts: u64,
 }
 
-const MIN_MARGIN: u128 = 1_000_000; // 1 USDC minimum collateral
-/// Maintenance margin: liquidate when equity (margin + unrealized PnL)
-/// falls below LIQ_BPS of notional at the mark price.
-/// For a 10x position (10% margin) that means ~5% adverse move before
-/// liquidation — the standard perpetual model.
-const LIQ_BPS: u128 = 500;
-/// Max leverage: margin must be at least 1/10 of notional.
-const MAX_LEVERAGE: u128 = 10;
-/// Share of the liquidated position's remaining equity paid to the
-/// liquidator as an incentive (50%). The rest stays claimable by the owner.
-const LIQ_PENALTY_BPS: u128 = 5_000;
-/// Mark price may not deviate more than 20% from the last stored mark.
-const MAX_MARK_DEVIATION_BPS: u128 = 2_000;
-/// A stale mark (no update for 1h) accepts up to 50% deviation, so the
-/// feed can re-anchor after a real gap. Fresh marks stay at 20%.
-const STALE_MARK_SECONDS: u64 = 3_600;
-const STALE_MARK_DEVIATION_BPS: u128 = 5_000;
-/// Funding may only be applied at most once per hour.
-const MIN_FUNDING_INTERVAL_SECONDS: u64 = 3_600;
-/// Funding per interval may not move more than this share of margin
-/// away from a position in a single application (10%).
-const MAX_FUNDING_MARGIN_BPS: u128 = 1_000;
+#[near(serializers = [borsh])]
+#[derive(BorshStorageKey)]
+enum StorageKey {
+    Accounts,
+    Managers,
+    Snapshots,
+}
 
-#[derive(PanicOnDefault)]
 #[near(contract_state)]
-pub struct LeveragedPositions {
-    positions: HashMap<AccountId, Position>,
-    mark_price: u128,  // USDC raw 6dp, 0 = not set
-    mark_ts: u64,      // unix seconds
-    funding_bps: i128, // per-interval funding rate, bps (positive = longs pay)
-    last_funding_ts: u64,
-    /// v4: governance for price/funding inputs. The owner sets the pusher;
-    /// the pusher is the only account allowed to call `update_mark` and
-    /// `set_funding_rate` (once a pusher is set). Trading and liquidation
-    /// remain permissionless — a stranger can still liquidate anyone.
-    owner: AccountId,
-    price_pusher: Option<AccountId>,
+#[derive(PanicOnDefault)]
+pub struct Contract {
+    pub(crate) owner: AccountId,
+    /// The only accepted collateral (USDC NEP-141).
+    pub(crate) token: AccountId,
+    pub(crate) oracle: OracleConfig,
+    pub(crate) params: Params,
+    pub(crate) ref_price: u128,
+    pub(crate) price: u128,
+    pub(crate) price_ts: u64,
+    /// Normalization factor, 1e18 at launch, decays with funding.
+    pub(crate) nf: u128,
+    pub(crate) last_accrual_ts: u64,
+    pub(crate) total_units: u128,
+    /// R: USDC backing Curve claims + Flat equity.
+    pub(crate) risk_pool: u128,
+    pub(crate) flat_shares: u128,
+    pub(crate) free_total: u128,
+    pub(crate) fees: u128,
+    /// Tracked USDC we owe in total. Must be ≤ the real token balance.
+    pub(crate) treasury: u128,
+    pub(crate) open_paused: bool,
+    pub(crate) accounts: IterableMap<AccountId, Account>,
+    pub(crate) managers: IterableSet<AccountId>,
+    pub(crate) snapshots: LookupMap<u64, Snapshot>,
+    pub(crate) snapshot_count: u64,
+    pub(crate) last_snapshot_ts: u64,
+    pub(crate) stats: Stats,
+}
+
+/// Market state including funding that is pending but not yet written.
+pub(crate) struct Live {
+    pub nf: u128,
+    pub fee_pending: u128,
+    pub funding_pending: u128,
+    pub unit_value_e18: U256,
+    pub c_raw: u128,
+    pub c_eff: u128,
+    pub risk_pool: u128,
+    pub flat_equity: u128,
+}
+
+pub(crate) fn now_secs() -> u64 {
+    env::block_timestamp() / 1_000_000_000
 }
 
 #[near]
-impl LeveragedPositions {
+impl Contract {
     #[init]
-    pub fn new() -> Self {
+    pub fn new(
+        owner: AccountId,
+        token: AccountId,
+        oracle: OracleConfig,
+        ref_price: U128,
+        params: Option<Params>,
+    ) -> Self {
+        let params = params.unwrap_or_default();
+        admin::validate_params(&params);
+        require!(ref_price.0 > 0 && ref_price.0 <= MAX_PRICE, "bad ref_price");
         Self {
-            positions: HashMap::new(),
-            mark_price: 0,
-            mark_ts: 0,
-            funding_bps: 0,
-            last_funding_ts: 0,
-            owner: env::predecessor_account_id(),
-            price_pusher: None,
+            owner,
+            token,
+            oracle,
+            params,
+            ref_price: ref_price.0,
+            price: 0,
+            price_ts: 0,
+            nf: ONE,
+            last_accrual_ts: now_secs(),
+            total_units: 0,
+            risk_pool: 0,
+            flat_shares: 0,
+            free_total: 0,
+            fees: 0,
+            treasury: 0,
+            open_paused: false,
+            accounts: IterableMap::new(StorageKey::Accounts),
+            managers: IterableSet::new(StorageKey::Managers),
+            snapshots: LookupMap::new(StorageKey::Snapshots),
+            snapshot_count: 0,
+            last_snapshot_ts: 0,
+            stats: Stats::default(),
         }
     }
 
-    // ─────────────────────────── GOVERNANCE (v4) ───────────────────────────
+    /// Keeper heartbeat: books pending funding and takes a snapshot.
+    /// Anyone can call it. Safe to call as often as you like.
+    pub fn poke(&mut self) -> views::MarketView {
+        self.accrue();
+        self.maybe_snapshot();
+        self.get_market()
+    }
+}
 
-    /// Set (or clear, with `None`/empty) the authorized price/funding
-    /// pusher. Owner only. Setting `None` re-opens price updates to
-    /// anyone (the v3 behavior) — useful for testing, dangerous on mainnet.
-    pub fn set_pusher(&mut self, price_pusher: Option<AccountId>) {
-        let caller: AccountId = env::predecessor_account_id();
-        require!(caller == self.owner, "not the contract owner");
-        self.price_pusher = price_pusher.clone();
-        log!(
-            "{}",
-            format!(
-                r#"{{"event":"pusher","pusher":"{}"}}"#,
-                price_pusher.map(|p| p.to_string()).unwrap_or_default()
-            )
-        );
+// ─────────────────────────── internals ───────────────────────────
+
+impl Contract {
+    pub(crate) fn unit_value_e18(&self, nf: u128) -> U256 {
+        if self.price == 0 {
+            return U256::zero();
+        }
+        U256::from(nf) * power_index_e18(self.price, self.ref_price, self.params.power) / U256::from(ONE)
     }
 
-    fn require_pusher(&self, method: &str) {
-        if let Some(ref pusher) = self.price_pusher {
-            let caller: AccountId = env::predecessor_account_id();
-            require!(
-                caller == *pusher,
-                format!("{}: caller is not the authorized price pusher", method)
+    pub(crate) fn units_value(units: u128, unit_value_e18: U256) -> u128 {
+        (U256::from(units) * unit_value_e18 / U256::from(ONE)).as_u128()
+    }
+
+    pub(crate) fn funding_rate_e18(&self) -> u128 {
+        annual_funding_rate_e18(self.params.power, self.params.implied_vol_bps, self.params.base_funding_bps)
+    }
+
+    /// (new NF, funding paid by Curve, protocol fee) for time since the last accrual.
+    pub(crate) fn pending_accrual(&self) -> (u128, u128, u128) {
+        let now = now_secs();
+        if now <= self.last_accrual_ts || self.price == 0 || self.total_units == 0 {
+            return (self.nf, 0, 0);
+        }
+        let dt = (now - self.last_accrual_ts) as u128;
+        let x = mul_div(self.funding_rate_e18(), dt, YEAR_SECS);
+        let nf_new = mul_div(self.nf, exp_neg_e18(x), ONE);
+        let before = Self::units_value(self.total_units, self.unit_value_e18(self.nf)).min(self.risk_pool);
+        let after = Self::units_value(self.total_units, self.unit_value_e18(nf_new)).min(self.risk_pool);
+        let funding = before - after;
+        let fee = funding * self.params.funding_fee_bps as u128 / BPS;
+        (nf_new, funding, fee)
+    }
+
+    pub(crate) fn live(&self) -> Live {
+        let (nf, funding_pending, fee_pending) = self.pending_accrual();
+        let risk_pool = self.risk_pool - fee_pending;
+        let unit_value_e18 = self.unit_value_e18(nf);
+        let c_raw = Self::units_value(self.total_units, unit_value_e18);
+        let c_eff = c_raw.min(risk_pool);
+        Live {
+            nf,
+            fee_pending,
+            funding_pending,
+            unit_value_e18,
+            c_raw,
+            c_eff,
+            risk_pool,
+            flat_equity: risk_pool - c_eff,
+        }
+    }
+
+    /// Books pending funding: NF decays, and the protocol fee moves from R to fees.
+    pub(crate) fn accrue(&mut self) {
+        let (nf, funding, fee) = self.pending_accrual();
+        let now = now_secs();
+        if now > self.last_accrual_ts {
+            self.last_accrual_ts = now;
+        }
+        if funding == 0 && nf == self.nf {
+            return;
+        }
+        self.nf = nf;
+        self.risk_pool -= fee;
+        self.fees += fee;
+        self.stats.funding_paid.0 += funding;
+        self.stats.fees_earned.0 += fee;
+        if funding > 0 {
+            events::emit(
+                "funding",
+                near_sdk::serde_json::json!({
+                    "ts": now, "nf": nf.to_string(), "funding": funding.to_string(),
+                    "fee": fee.to_string(), "price": self.price.to_string(),
+                }),
             );
         }
     }
 
-    // ─────────────────────────── PRICE FEED ───────────────────────────
-
-    /// Anyone may refresh the mark price (median of external feeds,
-    /// e.g. from a price feed service). Guarded: must be within 20%
-    /// of the last stored mark (50% if the stored mark is stale),
-    /// so a single bad reading can never wreck the risk state.
-    /// This is the on-chain source of truth for risk, so
-    /// liquidations survive even if the price feed or an external
-    /// chain is down — any client can feed a fresh one.
-    pub fn update_mark(&mut self, mark: u128) {
-        self.require_pusher("update_mark");
-        require!(mark > 0, "mark must be > 0");
-        let last = self.mark_price;
-        if last > 0 {
-            let now = env::block_timestamp() / 1_000_000_000;
-            let stale = self.mark_ts > 0 && now >= self.mark_ts + STALE_MARK_SECONDS;
-            let max_dev_bps = if stale {
-                STALE_MARK_DEVIATION_BPS
-            } else {
-                MAX_MARK_DEVIATION_BPS
-            };
-            let diff = if mark > last {
-                mark - last
-            } else {
-                last - mark
-            };
-            require!(
-                diff * 10_000 <= last * max_dev_bps,
-                "mark deviates too far from last stored mark"
-            );
+    pub(crate) fn maybe_snapshot(&mut self) {
+        let now = now_secs();
+        if self.price == 0
+            || (self.snapshot_count > 0 && now < self.last_snapshot_ts + self.params.snapshot_interval_secs)
+        {
+            return;
         }
-        self.mark_price = mark;
-        self.mark_ts = env::block_timestamp() / 1_000_000_000;
-        log!(
-            "{}",
-            format!(
-                r#"{{"event":"mark","mark":{},"ts":{}}}"#,
-                self.mark_price, self.mark_ts
-            )
-        );
+        let l = self.live();
+        let snap = Snapshot {
+            ts: now,
+            price: U128(self.price),
+            nf: U128(l.nf),
+            risk_pool: U128(l.risk_pool),
+            curve_claims: U128(l.c_eff),
+            flat_equity: U128(l.flat_equity),
+            flat_share_price_e18: U128(self.flat_share_price_e18(&l)),
+        };
+        self.snapshots.insert(self.snapshot_count, snap);
+        if self.snapshot_count >= MAX_SNAPSHOTS {
+            self.snapshots.remove(&(self.snapshot_count - MAX_SNAPSHOTS));
+        }
+        self.snapshot_count += 1;
+        self.last_snapshot_ts = now;
     }
 
-    pub fn get_mark(&self) -> (u128, u64) {
-        (self.mark_price, self.mark_ts)
+    pub(crate) fn flat_share_price_e18(&self, l: &Live) -> u128 {
+        if self.flat_shares == 0 {
+            ONE
+        } else {
+            mul_div(l.flat_equity, ONE, self.flat_shares)
+        }
     }
 
-    // ─────────────────────────── POSITION LIFECYCLE ───────────────────────────
-
-    /// Open (or re-open) a leveraged position.
-    /// size: signed base units (+long / -short). price & margin: USDC raw units (6dp).
-    /// Enforces MAX_LEVERAGE: margin must cover at least 1/10 of notional.
-    pub fn open_position(&mut self, size: i128, price: u128, margin: u128) {
-        let caller: AccountId = env::predecessor_account_id();
-        require!(size != 0, "size must be non-zero");
-        require!(price > 0, "price must be > 0");
-        require!(margin >= MIN_MARGIN, "margin below minimum");
-        let notional = size.unsigned_abs() * price;
+    pub(crate) fn require_fresh_price(&self) {
+        require!(self.price > 0, "no oracle price yet");
         require!(
-            margin * MAX_LEVERAGE >= notional,
-            "margin below 1/10 of notional (max leverage 10x)"
-        );
-        self.positions.insert(
-            caller.clone(),
-            Position {
-                owner: caller.clone(),
-                size,
-                entry_price: price,
-                margin,
-                is_open: true,
-            },
-        );
-        log!(
-            "{}",
-            format!(
-                r#"{{"event":"open","account":"{}","size":{},"price":{},"margin":{}}}"#,
-                caller, size, price, margin
-            )
+            now_secs().saturating_sub(self.price_ts) <= self.params.max_price_age_secs,
+            "oracle price is stale"
         );
     }
 
-    /// Record the ACTUAL solver fill price for the caller's position
-    /// (e.g. from a 1Click intent quote: USDC-in / wNEAR-out).
-    /// Only the position owner, while the position is open.
-    /// PnL on close is then computed from this real fill price.
-    pub fn settle_entry(&mut self, fill_price: u128) {
-        let caller: AccountId = env::predecessor_account_id();
-        let pos = self.positions.get(&caller).expect("no position");
-        require!(pos.is_open, "position not open");
-        require!(fill_price > 0, "fill price must be > 0");
-        self.positions
-            .entry(caller.clone())
-            .and_modify(|p| p.entry_price = fill_price);
-        log!(
-            "{}",
-            format!(
-                r#"{{"event":"fill","account":"{}","fill_price":{}}}"#,
-                caller, fill_price
-            )
-        );
-    }
-
-    /// Close the caller's position at the ON-CHAIN mark price.
-    /// Used by intent-routed liquidation: the solver executes the
-    /// hedge swap off-chain (via the 1Click intent) and the accounting
-    /// is settled against the on-chain mark — no external feed needed.
-    pub fn close_position_at_mark(&mut self) -> I128 {
-        require!(self.mark_price > 0, "no mark price set");
-        self.close_position(self.mark_price)
-    }
-
-    /// Close the caller's position at `exit_price` (USDC raw 6dp).
-    /// Returns PnL = size * (exit - entry) in USDC raw units.
-    pub fn close_position(&mut self, exit_price: u128) -> I128 {
-        let caller: AccountId = env::predecessor_account_id();
-        require!(exit_price > 0, "exit price must be > 0");
-        let pos = self.positions.get(&caller).expect("no position");
-        require!(pos.is_open, "position already closed");
-        let pnl = pos.size * (exit_price as i128 - pos.entry_price as i128);
-        self.positions
-            .entry(caller.clone())
-            .and_modify(|p| p.is_open = false);
-        log!(
-            "{}",
-            format!(
-                r#"{{"event":"close","account":"{}","exit_price":{},"pnl":{}}}"#,
-                caller, exit_price, pnl
-            )
-        );
-        I128(pnl)
-    }
-
-    // ─────────────────────────── RISK / LIQUIDATION ───────────────────────────
-
-    /// Liquidate `account_id` at the ON-CHAIN mark price.
-    /// This is the congestion-proof path: it only needs NEAR.
-    pub fn liquidate_on_mark(&mut self, account_id: AccountId) -> LiquidationResult {
-        require!(self.mark_price > 0, "no mark price set");
-        self.liquidate(account_id, self.mark_price)
-    }
-
-    /// Liquidate `account_id` when its equity (margin + unrealized PnL)
-    /// is below LIQ_BPS (5%) of the notional at `mark_price`.
-    /// PnL = size * (mark - entry), so longs liquidate on drops,
-    /// shorts on rises. Anyone may call.
-    /// The liquidator earns LIQ_PENALTY_BPS (50%) of the position's
-    /// remaining equity as a reward — the rest stays with the owner.
-    pub fn liquidate(&mut self, account_id: AccountId, mark_price: u128) -> LiquidationResult {
-        require!(mark_price > 0, "mark price must be > 0");
-        let pos = self.positions.get(&account_id).expect("no position");
-        require!(pos.is_open, "not open");
-        let pnl = pos.size * (mark_price as i128 - pos.entry_price as i128);
-        let equity = pos.margin as i128 + pnl;
-        // Liquidatable when equity*10_000 < notional*LIQ_BPS (i.e. equity < 5% of notional).
-        let threshold = (pos.size.unsigned_abs() * mark_price) as i128 * LIQ_BPS as i128;
+    /// Core solvency invariant: every USDC we track is claimed exactly once.
+    pub(crate) fn assert_invariant(&self) {
         require!(
-            equity * 10_000 < threshold,
-            "position healthy, not liquidatable"
+            self.free_total + self.risk_pool + self.fees == self.treasury,
+            "invariant violated: claims != treasury"
         );
-        // Reward split on the remaining (clamped) equity.
-        let remaining = if equity > 0 { equity as u128 } else { 0 };
-        let reward = remaining * LIQ_PENALTY_BPS / 10_000;
-        self.positions
-            .entry(account_id.clone())
-            .and_modify(|p| p.is_open = false);
-        log!(
-            "{}",
-            format!(
-                r#"{{"event":"liquidate","account":"{}","liquidator":"{}","mark":{},"pnl":{},"reward":{}}}"#,
-                account_id,
-                env::predecessor_account_id(),
-                mark_price,
-                pnl,
-                reward
-            )
-        );
-        LiquidationResult {
-            pnl,
-            owner_equity: remaining - reward,
-            liquidator_reward: reward,
+    }
+
+    pub(crate) fn account(&self, id: &AccountId) -> Account {
+        self.accounts.get(id).cloned().unwrap_or_else(|| env::panic_str("unknown account"))
+    }
+
+    pub(crate) fn save_account(&mut self, id: &AccountId, acc: Account) {
+        if self.accounts.insert(id.clone(), acc).is_none() {
+            self.stats.accounts += 1;
         }
     }
 
-    // ─────────────────────────── FUNDING ───────────────────────────
+    /// `caller` manages `target` if the owner registered `caller` as a manager
+    /// and `target` sits in its namespace (`*.caller`).
+    pub(crate) fn is_manager_of(&self, caller: &AccountId, target: &AccountId) -> bool {
+        self.managers.contains(caller) && target.as_str().ends_with(&format!(".{}", caller.as_str()))
+    }
 
-    /// Set the per-interval funding rate (bps; positive = longs pay shorts).
-    /// Typically an off-chain oracle computes 0.01% × sign(premium) per
-    /// interval from mark vs index and pushes it here.
-    pub fn set_funding_rate(&mut self, funding_bps: i128) {
-        self.require_pusher("set_funding_rate");
+    /// Who may trade: the account itself, its manager, or an approved operator.
+    pub(crate) fn resolve_trader(&self, account_id: Option<AccountId>) -> AccountId {
+        let caller = env::predecessor_account_id();
+        let target = account_id.unwrap_or_else(|| caller.clone());
+        if target == caller || self.is_manager_of(&caller, &target) {
+            return target;
+        }
+        let ok = self.accounts.get(&target).map(|a| a.operators.contains(&caller)).unwrap_or(false);
+        require!(ok, "not authorized to trade for this account");
+        target
+    }
+
+    /// Who may withdraw: the account itself or its manager. Operators can't.
+    pub(crate) fn resolve_withdrawer(&self, account_id: Option<AccountId>) -> AccountId {
+        let caller = env::predecessor_account_id();
+        let target = account_id.unwrap_or_else(|| caller.clone());
         require!(
-            funding_bps.abs() <= 1_000,
-            "funding rate capped at ±10% per interval"
+            target == caller || self.is_manager_of(&caller, &target),
+            "not authorized to withdraw for this account"
         );
-        self.funding_bps = funding_bps;
-        log!(
-            "{}",
-            format!(
-                r#"{{"event":"funding_rate","funding_bps":{}}}"#,
-                funding_bps
-            )
-        );
-    }
-
-    /// Apply the current funding rate to ALL open positions (at most
-    /// once per hour). delta = size * mark * funding_bps / 10_000 —
-    /// longs with positive funding pay, shorts receive (and vice versa).
-    /// Delta is clamped to MAX_FUNDING_MARGIN_BPS (10%) of each position's
-    /// margin, and margin is floored at zero (a wiped position then
-    /// liquidates through the normal mark-based path).
-    pub fn apply_funding(&mut self) -> U128 {
-        require!(self.mark_price > 0, "no mark price set");
-        let now = env::block_timestamp() / 1_000_000_000;
-        require!(
-            self.last_funding_ts == 0 || now >= self.last_funding_ts + MIN_FUNDING_INTERVAL_SECONDS,
-            "funding interval not elapsed"
-        );
-        let mut total_abs: u128 = 0;
-        for (account, pos) in self.positions.iter_mut().filter(|p| p.1.is_open) {
-            let delta = position_funding_delta(pos, self.mark_price, self.funding_bps);
-            let clamped = clamp_funding_delta(delta, pos.margin);
-            pos.margin = adjust_margin(pos.margin, clamped);
-            total_abs += clamped.unsigned_abs();
-            log!(
-                "{}",
-                format!(
-                    r#"{{"event":"funding","account":"{}","delta":{}}}"#,
-                    account, clamped
-                )
-            );
-        }
-        self.last_funding_ts = now;
-        U128(total_abs)
-    }
-
-    // ─────────────────────────── VIEWS ───────────────────────────
-
-    pub fn get_position(&self, account_id: AccountId) -> Option<Position> {
-        self.positions.get(&account_id).cloned()
-    }
-
-    pub fn get_positions(&self) -> Vec<Position> {
-        self.positions.values().cloned().collect()
-    }
-
-    /// View: what a liquidation at the current mark would return
-    /// (no state change). Useful for UI risk panels.
-    pub fn preview_liquidation(&self, account_id: AccountId) -> Option<LiquidationResult> {
-        let pos = self.positions.get(&account_id)?;
-        if !pos.is_open || self.mark_price == 0 {
-            return None;
-        }
-        let pnl = pos.size * (self.mark_price as i128 - pos.entry_price as i128);
-        let equity = pos.margin as i128 + pnl;
-        let threshold = (pos.size.unsigned_abs() * self.mark_price) as i128 * LIQ_BPS as i128;
-        if equity * 10_000 >= threshold {
-            return None; // healthy
-        }
-        let remaining = if equity > 0 { equity as u128 } else { 0 };
-        let reward = remaining * LIQ_PENALTY_BPS / 10_000;
-        Some(LiquidationResult {
-            pnl,
-            owner_equity: remaining - reward,
-            liquidator_reward: reward,
-        })
-    }
-
-    pub fn get_stats(&self) -> Stats {
-        let mut open_positions = 0u64;
-        let mut total_notional: u128 = 0;
-        let mut total_margin: u128 = 0;
-        for p in self.positions.values() {
-            if p.is_open {
-                open_positions += 1;
-                total_notional += p.size.unsigned_abs() * self.mark_price;
-                total_margin += p.margin;
-            }
-        }
-        Stats {
-            open_positions,
-            total_notional,
-            total_margin,
-            funding_bps: self.funding_bps,
-            last_funding_ts: self.last_funding_ts,
-        }
-    }
-
-    /// View: current per-interval funding rate (bps; positive = longs pay).
-    pub fn funding_rate_bps(&self) -> I128 {
-        I128(self.funding_bps)
-    }
-
-    /// View: the contract owner (governs only the price pusher).
-    pub fn get_owner(&self) -> AccountId {
-        self.owner.clone()
-    }
-
-    /// View: the authorized price/funding pusher, if one is set.
-    pub fn get_pusher(&self) -> Option<AccountId> {
-        self.price_pusher.clone()
-    }
-
-    /// View: liquidator's cut of the remaining equity, in bps (5000 = 50%).
-    pub fn liquidator_reward_bps(&self) -> U128 {
-        U128(LIQ_PENALTY_BPS)
-    }
-
-    /// View: params needed by the risk panel in one round-trip.
-    pub fn get_params(&self) -> serde_json::Value {
-        serde_json::json!({
-            "liq_bps": LIQ_BPS,
-            "max_leverage": MAX_LEVERAGE,
-            "min_margin": MIN_MARGIN,
-            "liq_penalty_bps": LIQ_PENALTY_BPS,
-            "max_mark_deviation_bps": MAX_MARK_DEVIATION_BPS,
-            "stale_mark_seconds": STALE_MARK_SECONDS,
-            "stale_mark_deviation_bps": STALE_MARK_DEVIATION_BPS,
-            "min_funding_interval_seconds": MIN_FUNDING_INTERVAL_SECONDS,
-            "max_funding_margin_bps": MAX_FUNDING_MARGIN_BPS,
-        })
-    }
-}
-
-/// Funding delta for a position at `mark` with rate `funding_bps`.
-/// Positive = position PAYS (a long under positive funding), negative = receives.
-fn position_funding_delta(pos: &Position, mark: u128, funding_bps: i128) -> i128 {
-    let notional = pos.size.unsigned_abs() as i128 * mark as i128;
-    // size>0 (long) pays positive funding; size<0 (short) receives it.
-    let sign = if pos.size >= 0 { 1 } else { -1 };
-    sign * notional * funding_bps as i128 / 10_000
-}
-
-fn clamp_funding_delta(delta: i128, margin: u128) -> i128 {
-    let max_move = margin as i128 * MAX_FUNDING_MARGIN_BPS as i128 / 10_000;
-    delta.clamp(-max_move, max_move)
-}
-
-fn adjust_margin(margin: u128, delta: i128) -> u128 {
-    let m = margin as i128 - delta; // positive delta (paying) reduces margin
-    if m < 0 {
-        0
-    } else {
-        m as u128
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use near_sdk::test_utils::VMContextBuilder;
-
-    fn ctx(account: &str, predecessor: &str) {
-        let mut b = VMContextBuilder::new();
-        b.current_account_id(account.parse().unwrap())
-            .signer_account_id(account.parse().unwrap())
-            .predecessor_account_id(predecessor.parse().unwrap());
-        near_sdk::testing_env!(b.build());
-    }
-
-    fn ctx_at(account: &str, predecessor: &str, ts_nanos: u64) {
-        let mut b = VMContextBuilder::new();
-        b.current_account_id(account.parse().unwrap())
-            .signer_account_id(account.parse().unwrap())
-            .predecessor_account_id(predecessor.parse().unwrap())
-            .block_timestamp(ts_nanos);
-        near_sdk::testing_env!(b.build());
-    }
-
-    // USDC raw: $20 = 20_000_000
-
-    #[test]
-    fn open_get_close_loop() {
-        ctx("bob.testnet", "bob.testnet");
-        let mut c = LeveragedPositions::new();
-        // long 1000 @ $20, margin $400k = 2% of notional ($20M) -> 50x? no:
-        // notional = 1000 * 20_000_000 = 20_000_000_000 ($20M); margin 100_000_000 = $100k -> 200x
-        // That now violates MAX_LEVERAGE. Use margin = 2_000_000_000 ($2M = 10% = exactly 10x).
-        c.open_position(1_000, 20_000_000, 2_000_000_000);
-        let p = c
-            .get_position("bob.testnet".parse().unwrap())
-            .expect("position missing");
-        assert!(p.is_open && p.size == 1_000 && p.margin == 2_000_000_000);
-        let pnl = c.close_position(21_000_000).0; // close @ $21 => +$1 x 1000 = $1,000
-        assert_eq!(pnl, 1_000_000_000); // 1,000 USDC raw
-        let p2 = c
-            .get_position("bob.testnet".parse().unwrap())
-            .expect("position missing");
-        assert!(!p2.is_open);
-    }
-
-    #[test]
-    #[should_panic(expected = "max leverage")]
-    fn max_leverage_enforced() {
-        ctx("bob.testnet", "bob.testnet");
-        let mut c = LeveragedPositions::new();
-        // notional = 1000 * 20_000_000 = 20B; margin 1B = 5% = 20x -> rejected
-        c.open_position(1_000, 20_000_000, 1_000_000_000);
-    }
-
-    #[test]
-    fn exactly_ten_x_allowed() {
-        ctx("bob.testnet", "bob.testnet");
-        let mut c = LeveragedPositions::new();
-        // exactly 10x (10% margin) is allowed
-        c.open_position(1_000, 20_000_000, 2_000_000_000);
-        assert!(
-            c.get_position("bob.testnet".parse().unwrap())
-                .unwrap()
-                .is_open
-        );
-    }
-
-    #[test]
-    fn settle_entry_uses_real_fill_price() {
-        ctx("bob.testnet", "bob.testnet");
-        let mut c = LeveragedPositions::new();
-        c.open_position(10, 3_650_000, 36_500_000); // 10x: notional 36.5M, margin 36.5M*0.1
-        c.settle_entry(3_660_000); // actual solver fill was $3.66
-        let p = c.get_position("bob.testnet".parse().unwrap()).unwrap();
-        assert_eq!(p.entry_price, 3_660_000);
-        let pnl = c.close_position(3_831_000).0; // close @ $3.831
-        assert_eq!(pnl, 10 * (3_831_000 - 3_660_000)); // based on REAL fill
-    }
-
-    #[test]
-    #[should_panic(expected = "position not open")]
-    fn settle_entry_rejected_when_closed() {
-        ctx("bob.testnet", "bob.testnet");
-        let mut c = LeveragedPositions::new();
-        c.open_position(10, 3_650_000, 36_500_000);
-        c.close_position(3_650_000);
-        c.settle_entry(4_000_000);
-    }
-
-    #[test]
-    fn mark_price_updates_and_guards() {
-        ctx("alice.testnet", "alice.testnet");
-        let mut c = LeveragedPositions::new();
-        c.update_mark(3_600_000); // first mark always accepted
-        assert_eq!(c.get_mark().0, 3_600_000);
-        c.update_mark(3_670_000); // +2%: fine
-        assert_eq!(c.get_mark().0, 3_670_000);
-        c.update_mark(4_000_000); // +9%: fine
-        assert_eq!(c.get_mark().0, 4_000_000);
-    }
-
-    #[test]
-    #[should_panic(expected = "mark deviates too far")]
-    fn mark_price_deviation_guard() {
-        ctx("alice.testnet", "alice.testnet");
-        let mut c = LeveragedPositions::new();
-        c.update_mark(3_600_000);
-        c.update_mark(5_000_000); // +39% on a FRESH mark: rejected
-    }
-
-    #[test]
-    fn liquidation_uses_onchain_mark() {
-        // Congestion-proof path: liquidation reads the ON-CHAIN mark,
-        // so it works even if every external price feed is down.
-        ctx("alice.testnet", "alice.testnet");
-        let mut c = LeveragedPositions::new();
-        // 10x long: notional $200k, margin $20k (10%)
-        c.open_position(1_000, 200_000_000, 20_000_000_000);
-        c.update_mark(180_000_000); // price fell 10% (within 20% feed guard)
-        assert_eq!(c.get_mark().0, 180_000_000);
-        ctx("carol.testnet", "carol.testnet");
-        // liquidate_on_mark reads mark from state, not from args
-        let r = c.liquidate_on_mark("alice.testnet".parse().unwrap());
-        assert_eq!(r.pnl, 1_000 * (180_000_000 - 200_000_000)); // PnL at on-chain mark
-        assert!(
-            !c.get_position("alice.testnet".parse().unwrap())
-                .unwrap()
-                .is_open
-        );
-    }
-
-    #[test]
-    #[should_panic(expected = "no mark price set")]
-    fn liquidate_on_mark_requires_mark() {
-        ctx("alice.testnet", "alice.testnet");
-        let mut c = LeveragedPositions::new();
-        c.open_position(1_000, 200_000_000, 20_000_000_000);
-        c.liquidate_on_mark("alice.testnet".parse().unwrap());
-    }
-
-    #[test]
-    #[should_panic(expected = "margin below minimum")]
-    fn rejects_tiny_margin() {
-        ctx("bob.testnet", "bob.testnet");
-        let mut c = LeveragedPositions::new();
-        c.open_position(1_000, 20_000_000, 1);
-    }
-
-    #[test]
-    fn liquidation_when_underwater() {
-        ctx("alice.testnet", "alice.testnet");
-        let mut c = LeveragedPositions::new();
-        // 10x long: notional $200k, margin $20k
-        c.open_position(1_000, 200_000_000, 20_000_000_000);
-        ctx("carol.testnet", "carol.testnet");
-        let r = c.liquidate("alice.testnet".parse().unwrap(), 182_000_000);
-        // price fell 8.9%: equity = $20k - $17.8k = $2.2k < 5% of $182k notional
-        assert_eq!(r.pnl, 1_000 * (182_000_000 - 200_000_000));
-        let p = c
-            .get_position("alice.testnet".parse().unwrap())
-            .expect("position missing");
-        assert!(!p.is_open);
-    }
-
-    #[test]
-    fn liquidation_reward_split() {
-        ctx("alice.testnet", "alice.testnet");
-        let mut c = LeveragedPositions::new();
-        // 10x long: notional $200k, margin $20k
-        c.open_position(1_000, 200_000_000, 20_000_000_000);
-        ctx("carol.testnet", "carol.testnet");
-        let r = c.liquidate("alice.testnet".parse().unwrap(), 182_000_000);
-        // equity = 20_000_000_000 - 18_000_000_000 = 2_000_000_000 ($2k)
-        // reward = 50% = 1_000_000_000; owner keeps the rest
-        assert_eq!(r.liquidator_reward, 1_000_000_000);
-        assert_eq!(r.owner_equity, 1_000_000_000);
-    }
-
-    #[test]
-    fn liquidation_reward_zero_when_bust() {
-        ctx("alice.testnet", "alice.testnet");
-        let mut c = LeveragedPositions::new();
-        // 10x long, 2% margin (20x? no — 2% margin = 50x > MAX_LEVERAGE)
-        // Use a position that is allowed: 10x, then mark crashes to wipe equity.
-        c.open_position(1_000, 200_000_000, 20_000_000_000);
-        c.update_mark(160_000_000); // -20%: pnl = -40k, equity = -20k -> bust
-        ctx("carol.testnet", "carol.testnet");
-        let r = c.liquidate_on_mark("alice.testnet".parse().unwrap());
-        assert_eq!(r.liquidator_reward, 0);
-        assert_eq!(r.owner_equity, 0);
-        assert!(r.pnl < 0);
-    }
-
-    #[test]
-    fn preview_liquidation_healthy_returns_none() {
-        ctx("alice.testnet", "alice.testnet");
-        let mut c = LeveragedPositions::new();
-        c.open_position(1_000, 200_000_000, 20_000_000_000);
-        c.update_mark(199_000_000); // tiny drop: still healthy
-        assert!(c
-            .preview_liquidation("alice.testnet".parse().unwrap())
-            .is_none());
-    }
-
-    #[test]
-    fn preview_liquidation_underwater_matches_liquidate() {
-        ctx("alice.testnet", "alice.testnet");
-        let mut c = LeveragedPositions::new();
-        c.open_position(1_000, 200_000_000, 20_000_000_000);
-        c.update_mark(182_000_000);
-        let prev = c
-            .preview_liquidation("alice.testnet".parse().unwrap())
-            .expect("should be liquidatable");
-        assert_eq!(prev.pnl, 1_000 * (182_000_000 - 200_000_000));
-        // preview does NOT mutate state
-        assert!(
-            c.get_position("alice.testnet".parse().unwrap())
-                .unwrap()
-                .is_open
-        );
-        ctx("carol.testnet", "carol.testnet");
-        let real = c.liquidate_on_mark("alice.testnet".parse().unwrap());
-        assert_eq!(real, prev);
-    }
-
-    #[test]
-    #[should_panic(expected = "position healthy")]
-    fn ten_x_position_healthy_at_entry() {
-        // A 10x position (10% margin) must NOT be liquidatable at the entry
-        // price — with a 5% maintenance floor it survives ~5% adverse move.
-        ctx("alice.testnet", "alice.testnet");
-        let mut c = LeveragedPositions::new();
-        c.open_position(1_000, 200_000_000, 20_000_000_000); // 10x long
-        ctx("carol.testnet", "carol.testnet");
-        let _ = c.liquidate("alice.testnet".parse().unwrap(), 200_000_000);
-    }
-
-    #[test]
-    #[should_panic(expected = "position healthy")]
-    fn no_liquidation_when_healthy() {
-        ctx("alice.testnet", "alice.testnet");
-        let mut c = LeveragedPositions::new();
-        c.open_position(1_000, 200_000_000, 100_000_000_000); // 50% margin >= 5% floor
-        ctx("carol.testnet", "carol.testnet");
-        let _ = c.liquidate("alice.testnet".parse().unwrap(), 200_000_000);
-    }
-
-    #[test]
-    fn funding_long_pays_on_rise() {
-        // Long position, positive funding: long pays, margin decreases.
-        ctx_at("alice.testnet", "alice.testnet", 2_000_000_000_000_000_000);
-        let mut c = LeveragedPositions::new();
-        c.open_position(1_000, 200_000_000, 20_000_000_000); // 10x long, notional $200k at mark
-        c.update_mark(200_000_000);
-        c.set_funding_rate(1); // 0.01% per interval
-        ctx_at(
-            "keeper.testnet",
-            "keeper.testnet",
-            2_000_000_000_000_000_000 + 3_600_000_000_000,
-        ); // +1h
-        let total = c.apply_funding().0;
-        // delta = 1000 * 200_000_000 * 1 / 10_000 = 20_000_000 ($20 of $200k... check: 200M*1000=200B; *1/10_000 = 20M raw = $20)
-        assert_eq!(total, 20_000_000);
-        let p = c.get_position("alice.testnet".parse().unwrap()).unwrap();
-        assert_eq!(p.margin, 20_000_000_000 - 20_000_000); // margin reduced by $20
-    }
-
-    #[test]
-    fn funding_short_receives_on_positive_rate() {
-        // Short position, positive funding: short receives, margin increases.
-        ctx_at("alice.testnet", "alice.testnet", 2_000_000_000_000_000_000);
-        let mut c = LeveragedPositions::new();
-        c.open_position(-1_000, 200_000_000, 20_000_000_000); // 10x short
-        c.update_mark(200_000_000);
-        c.set_funding_rate(1);
-        ctx_at(
-            "keeper.testnet",
-            "keeper.testnet",
-            2_000_000_000_000_000_000 + 3_600_000_000_000,
-        );
-        c.apply_funding();
-        let p = c.get_position("alice.testnet".parse().unwrap()).unwrap();
-        assert_eq!(p.margin, 20_000_000_000 + 20_000_000);
-    }
-
-    #[test]
-    fn funding_negative_rate_inverts_flow() {
-        // Positive funding on a long = long pays. Negative funding = long receives.
-        ctx_at("alice.testnet", "alice.testnet", 2_000_000_000_000_000_000);
-        let mut c = LeveragedPositions::new();
-        c.open_position(1_000, 200_000_000, 20_000_000_000);
-        c.update_mark(200_000_000);
-        c.set_funding_rate(-1);
-        ctx_at(
-            "keeper.testnet",
-            "keeper.testnet",
-            2_000_000_000_000_000_000 + 3_600_000_000_000,
-        );
-        c.apply_funding();
-        let p = c.get_position("alice.testnet".parse().unwrap()).unwrap();
-        assert_eq!(p.margin, 20_000_000_000 + 20_000_000); // long received
-    }
-
-    #[test]
-    #[should_panic(expected = "funding interval not elapsed")]
-    fn funding_rate_limits_interval() {
-        ctx_at("alice.testnet", "alice.testnet", 2_000_000_000_000_000_000);
-        let mut c = LeveragedPositions::new();
-        c.open_position(1_000, 200_000_000, 20_000_000_000);
-        c.update_mark(200_000_000);
-        c.set_funding_rate(1);
-        ctx_at(
-            "keeper.testnet",
-            "keeper.testnet",
-            2_000_000_000_000_000_000 + 100_000_000_000,
-        ); // +100s
-        c.apply_funding();
-        c.apply_funding(); // same "hour": rejected
-    }
-
-    #[test]
-    #[should_panic(expected = "funding rate capped")]
-    fn funding_rate_cap() {
-        ctx("alice.testnet", "alice.testnet");
-        let mut c = LeveragedPositions::new();
-        c.set_funding_rate(1_001);
-    }
-
-    #[test]
-    fn funding_clamped_to_margin_and_floored_at_zero() {
-        // A rate large enough to wipe all margin: delta clamped to 10% of margin,
-        // and margin can never go negative.
-        ctx_at("alice.testnet", "alice.testnet", 2_000_000_000_000_000_000);
-        let mut c = LeveragedPositions::new();
-        // 10x long, notional $200k, margin $20k (10%)
-        c.open_position(1_000, 200_000_000, 20_000_000_000);
-        c.update_mark(200_000_000);
-        c.set_funding_rate(1_000); // max: 10% of notional per interval = $20k delta
-        ctx_at(
-            "keeper.testnet",
-            "keeper.testnet",
-            2_000_000_000_000_000_000 + 3_600_000_000_000,
-        );
-        c.apply_funding();
-        // raw delta = 1000*200_000_000*1000/10_000 = 20_000_000_000 ($20k = 100% of margin)
-        // clamp = 10% of $20k margin = 2_000_000_000 ($2k)
-        let p = c.get_position("alice.testnet".parse().unwrap()).unwrap();
-        assert_eq!(p.margin, 20_000_000_000 - 2_000_000_000);
-    }
-
-    #[test]
-    fn funding_never_wipes_margin_below_zero() {
-        // Repeated applications over many hours can never push margin below zero.
-        ctx_at("alice.testnet", "alice.testnet", 2_000_000_000_000_000_000);
-        let mut c = LeveragedPositions::new();
-        c.open_position(1_000, 200_000_000, 20_000_000_000);
-        c.update_mark(200_000_000);
-        c.set_funding_rate(1_000);
-        for h in 1..=5u64 {
-            ctx_at(
-                "keeper.testnet",
-                "keeper.testnet",
-                2_000_000_000_000_000_000 + h * 3_600_000_000_000,
-            );
-            c.apply_funding();
-        }
-        // clamp is 10% of CURRENT margin, which shrinks each hour:
-        // after 5 hours: 20k * 0.9^5 = 11_809_800_000, never negative
-        let p = c.get_position("alice.testnet".parse().unwrap()).unwrap();
-        assert_eq!(p.margin, 11_809_800_000);
-    }
-
-    #[test]
-    fn stats_aggregate_open_positions() {
-        ctx("alice.testnet", "alice.testnet");
-        let mut c = LeveragedPositions::new();
-        c.open_position(1_000, 200_000_000, 20_000_000_000);
-        ctx("bob.testnet", "bob.testnet");
-        c.open_position(-500, 200_000_000, 10_000_000_000);
-        c.update_mark(200_000_000);
-        let s = c.get_stats();
-        assert_eq!(s.open_positions, 2);
-        assert_eq!(s.total_notional, 1_500 * 200_000_000);
-        assert_eq!(s.total_margin, 30_000_000_000);
-        c.close_position(200_000_000); // alice closes
-        let s2 = c.get_stats();
-        assert_eq!(s2.open_positions, 1);
-    }
-
-    // ─────────────────────────── v4: PUSHER GOVERNANCE ───────────────────────────
-
-    #[test]
-    fn pusher_starts_unset_and_open() {
-        ctx("owner.testnet", "owner.testnet");
-        let mut c = LeveragedPositions::new();
-        assert_eq!(c.get_owner(), "owner.testnet".parse::<AccountId>().unwrap());
-        assert!(c.get_pusher().is_none());
-        // no pusher set → anyone may feed the mark (v3 behavior)
-        c.update_mark(200_000_000);
-        assert_eq!(c.get_mark().0, 200_000_000);
-    }
-
-    #[test]
-    fn owner_sets_pusher() {
-        ctx("owner.testnet", "owner.testnet");
-        let mut c = LeveragedPositions::new();
-        c.set_pusher(Some("feed.testnet".parse().unwrap()));
-        assert_eq!(
-            c.get_pusher().unwrap(),
-            "feed.testnet".parse::<AccountId>().unwrap()
-        );
-    }
-
-    #[test]
-    #[should_panic(expected = "not the contract owner")]
-    fn non_owner_cannot_set_pusher() {
-        ctx("owner.testnet", "owner.testnet");
-        let mut c = LeveragedPositions::new();
-        ctx("mallory.testnet", "mallory.testnet");
-        c.set_pusher(Some("feed.testnet".parse().unwrap()));
-    }
-
-    #[test]
-    fn pusher_can_feed_mark() {
-        ctx("owner.testnet", "owner.testnet");
-        let mut c = LeveragedPositions::new();
-        c.set_pusher(Some("feed.testnet".parse().unwrap()));
-        ctx("feed.testnet", "feed.testnet");
-        c.update_mark(200_000_000);
-        assert_eq!(c.get_mark().0, 200_000_000);
-        c.set_funding_rate(1);
-        assert_eq!(c.funding_rate_bps().0, 1);
-    }
-
-    #[test]
-    #[should_panic(expected = "not the authorized price pusher")]
-    fn stranger_cannot_feed_mark_when_pusher_set() {
-        ctx("owner.testnet", "owner.testnet");
-        let mut c = LeveragedPositions::new();
-        c.set_pusher(Some("feed.testnet".parse().unwrap()));
-        ctx("mallory.testnet", "mallory.testnet");
-        c.update_mark(999_000_000); // even a wildly wrong price must be rejected
-    }
-
-    #[test]
-    #[should_panic(expected = "not the authorized price pusher")]
-    fn stranger_cannot_set_funding_when_pusher_set() {
-        ctx("owner.testnet", "owner.testnet");
-        let mut c = LeveragedPositions::new();
-        c.set_pusher(Some("feed.testnet".parse().unwrap()));
-        ctx("mallory.testnet", "mallory.testnet");
-        c.set_funding_rate(1_000);
-    }
-
-    #[test]
-    fn owner_can_clear_pusher_reopening_updates() {
-        ctx("owner.testnet", "owner.testnet");
-        let mut c = LeveragedPositions::new();
-        c.set_pusher(Some("feed.testnet".parse().unwrap()));
-        c.set_pusher(None); // clear → back to permissionless (v3 behavior)
-        assert!(c.get_pusher().is_none());
-        ctx("anyone.testnet", "anyone.testnet");
-        c.update_mark(123_000_000);
-        assert_eq!(c.get_mark().0, 123_000_000);
-    }
-
-    #[test]
-    fn stranger_liquidation_still_permissionless_with_pusher_set() {
-        // Setting a price pusher must NOT restrict trading or liquidation:
-        // a stranger can still liquidate an underwater position.
-        ctx("owner.testnet", "owner.testnet");
-        let mut c = LeveragedPositions::new();
-        c.set_pusher(Some("feed.testnet".parse().unwrap()));
-        ctx("feed.testnet", "feed.testnet");
-        c.update_mark(182_000_000);
-        ctx("alice.testnet", "alice.testnet");
-        c.open_position(1_000, 200_000_000, 20_000_000_000); // 10x long, underwater
-        ctx("carol.testnet", "carol.testnet");
-        let r = c.liquidate_on_mark("alice.testnet".parse().unwrap());
-        assert_eq!(r.liquidator_reward, 1_000_000_000);
-        assert!(
-            !c.get_position("alice.testnet".parse().unwrap())
-                .unwrap()
-                .is_open
-        );
+        target
     }
 }

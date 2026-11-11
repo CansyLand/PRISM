@@ -1,6 +1,6 @@
 # Curve — continuous-expiry power product on NEAR (2-day build plan)
 
-Branch: `curve` (forked from `perpetual`, which is the old `main`).
+Branch: `main`. The previous order-book perpetual lives on the `perpetual` branch.
 
 ## The product in one paragraph
 
@@ -31,10 +31,10 @@ One USDC treasury, two sides, priced only by the oracle.
 | # | When | Deliverable | Done = |
 |---|------|-------------|--------|
 | M0 | Day 1 AM | Branch rename, plan, contract skeleton | ✅ this commit |
-| M1 | Day 1 | **Ledger + treasury contract** (`curve/contract`): deposit via `ft_transfer_call`, withdraw with refund callback, Curve and Flat open/close, funding accrual, invariant checks, NEP-297 events, bot views | `cargo test` green |
+| M1 | Day 1 | **Ledger + treasury contract** (`contract`): deposit via `ft_transfer_call`, withdraw with refund callback, Curve and Flat open/close, funding accrual, invariant checks, NEP-297 events, bot views | `cargo test` green |
 | M2 | Day 1 PM | **Oracle adapter**: Pyth pull (`get_price_unsafe` + our own staleness and confidence checks), pusher fallback for testnet, keeper script | price lands on-chain on testnet |
 | M3 | Day 2 AM | **Testnet deploy** with a mock USDC (the near-contract-standards FT example), scripted e2e: seed Flat → open Curve → move price → poke funding → close → withdraw | e2e script passes on testnet |
-| M4 | Day 2 AM | **Intents relayer** (`curve/intents`): 1Click deposit quote → status watch → `ft_transfer_call` into the ledger; withdraw → 1Click quote → `withdraw` to the deposit address | dry-run quotes plus one real $5 mainnet round-trip |
+| M4 | Day 2 AM | **Intents relayer** (`intents`): 1Click deposit quote → status watch → `ft_transfer_call` into the ledger; withdraw → 1Click quote → `withdraw` to the deposit address | dry-run quotes plus one real $5 mainnet round-trip |
 | M5 | Day 2 PM | Telegram/bot surface: a thin HTTP wrapper over the relayer and views; submission README and demo video | judge-ready demo |
 
 ### Must ship for the hackathon
@@ -127,7 +127,7 @@ its own sub-namespace. The relayer pays all gas.
 ## What's built (M1 done, M2 and M4 wired)
 
 ```
-curve/
+PRISM/ (repo root)
   contract/            curve-ledger (Rust, near-sdk 5): 25 unit tests, 393 KB wasm
     src/lib.rs         state, funding accrual, invariant, authorization
     src/trade.rs       open/close Curve and Flat (pure quote_* shared with previews)
@@ -164,4 +164,4 @@ Events: `deposit`, `withdraw`, `transfer_refund`, `open_curve`, `close_curve`, `
 ### Next up (M3)
 1. Deploy a mock USDC on testnet (near-contract-standards FT example) plus `curve-ledger`, with `Pusher` oracle mode.
 2. `add_manager(relayer)`, run `keeper.js`, then `relayer.js settle-deposit tg-1 --simulate 1000000000` to seed Flat and Curve.
-3. Write a testnet e2e script that reuses `demo/e2e-test.js`'s assertion style.
+3. Write a testnet e2e script that follows the assertion style of `demo/e2e-test.js` on the `perpetual` branch.
