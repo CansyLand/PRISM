@@ -1,0 +1,4 @@
+contract/target/
+intents/node_modules/
+intents/.env
+intents/.relayer-state.json*

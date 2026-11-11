@@ -1,0 +1,13 @@
+{
+  "name": "curve-intents",
+  "version": "0.1.0",
+  "private": true,
+  "description": "NEAR Intents (1Click) relayer + oracle keeper for the Curve ledger",
+  "scripts": {
+    "relayer": "node --env-file=.env relayer.js",
+    "keeper": "node --env-file=.env keeper.js"
+  },
+  "dependencies": {
+    "near-api-js": "^7.4.0"
+  }
+}
