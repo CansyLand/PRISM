@@ -1,0 +1,509 @@
+<title>Curve Market Simulator</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: trading-desk tool. Sticky control rail on the left, live player ledger + charts on the right; stacks to one column on phones. */
+:root {
+  --bg: #f6f7f9;
+  --panel: #ffffff;
+  --ink: #1b2330;
+  --muted: #5d6878;
+  --line: #dde2ea;
+  --grid: #eceff4;
+  --accent: #2f5bd3;
+  --gain: #13824f;
+  --loss: #c4332b;
+  --c-curve: #e0631a;
+  --c-curveh: #b8327a;
+  --c-flat: #2a6fd6;
+  --c-flath: #0d8a8a;
+  --c-exch: #5f6b7e;
+  --warn-bg: #fff4e0;
+  --warn-ink: #8a5300;
+  --font-ui: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-num: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1319; --panel: #171c24; --ink: #e5e9f0; --muted: #98a2b3; --line: #2a313d; --grid: #212833;
+    --accent: #7c9cf5; --gain: #3fc285; --loss: #f0726a;
+    --c-curve: #ff8a42; --c-curveh: #e765a8; --c-flat: #5b9bff; --c-flath: #2ec4c4; --c-exch: #9aa5b8;
+    --warn-bg: #3a2a10; --warn-ink: #ffc46b; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1319; --panel: #171c24; --ink: #e5e9f0; --muted: #98a2b3; --line: #2a313d; --grid: #212833;
+  --accent: #7c9cf5; --gain: #3fc285; --loss: #f0726a;
+  --c-curve: #ff8a42; --c-curveh: #e765a8; --c-flat: #5b9bff; --c-flath: #2ec4c4; --c-exch: #9aa5b8;
+  --warn-bg: #3a2a10; --warn-ink: #ffc46b; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-ui); font-size: 14px; line-height: 1.45; }
+.wrap { max-width: 1320px; margin: 0 auto; padding-block: 20px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 16px; margin-bottom: 16px; }
+h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.01em; margin: 0; text-wrap: balance; }
+header p { margin: 0; color: var(--muted); max-width: 70ch; }
+.layout { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+
+/* controls */
+.rail { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 16px; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); }
+@media (max-width: 900px) { .rail { position: static; } }
+.rail h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0; font-weight: 600; }
+.group { display: flex; flex-direction: column; gap: 12px; }
+.ctl { display: flex; flex-direction: column; gap: 4px; }
+.ctl label { display: flex; justify-content: space-between; gap: 8px; font-weight: 500; }
+.ctl label output { font-family: var(--font-num); font-variant-numeric: tabular-nums; color: var(--accent); font-weight: 600; white-space: nowrap; }
+.ctl small { color: var(--muted); font-size: 12px; }
+.ctl.big label { font-size: 15px; }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+input[type=range]:focus-visible, button:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.seg { display: grid; grid-template-columns: 1fr 1fr; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg button { font: inherit; font-size: 12.5px; padding: 7px 6px; border: 0; background: transparent; color: var(--ink); cursor: pointer; }
+.seg button[aria-pressed=true] { background: var(--accent); color: var(--panel); font-weight: 600; }
+.btn { font: inherit; font-size: 12.5px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); cursor: pointer; }
+.btn:hover { border-color: var(--accent); }
+.btns { display: flex; gap: 8px; flex-wrap: wrap; }
+hr { border: 0; border-top: 1px solid var(--line); margin: 0; }
+
+/* status strip */
+.status { display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 10px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; margin-bottom: 14px; font-size: 13px; }
+.status b { font-family: var(--font-num); font-weight: 600; font-variant-numeric: tabular-nums; }
+.status span { color: var(--muted); }
+.warn { background: var(--warn-bg); color: var(--warn-ink); border-radius: 8px; padding: 8px 12px; font-size: 13px; margin-bottom: 14px; }
+
+/* player cards */
+.players { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-bottom: 14px; }
+@media (max-width: 1180px) { .players { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .players { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 420px) { .players { grid-template-columns: minmax(0, 1fr); } }
+.card { background: var(--panel); border: 1px solid var(--line); border-top: 3px solid var(--pc); border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.card .name { font-weight: 700; font-size: 14px; display: flex; align-items: center; gap: 6px; }
+.card .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--pc); flex: none; }
+.tag { font-size: 11.5px; color: var(--muted); }
+.kv { display: flex; justify-content: space-between; gap: 6px; font-size: 12.5px; }
+.kv span:first-child { color: var(--muted); }
+.kv span:last-child, .pnl, .num { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+.pnl { font-size: 20px; font-weight: 600; letter-spacing: -0.02em; }
+.pnlpct { font-family: var(--font-num); font-size: 12.5px; }
+.pos { color: var(--gain); } .neg { color: var(--loss); } .zero { color: var(--muted); }
+.expo { font-size: 12px; padding: 3px 8px; border-radius: 99px; border: 1px solid var(--line); align-self: flex-start; font-family: var(--font-num); }
+.holds { font-size: 12px; color: var(--muted); border-top: 1px dashed var(--line); padding-top: 6px; margin-top: 2px; }
+
+/* panels + charts */
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; margin-bottom: 14px; min-width: 0; }
+.panel h3 { margin: 0 0 2px; font-size: 14px; font-weight: 600; }
+.panel .sub { margin: 0 0 8px; color: var(--muted); font-size: 12.5px; }
+.charts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 14px; }
+.charts .panel { margin-bottom: 0; }
+@media (max-width: 1100px) { .charts { grid-template-columns: minmax(0, 1fr); } }
+svg.chart { width: 100%; height: auto; display: block; }
+svg.chart text { fill: var(--muted); font-family: var(--font-num); font-size: 10.5px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); margin-top: 6px; }
+.legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 5px; background: var(--lc); }
+
+/* pool bar */
+.bar { display: flex; height: 30px; border-radius: 6px; overflow: hidden; border: 1px solid var(--line); }
+.bar div { height: 100%; background: var(--pc); transition: width .15s ease; }
+.barlegend { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 6px 14px; margin-top: 10px; font-size: 12.5px; }
+.barlegend div { display: flex; justify-content: space-between; gap: 8px; }
+.barlegend div span:first-child::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 2px; background: var(--pc); margin-right: 6px; }
+.check { margin-top: 10px; font-size: 12.5px; color: var(--muted); }
+.check b { font-family: var(--font-num); color: var(--ink); font-weight: 500; }
+
+.notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
+.notes .panel { margin-bottom: 0; }
+.notes p { margin: 6px 0 0; color: var(--muted); font-size: 13px; max-width: 65ch; }
+.notes p b { color: var(--ink); font-weight: 600; }
+@media (prefers-reduced-motion: reduce) { .bar div { transition: none; } }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Curve Market Simulator</h1>
+    <p>Four traders and the exchange share one fully collateralized USDC pool, priced only by the oracle. Move time and price to see who pays whom.</p>
+  </header>
+
+  <div class="layout">
+    <aside class="rail" aria-label="Controls">
+      <div class="group">
+        <h2>Scenario</h2>
+        <div class="ctl big">
+          <label for="t">Time passed <output id="tOut"></output></label>
+          <input type="range" id="t" min="0" max="1000" step="1" value="120">
+          <small id="tHint"></small>
+        </div>
+        <div class="ctl big">
+          <label for="x">NEAR price change <output id="xOut"></output></label>
+          <input type="range" id="x" min="-90" max="300" step="1" value="0">
+          <small id="xHint"></small>
+        </div>
+        <div class="ctl">
+          <label for="p">Curvature p <output id="pOut"></output></label>
+          <input type="range" id="p" min="1" max="4" step="0.1" value="2">
+          <small>Payoff = (price / start)<sup>p</sup>. p = 1 is linear, 2 is "squared", 4 is very steep. The contract supports whole numbers 1 to 4 today.</small>
+        </div>
+        <div class="ctl">
+          <label>How the price gets there</label>
+          <div class="seg" role="group" aria-label="Price path">
+            <button type="button" id="modeGrad" aria-pressed="true">Gradually</button>
+            <button type="button" id="modeJump" aria-pressed="false">Quiet, then jump</button>
+          </div>
+        </div>
+        <div class="ctl">
+          <label for="rv">Realized volatility <output id="rvOut"></output></label>
+          <input type="range" id="rv" min="0" max="200" step="5" value="60">
+          <small>How choppy the path is. Funding is priced at the implied volatility below; the hedged players win or lose on the gap between the two.</small>
+        </div>
+        <div class="btns"><button type="button" class="btn" id="reseed">New random path</button><button type="button" class="btn" id="reset">Reset</button></div>
+      </div>
+      <hr>
+      <div class="group">
+        <h2>Funding and fees</h2>
+        <div class="ctl">
+          <label for="iv">Implied volatility σ <output id="ivOut"></output></label>
+          <input type="range" id="iv" min="10" max="200" step="5" value="80">
+          <small id="rateHint"></small>
+        </div>
+        <div class="row2">
+          <div class="ctl">
+            <label for="fee">Trade fee <output id="feeOut"></output></label>
+            <input type="range" id="fee" min="0" max="100" step="5" value="10">
+          </div>
+          <div class="ctl">
+            <label for="cut">Funding cut <output id="cutOut"></output></label>
+            <input type="range" id="cut" min="0" max="50" step="1" value="10">
+          </div>
+        </div>
+      </div>
+      <hr>
+      <div class="group">
+        <h2>Deposits (USDC)</h2>
+        <div class="row2">
+          <div class="ctl"><label for="dc">Curve <output id="dcOut"></output></label><input type="range" id="dc" min="0" max="10000" step="100" value="1000"></div>
+          <div class="ctl"><label for="dch">Curve + short <output id="dchOut"></output></label><input type="range" id="dch" min="0" max="10000" step="100" value="1000"></div>
+          <div class="ctl"><label for="df">Flat <output id="dfOut"></output></label><input type="range" id="df" min="0" max="20000" step="100" value="5000"></div>
+          <div class="ctl"><label for="dfh">Flat + long <output id="dfhOut"></output></label><input type="range" id="dfh" min="0" max="20000" step="100" value="5000"></div>
+        </div>
+      </div>
+    </aside>
+
+    <main style="min-width:0">
+      <div class="status" id="status"></div>
+      <div class="warn" id="warn" hidden></div>
+      <section class="players" id="players" aria-label="Players"></section>
+
+      <section class="panel" aria-label="Pool">
+        <h3>Where the pool's money is right now</h3>
+        <p class="sub">Every dollar deposited is claimed by exactly one party. Hedges live outside the pool, on an external market.</p>
+        <div class="bar" id="bar"></div>
+        <div class="barlegend" id="barLegend"></div>
+        <div class="check" id="check"></div>
+      </section>
+
+      <div class="charts">
+        <section class="panel">
+          <h3>PnL across prices</h3>
+          <p class="sub" id="priceSub"></p>
+          <svg class="chart" id="chPrice" viewBox="0 0 640 300" role="img" aria-label="PnL of each player across price changes"></svg>
+          <div class="legend" id="legend1"></div>
+        </section>
+        <section class="panel">
+          <h3>PnL over time</h3>
+          <p class="sub" id="timeSub"></p>
+          <svg class="chart" id="chTime" viewBox="0 0 640 300" role="img" aria-label="PnL of each player over time along the price path"></svg>
+          <div class="legend" id="legend2"></div>
+        </section>
+      </div>
+
+      <div class="notes" style="margin-top:14px">
+        <section class="panel">
+          <h3>Is there leverage?</h3>
+          <p>Nobody borrows and nobody can be liquidated. <b>Curve carries built-in leverage of p</b>: at p = 2 a 1% move changes its value by about 2%, but it can only shrink toward zero, never below it. <b>Flat is a fully collateralized short</b> of size p × Curve claims. There are no 10× shorts; the most anyone can lose is what they deposited.</p>
+        </section>
+        <section class="panel">
+          <h3>Three directions, two volatility bets</h3>
+          <p><b>Curve</b> is bullish and long volatility. <b>Flat</b> is bearish and short volatility. Add a hedge and the direction disappears: <b>Curve + short NEAR</b> wins on big moves either way, and <b>Flat + long NEAR</b> is the sideways "Earn" position that collects funding when the market is quiet.</p>
+        </section>
+        <section class="panel">
+          <h3>How the numbers are made</h3>
+          <p>Curve units are worth NF × (P / P₀)<sup>p</sup>. NF decays at p(p−1)/2 × σ² per year; that decay is the funding. Flat owns the pool minus Curve claims. Hedges are rebalanced once a day at p × the current Curve value. Hedge trading costs and fees on the external market are left out.</p>
+        </section>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script>
+(() => {
+  const P0 = 5;              // NEAR start price, USD
+  const MAX_STEPS = 1500;    // daily steps, capped
+  const DEFAULTS = { t: 120, x: 0, p: 2, rv: 60, iv: 80, fee: 10, cut: 10, dc: 1000, dch: 1000, df: 5000, dfh: 5000 };
+  const PLAYERS = [
+    { id: "c", name: "Curve", tag: "Bull · long volatility", color: "--c-curve", holds: "Curve units only." },
+    { id: "f", name: "Flat", tag: "Bear · short volatility", color: "--c-flat", holds: "Flat shares only." },
+    { id: "ch", name: "Curve + short NEAR", tag: "Neutral · long volatility", color: "--c-curveh", holds: "Curve units, plus a NEAR short of p × its value, rebalanced daily." },
+    { id: "fh", name: "Flat + long NEAR", tag: "Sideways · Earn", color: "--c-flath", holds: "Flat shares, plus NEAR worth p × its share of Curve claims, rebalanced daily." },
+    { id: "ex", name: "Exchange", tag: "House · fees", color: "--c-exch", holds: "Trade fee on every open, plus its cut of the funding Curve pays." },
+  ];
+  const $ = (id) => document.getElementById(id);
+  const ids = Object.keys(DEFAULTS);
+  let mode = "grad";
+  let seed = 7;
+
+  // ── deterministic normals for the price path ──
+  let Z = [];
+  function makeNormals() {
+    let a = seed >>> 0;
+    const rnd = () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    Z = [];
+    for (let i = 0; i < MAX_STEPS + 2; i++) {
+      const u = Math.max(rnd(), 1e-12), v = rnd();
+      Z.push(Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v));
+    }
+  }
+
+  const read = () => {
+    const s = {};
+    for (const k of ids) s[k] = Number($(k).value);
+    s.mode = mode;
+    return s;
+  };
+  const rate = (s) => (s.p * (s.p - 1) / 2) * (s.iv / 100) ** 2; // per year
+  const tMaxDays = (s) => { const r = rate(s); return r <= 1e-9 ? 3650 : Math.min(36500, Math.log(100) / r * 365); };
+  const tDays = (s) => tMaxDays(s) * (s.t / 1000) ** 2;
+
+  // ── the model: mirrors the contract's accounting, one step per day ──
+  function simulate(s, x, days, record) {
+    const fee = s.fee / 1e4, cut = s.cut / 100, p = s.p, r = rate(s);
+    const dep = { c: s.dc, ch: s.dch, f: s.df, fh: s.dfh };
+    const openFees = fee * (dep.c + dep.ch + dep.f + dep.fh);
+    const net = { c: dep.c * (1 - fee), ch: dep.ch * (1 - fee), f: dep.f * (1 - fee), fh: dep.fh * (1 - fee) };
+    const U = net.c + net.ch;                 // Curve units (1 unit = $1 at P0, NF = 1)
+    const sC = U > 0 ? net.c / U : 0, sCH = U > 0 ? net.ch / U : 0;
+    const flatTot = net.f + net.fh;
+    const sF = flatTot > 0 ? net.f / flatTot : 0, sFH = flatTot > 0 ? net.fh / flatTot : 0;
+    let R = U + flatTot, fundingCut = 0, fundingPaid = 0, hedgeS = 0, hedgeL = 0;
+    const N = days <= 0 ? 1 : Math.min(MAX_STEPS, Math.max(1, Math.ceil(days)));
+    const dtY = days / 365 / N, sq = Math.sqrt(dtY), L = Math.log(1 + x), vol = s.rv / 100;
+    let Wn = 0; for (let k = 0; k < N; k++) Wn += Z[k] * sq;
+    let W = 0, prevP = P0, NFprev = 1;
+    const out = record ? [] : null;
+    const every = Math.max(1, Math.floor(N / 240));
+    const snap = (day, P, NF) => {
+      const idx = (P / P0) ** p, Craw = U * NF * idx, Ceff = Math.min(Craw, R), F = R - Ceff;
+      return { day, P, c: sC * Ceff - dep.c, ch: sCH * Ceff + hedgeS - dep.ch, f: sF * F - dep.f, fh: sFH * F + hedgeL - dep.fh, ex: openFees + fundingCut };
+    };
+    if (record) out.push(snap(0, P0, 1));
+    for (let k = 1; k <= N; k++) {
+      W += Z[k - 1] * sq;
+      const frac = k / N;
+      const bridge = vol * (W - frac * Wn);
+      const drift = s.mode === "jump" ? (k === N ? L : 0) : frac * L;
+      const P = P0 * Math.exp(drift + (k === N ? 0 : bridge));
+      const NF = Math.exp(-r * k * dtY);
+      // 1) funding accrues at the old price (as the contract does before a price update)
+      const idxPrev = (prevP / P0) ** p;
+      const before = Math.min(U * NFprev * idxPrev, R), after = Math.min(U * NF * idxPrev, R);
+      const fund = before - after, take = fund * cut;
+      R -= take; fundingCut += take; fundingPaid += fund;
+      // 2) hedges hold yesterday's delta through today's move
+      const Cnow = U * NF * idxPrev, capped = Cnow >= R;
+      const deltaCurve = capped ? 0 : p * Cnow;          // $ change per 100% move
+      const ret = P / prevP - 1;
+      hedgeS += -(sCH * deltaCurve) * ret;               // short NEAR
+      hedgeL += (sFH * deltaCurve) * ret;                // long NEAR
+      prevP = P; NFprev = NF;
+      if (record && (k % every === 0 || k === N)) out.push(snap(k * dtY * 365, P, NF));
+    }
+    const P1 = P0 * (1 + x), NF = NFprev;
+    const idx = (P1 / P0) ** p, Craw = U * NF * idx, Ceff = Math.min(Craw, R), F = R - Ceff;
+    const capped = Craw >= R && Craw > 0;
+    const pool = { c: sC * Ceff, ch: sCH * Ceff, f: sF * F, fh: sFH * F };
+    const val = { c: pool.c, ch: pool.ch + hedgeS, f: pool.f, fh: pool.fh + hedgeL, ex: openFees + fundingCut };
+    const curveLev = capped ? 0 : p;
+    const flatLev = (capped || F <= 0) ? 0 : -p * Craw / F;
+    return {
+      dep, pool, val, hedgeS, hedgeL, openFees, fundingCut, fundingPaid, R, Craw, Ceff, F, NF, P1, capped, path: out,
+      lev: { c: curveLev, f: flatLev, ch: 0, fh: 0 },
+      util0: (U + flatTot) > 0 ? U / (U + flatTot) : 0,
+      haircut: Craw > 0 ? Ceff / Craw : 1,
+      closeFees: fee * (pool.c + pool.ch + pool.f + pool.fh),
+    };
+  }
+
+  // ── formatting ──
+  const usd = (v, d = 0) => (v < 0 ? "−$" : "$") + Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+  const sUsd = (v, d = 0) => (Math.abs(v) < 0.005 ? "$0" : (v > 0 ? "+" : "") + usd(v, d));
+  const pct = (v) => (Math.abs(v) < 0.0005 ? "0.0%" : (v > 0 ? "+" : "−") + Math.abs(v * 100).toFixed(1) + "%");
+  const cls = (v) => (Math.abs(v) < 0.005 ? "zero" : v > 0 ? "pos" : "neg");
+  const days = (d) => d < 1 ? (d * 24).toFixed(0) + " h" : d < 730 ? Math.round(d).toLocaleString() + " days" : (d / 365).toFixed(1) + " years";
+  const lev = (v) => Math.abs(v) < 0.05 ? "≈ 0× NEAR (neutral)" : (v > 0 ? "" : "") + Math.abs(v).toFixed(2) + "× " + (v > 0 ? "long" : "short") + " NEAR";
+
+  // ── SVG line chart ──
+  const NS = "http://www.w3.org/2000/svg";
+  function el(tag, attrs, parent) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; }
+  function niceTicks(lo, hi, n) {
+    const span = hi - lo || 1, step0 = span / n, mag = 10 ** Math.floor(Math.log10(step0));
+    const step = [1, 2, 2.5, 5, 10].map((m) => m * mag).find((s) => span / s <= n) || 10 * mag;
+    const out = []; for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(+v.toFixed(10)); return out;
+  }
+  const fmtK = (v) => { const a = Math.abs(v); const s = a >= 1e6 ? (a / 1e6).toFixed(1) + "M" : a >= 1e3 ? (a / 1e3).toFixed(a >= 1e4 ? 0 : 1) + "k" : a.toFixed(0); return (v < 0 ? "−" : v > 0 ? "+" : "") + "$" + s; };
+  function lineChart(svg, { xs, series, xFmt, marker, xTicks }) {
+    svg.textContent = "";
+    const W = 640, H = 300, m = { l: 58, r: 14, t: 12, b: 30 };
+    const css = getComputedStyle(document.documentElement);
+    let lo = 0, hi = 0;
+    for (const s of series) for (const v of s.ys) { if (v < lo) lo = v; if (v > hi) hi = v; }
+    const pad = (hi - lo) * 0.08 || 10; lo -= pad; hi += pad;
+    const x0 = xs[0], x1 = xs[xs.length - 1] === x0 ? x0 + 1 : xs[xs.length - 1];
+    const X = (v) => m.l + (v - x0) / (x1 - x0) * (W - m.l - m.r);
+    const Y = (v) => m.t + (hi - v) / (hi - lo) * (H - m.t - m.b);
+    const grid = css.getPropertyValue("--grid").trim(), line = css.getPropertyValue("--line").trim(), muted = css.getPropertyValue("--muted").trim();
+    for (const v of niceTicks(lo, hi, 6)) {
+      el("line", { x1: m.l, x2: W - m.r, y1: Y(v), y2: Y(v), stroke: v === 0 ? muted : grid, "stroke-width": v === 0 ? 1 : 1, "stroke-dasharray": v === 0 ? "3 3" : "" }, svg);
+      const t = el("text", { x: m.l - 6, y: Y(v) + 3.5, "text-anchor": "end" }, svg); t.textContent = fmtK(v);
+    }
+    for (const v of (xTicks || niceTicks(x0, x1, 6))) {
+      if (v < x0 - 1e-9 || v > x1 + 1e-9) continue;
+      el("line", { x1: X(v), x2: X(v), y1: H - m.b, y2: H - m.b + 4, stroke: line }, svg);
+      const t = el("text", { x: X(v), y: H - m.b + 16, "text-anchor": "middle" }, svg); t.textContent = xFmt(v);
+    }
+    el("line", { x1: m.l, x2: W - m.r, y1: H - m.b, y2: H - m.b, stroke: line }, svg);
+    if (marker != null) el("line", { x1: X(marker), x2: X(marker), y1: m.t, y2: H - m.b, stroke: muted, "stroke-width": 1, "stroke-dasharray": "2 3" }, svg);
+    for (const s of series) {
+      const d = s.ys.map((v, i) => (i ? "L" : "M") + X(xs[i]).toFixed(1) + " " + Y(v).toFixed(1)).join(" ");
+      el("path", { d, fill: "none", stroke: css.getPropertyValue(s.color).trim(), "stroke-width": s.w || 2, "stroke-dasharray": s.dash || "", "stroke-linejoin": "round" }, svg);
+      if (marker != null && s.markY != null) el("circle", { cx: X(marker), cy: Y(s.markY), r: 3.5, fill: css.getPropertyValue(s.color).trim(), stroke: css.getPropertyValue("--panel").trim(), "stroke-width": 1.5 }, svg);
+    }
+  }
+  function legend(node) {
+    node.innerHTML = PLAYERS.map((p) => `<span><i style="--lc:var(${p.color})"></i>${p.name}</span>`).join("");
+  }
+
+  // ── render ──
+  function render() {
+    const s = read();
+    const x = s.x / 100, d = tDays(s), r = rate(s);
+    $("tOut").textContent = days(d);
+    $("xOut").textContent = (s.x > 0 ? "+" : "") + s.x + "%";
+    $("xHint").textContent = `NEAR $${P0.toFixed(2)} → $${(P0 * (1 + x)).toFixed(2)}`;
+    $("pOut").textContent = s.p.toFixed(1);
+    $("rvOut").textContent = s.rv + "%";
+    $("ivOut").textContent = s.iv + "%";
+    $("feeOut").textContent = (s.fee / 100).toFixed(2) + "%";
+    $("cutOut").textContent = s.cut + "%";
+    for (const k of ["dc", "dch", "df", "dfh"]) $(k + "Out").textContent = usd(s[k]);
+    $("rateHint").textContent = r > 0
+      ? `Curve pays ${(r * 100).toFixed(1)}% a year (${(r / 365 * 100).toFixed(3)}% a day). Flat + long breaks even at daily moves of about ${(s.iv / Math.sqrt(365)).toFixed(1)}%.`
+      : "At p = 1 the payoff is a straight line, so there is no convexity to pay for and funding is zero.";
+    const nfNow = Math.exp(-r * d / 365);
+    $("tHint").textContent = r > 0
+      ? `Curve has shrunk ${((1 - nfNow) * 100).toFixed(1)}% from funding. Slider ends at ${days(tMaxDays(s))}, when 99% is gone.`
+      : "No funding at p = 1, so time alone changes nothing. Slider ends at 10 years.";
+
+    const res = simulate(s, x, d, true);
+
+    // status strip
+    $("status").innerHTML = [
+      ["NEAR", `$${res.P1.toFixed(2)}`],
+      ["NF (Curve size left)", `${(res.NF * 100).toFixed(1)}%`],
+      ["Pool", usd(res.R)],
+      ["Curve claims", usd(res.Ceff)],
+      ["Flat equity", usd(res.F)],
+      ["Funding paid so far", usd(res.fundingPaid)],
+      ["Utilization at open", `${(res.util0 * 100).toFixed(0)}%`],
+    ].map(([k, v]) => `<div><span>${k}</span> <b>${v}</b></div>`).join("");
+
+    const warns = [];
+    if (res.util0 > 0.5) warns.push(`The contract would refuse these opens: Curve would be ${(res.util0 * 100).toFixed(0)}% of the pool, above the 50% cap. Add Flat liquidity or lower the Curve deposits.`);
+    if (res.capped) warns.push(`Flat is wiped out. Curve claims (${usd(res.Craw)}) exceed the pool, so every Curve holder is paid ${(res.haircut * 100).toFixed(0)}% of their claim.`);
+    $("warn").hidden = !warns.length;
+    $("warn").innerHTML = warns.join("<br>");
+
+    // cards
+    const v = res.val;
+    $("players").innerHTML = PLAYERS.map((pl) => {
+      const dep = pl.id === "ex" ? 0 : res.dep[pl.id];
+      const value = v[pl.id];
+      const pnl = pl.id === "ex" ? value : value - dep;
+      const rows = [];
+      if (pl.id === "ex") {
+        rows.push(["Open fees", usd(res.openFees, 2)], ["Funding cut", usd(res.fundingCut, 2)], ["+ if all close now", usd(res.closeFees, 2)]);
+      } else {
+        rows.push(["Deposited", usd(dep)], ["Value now", usd(value, 2)]);
+        if (pl.id === "ch") rows.push(["in pool", usd(res.pool.ch, 2)], ["short hedge", sUsd(res.hedgeS, 2)]);
+        if (pl.id === "fh") rows.push(["in pool", usd(res.pool.fh, 2)], ["long hedge", sUsd(res.hedgeL, 2)]);
+      }
+      const pctTxt = pl.id === "ex" ? "earned" : dep > 0 ? pct(pnl / dep) : "—";
+      const expo = pl.id === "ex" ? "No market exposure" : lev(res.lev[pl.id]);
+      return `<article class="card" style="--pc:var(${pl.color})">
+        <div class="name"><span class="dot"></span>${pl.name}</div>
+        <div class="tag">${pl.tag}</div>
+        <div class="pnl ${cls(pnl)}">${sUsd(pnl, 2)}</div>
+        <div class="pnlpct ${cls(pnl)}">${pctTxt}</div>
+        ${rows.map(([a, b]) => `<div class="kv"><span>${a}</span><span>${b}</span></div>`).join("")}
+        <div class="expo">${expo}</div>
+        <div class="holds">${pl.holds}</div>
+      </article>`;
+    }).join("");
+
+    // pool bar
+    const segs = [
+      ["Curve", res.pool.c, "--c-curve"], ["Curve + short", res.pool.ch, "--c-curveh"],
+      ["Flat", res.pool.f, "--c-flat"], ["Flat + long", res.pool.fh, "--c-flath"],
+      ["Exchange fees", res.openFees + res.fundingCut, "--c-exch"],
+    ];
+    const total = segs.reduce((a, b) => a + b[1], 0) || 1;
+    $("bar").innerHTML = segs.map(([n, val, c]) => `<div title="${n}: ${usd(val, 2)}" style="--pc:var(${c});width:${(val / total * 100).toFixed(3)}%"></div>`).join("");
+    $("barLegend").innerHTML = segs.map(([n, val, c]) => `<div style="--pc:var(${c})"><span>${n}</span><span class="num">${usd(val, 2)}</span></div>`).join("");
+    const depTot = s.dc + s.dch + s.df + s.dfh;
+    const hedgeTot = res.hedgeS + res.hedgeL;
+    $("check").innerHTML = `Inside the pool: claims <b>${usd(total, 2)}</b> = deposits <b>${usd(depTot, 2)}</b>. Money only moves between players. `
+      + `Outside the pool, the two hedges made <b>${sUsd(hedgeTot, 2)}</b> against the external market.`;
+
+    // chart 1: PnL across price at current time
+    const grid = []; for (let q = -90; q <= 300; q += 5) grid.push(q);
+    if (!grid.includes(s.x)) { grid.push(s.x); grid.sort((a, b) => a - b); }
+    const rows = grid.map((q) => simulate(s, q / 100, d, false).val);
+    const ser = (key, sign) => rows.map((rv, i) => key === "ex" ? rv.ex : rv[key] - res.dep[key]);
+    const mk = (key) => key === "ex" ? v.ex : v[key] - res.dep[key];
+    lineChart($("chPrice"), {
+      xs: grid, xFmt: (q) => (q > 0 ? "+" : "") + q + "%", marker: s.x, xTicks: [-90, -50, 0, 50, 100, 150, 200, 250, 300],
+      series: PLAYERS.map((pl) => ({ color: pl.color, ys: ser(pl.id), markY: mk(pl.id), dash: pl.id === "ex" ? "4 3" : "", w: pl.id === "ex" ? 1.6 : 2.2 })),
+    });
+    $("priceSub").textContent = `After ${days(d)}, for every final NEAR price. The dotted line is the current price slider.`;
+
+    // chart 2: PnL over time along the path
+    const path = res.path;
+    if (path.length > 1) {
+      lineChart($("chTime"), {
+        xs: path.map((q) => q.day), xFmt: (q) => q >= 730 ? (q / 365).toFixed(1) + "y" : Math.round(q) + "d",
+        series: PLAYERS.map((pl) => ({ color: pl.color, ys: path.map((q) => q[pl.id]), dash: pl.id === "ex" ? "4 3" : "", w: pl.id === "ex" ? 1.6 : 2.2 })),
+      });
+      $("timeSub").textContent = s.mode === "jump"
+        ? `Price chops around $${P0.toFixed(2)} for ${days(d)}, then jumps to $${res.P1.toFixed(2)} at the end.`
+        : `Price travels from $${P0.toFixed(2)} to $${res.P1.toFixed(2)} over ${days(d)} with ${s.rv}% realized volatility.`;
+    } else {
+      $("chTime").textContent = "";
+      $("timeSub").textContent = "Move the time slider to see the path.";
+    }
+  }
+
+  // ── wiring ──
+  for (const k of ids) $(k).addEventListener("input", render);
+  const setMode = (m) => { mode = m; $("modeGrad").setAttribute("aria-pressed", m === "grad"); $("modeJump").setAttribute("aria-pressed", m === "jump"); render(); };
+  $("modeGrad").addEventListener("click", () => setMode("grad"));
+  $("modeJump").addEventListener("click", () => setMode("jump"));
+  $("reseed").addEventListener("click", () => { seed = (seed * 48271 + 11) % 2147483647; makeNormals(); render(); });
+  $("reset").addEventListener("click", () => { for (const k of ids) $(k).value = DEFAULTS[k]; seed = 7; makeNormals(); setMode("grad"); });
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", render);
+  new MutationObserver(render).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+  legend($("legend1")); legend($("legend2"));
+  makeNormals();
+  render();
+})();
+</script>

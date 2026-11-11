@@ -14,6 +14,7 @@ pays all gas, so users never see NEAR.
 | [`PLAN.md`](PLAN.md) | 2-day build plan, end-to-end path, reused components, security assumptions, contract interface |
 | [`contract/`](contract) | `curve-ledger`: Rust, near-sdk 5 |
 | [`intents/`](intents) | 1Click client, relayer for Telegram accounts, oracle/funding keeper |
+| [`sim/curve-simulator.html`](sim/curve-simulator.html) | Interactive simulator: Curve, Flat, both hedged variants, and the exchange |
 
 ```bash
 cd contract && cargo test
