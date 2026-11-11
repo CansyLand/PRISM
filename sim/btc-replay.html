@@ -196,6 +196,7 @@ details.setup summary { cursor: pointer; font-weight: 600; font-size: 13px; }
         <h3 id="healthTitle">Pool health</h3>
         <div class="tiles" id="healthTiles"></div>
         <div class="tablescroll"><table id="healthTable"></table></div>
+        <div class="tablescroll" style="margin-top:10px"><table id="shortTable"></table></div>
         <p class="why" id="healthNote" style="margin:8px 0 0"></p>
       </section>
 
@@ -411,8 +412,8 @@ details.setup summary { cursor: pointer; font-weight: 600; font-size: 13px; }
         const s = lot.strat, v = lot.side === "long" ? longVal(lot, t, claims(t)) : (lot.epoch === epoch && S > 0 ? lot.shares * shortEq(t) / S : 0);
         let reason = null;
         if (t >= s.exit) reason = "time";
-        else if (lot.side === "long" && v >= lot.amount * (1 + s.tp)) reason = "profit";
-        else if (lot.side === "long" && v <= lot.amount * (1 - s.sl)) reason = "stop";
+        else if (v >= lot.amount * (1 + s.tp)) reason = "profit";
+        else if (v <= lot.amount * (1 - s.sl)) reason = "stop";
         if (reason) closeLot({ lot: lot.id }, t, reason);
       }
       // outside shorts arrive when utilization is above the kink (funding is expensive)
@@ -447,6 +448,7 @@ details.setup summary { cursor: pointer; font-weight: 600; font-size: 13px; }
         const v = lot.side === "long" ? longVal(lot, t, Ct) : (lot.epoch === epoch && S > 0 ? lot.shares * F / S : 0);
         lot.last = v;
         if (lot.vals) lot.vals[t] = v;
+        if (lot.owner === "crowd" && lot.day < t) { const r = v / lot.amount; if (!(lot.low <= r)) lot.low = r; if (lot.side === "short" && v <= 1e-9) lot.wiped = true; }
         if (lot.side === "long" && lot.eaten == null && v < 0.01 * lot.amount) {
           lot.eaten = t;
           if (lot.owner === "me") log.push({ t, kind: "eaten", text: `Your Curve Long from ${dateOf(lot.day)} is worth less than 1% of what you paid.` });
@@ -505,16 +507,28 @@ details.setup summary { cursor: pointer; font-weight: 600; font-size: 13px; }
       const amount = Math.round(Math.min(100000, Math.max(20, Math.exp(Math.log(long ? 400 : 2500) + 1.1 * gauss()))));
       const hold = Math.max(1, Math.ceil(-Math.log(Math.max(1e-9, rnd())) * H * (long ? 1 : 2)));
       evs.push({ id: "c" + i, day: t, kind: "open", side: long ? "long" : "short", amount, p: long ? pickP() : undefined, owner: "crowd",
-        strat: { exit: Math.min(D - 1, t + hold), tp: 0.3 + rnd() * 3, sl: 0.4 + rnd() * 0.55 } });
+        // longs aim for multiples; shorts collect funding, so they aim for a few percent and cut losses earlier
+        strat: long ? { exit: Math.min(D - 1, t + hold), tp: 0.3 + rnd() * 3, sl: 0.4 + rnd() * 0.55 }
+                    : { exit: Math.min(D - 1, t + hold), tp: 0.03 + rnd() * 0.3, sl: 0.1 + rnd() * 0.5 } });
     }
     return evs;
   }
   function health(r) {
-    const per = new Map(), shorts = { n: 0, vol: 0, pnl: 0, wins: 0, rets: [] };
+    const per = new Map(), shorts = { n: 0, vol: 0, pnl: 0, wins: 0, rets: [], funding: 0, winSum: 0, lossSum: 0, losses: 0, worst: 0, worstUsd: 0, low: 1, profit: 0, stop: 0, wiped: 0 };
     for (const lot of r.lots.values()) {
       if (lot.owner !== "crowd") continue;
       const end = lot.close ? lot.close.out : lot.last, pnl = end - lot.amount;
-      if (lot.side === "short") { shorts.n++; shorts.vol += lot.amount; shorts.pnl += pnl; shorts.wins += pnl > 0; shorts.rets.push(pnl / lot.amount); continue; }
+      if (lot.side === "short") {
+        const sh = shorts, r = pnl / lot.amount;
+        sh.n++; sh.vol += lot.amount; sh.pnl += pnl; sh.wins += pnl > 0; sh.rets.push(r); sh.funding += lot.funding;
+        if (pnl > 0) sh.winSum += r; else { sh.lossSum += r; sh.losses++; }
+        if (r < sh.worst) { sh.worst = r; sh.worstUsd = pnl; }
+        if (lot.low != null) sh.low = Math.min(sh.low, lot.low);
+        sh.wiped += !!lot.wiped;
+        if (lot.close && lot.close.reason === "profit") sh.profit++;
+        if (lot.close && lot.close.reason === "stop") sh.stop++;
+        continue;
+      }
       if (!per.has(lot.p)) per.set(lot.p, { p: lot.p, n: 0, vol: 0, pnl: 0, wins: 0, funding: 0, eaten: 0, trimmed: 0, rets: [], profit: 0, stop: 0 });
       const g = per.get(lot.p);
       g.n++; g.vol += lot.amount; g.pnl += pnl; g.wins += pnl > 0; g.funding -= lot.funding; g.eaten += lot.eaten != null; g.trimmed += lot.trimmed; g.rets.push(pnl / lot.amount);
@@ -529,7 +543,7 @@ details.setup summary { cursor: pointer; font-weight: 600; font-size: 13px; }
     const med = (xs) => { const s = xs.slice().sort((x, y) => x - y); return s.length ? s[Math.floor(s.length / 2)] : 0; };
     return {
       per: [...per.values()].sort((x, y) => x.p - y.p).map((g) => ({ ...g, median: med(g.rets) })),
-      shorts: { ...shorts, median: med(shorts.rets) },
+      shorts: { ...shorts, median: med(shorts.rets), avgWin: shorts.wins ? shorts.winSum / shorts.wins : 0, avgLoss: shorts.losses ? shorts.lossSum / shorts.losses : 0 },
       lp: { in: lpIn, end: lpEnd },
       wipes: r.log.filter((l) => l.kind === "wipe").length,
       maxU, avgU: sumU / D, above: above / D, fees: tl.fees[D - 1], pool: tl.R[D - 1],
@@ -815,7 +829,10 @@ details.setup summary { cursor: pointer; font-weight: 600; font-size: 13px; }
     ].join("");
     $("healthTable").innerHTML = `<thead><tr><th>Curvature</th><th>Traders</th><th>Volume</th><th>Funding paid</th><th>Total PnL</th><th>In profit</th><th>Median</th><th>Took profit</th><th>Stopped out</th><th>Below 1%</th></tr></thead><tbody>`
       + h.per.map((g) => `<tr><td><span class="pdot" style="background:${pColor(g.p)}"></span>p = ${g.p}</td><td>${g.n}</td><td>${big(g.vol)}</td><td>${big(g.funding)}</td><td class="${cls(g.pnl)}">${sUsd(g.pnl, 0)}</td><td>${Math.round(g.wins / g.n * 100)}%</td><td class="${cls(g.median)}">${pct(g.median, 0)}</td><td>${g.profit}</td><td>${g.stop}</td><td>${g.eaten}</td></tr>`).join("")
-      + `<tr><td><span class="pdot" style="background:var(--short)"></span>Retail shorts</td><td>${h.shorts.n}</td><td>${big(h.shorts.vol)}</td><td>—</td><td class="${cls(h.shorts.pnl)}">${sUsd(h.shorts.pnl, 0)}</td><td>${h.shorts.n ? Math.round(h.shorts.wins / h.shorts.n * 100) : 0}%</td><td class="${cls(h.shorts.median)}">${pct(h.shorts.median, 0)}</td><td>—</td><td>—</td><td>—</td></tr></tbody>`;
+      + `</tbody>`;
+    const sh = h.shorts;
+    $("shortTable").innerHTML = `<thead><tr><th>Retail shorts</th><th>Traders</th><th>Volume</th><th>Funding received</th><th>Total PnL</th><th>In profit</th><th>Median</th><th>Avg win</th><th>Avg loss</th><th>Worst trade</th><th>Lowest point</th><th>Took profit</th><th>Stopped out</th><th>Wiped out</th></tr></thead><tbody>`
+      + `<tr><td><span class="pdot" style="background:var(--short)"></span>Curve Short</td><td>${sh.n}</td><td>${big(sh.vol)}</td><td class="pos">${big(sh.funding)}</td><td class="${cls(sh.pnl)}">${sUsd(sh.pnl, 0)}</td><td>${sh.n ? Math.round(sh.wins / sh.n * 100) : 0}%</td><td class="${cls(sh.median)}">${pct(sh.median, 1)}</td><td class="pos">${pct(sh.avgWin, 1)}</td><td class="neg">${pct(sh.avgLoss, 1)}</td><td class="neg">${pct(sh.worst, 0)} (${sUsd(sh.worstUsd, 0)})</td><td>${pct(sh.low - 1, 0)}</td><td>${sh.profit}</td><td>${sh.stop}</td><td>${sh.wiped}</td></tr></tbody>`;
     const trimmed = h.per.reduce((x, g) => x + g.trimmed, 0);
     $("healthNote").textContent = `Results at the end of the period; open positions are marked to market. ${trimmed} long orders were cut to the 20% open limit${h.refused ? `, ${h.refused} were refused (no short equity at the time)` : ""}. Switch the lower chart to Pool to see who owned the pool over time.`;
   }
