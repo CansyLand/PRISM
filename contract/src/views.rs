@@ -22,16 +22,16 @@ pub struct MarketView {
     pub unit_value_e18: U128,
     pub total_units: U128,
     pub risk_pool: U128,
-    /// Curve claims after any haircut.
-    pub curve_claims: U128,
-    pub curve_claims_raw: U128,
-    pub flat_equity: U128,
-    pub flat_shares: U128,
-    pub flat_share_price_e18: U128,
+    /// long claims after any haircut.
+    pub long_claims: U128,
+    pub long_claims_raw: U128,
+    pub short_equity: U128,
+    pub short_shares: U128,
+    pub short_share_price_e18: U128,
     pub utilization_bps: u32,
     /// Curve Short epoch; bumps when wiped-out shorts are replaced by new ones.
-    pub flat_epoch: u64,
-    /// Funding Curve pays per year right now, as a fraction of its value (bps).
+    pub short_epoch: u64,
+    /// Funding Curve Long pays per year right now, as a fraction of its value (bps).
     pub funding_rate_annual_bps: u32,
     /// Fair convexity rate p(p−1)/2·σ² before the utilization multiplier (bps/yr).
     pub funding_base_annual_bps: u32,
@@ -48,18 +48,18 @@ pub struct MarketView {
 pub struct AccountView {
     pub account_id: AccountId,
     pub free: U128,
-    pub curve_units: U128,
-    pub curve_value: U128,
-    pub curve_cost: U128,
-    pub curve_pnl: I128,
-    pub flat_shares: U128,
-    pub flat_value: U128,
-    pub flat_cost: U128,
-    pub flat_pnl: I128,
+    pub long_units: U128,
+    pub long_value: U128,
+    pub long_cost: U128,
+    pub long_pnl: I128,
+    pub short_shares: U128,
+    pub short_value: U128,
+    pub short_cost: U128,
+    pub short_pnl: I128,
     pub realized_pnl: I128,
     pub deposited: U128,
     pub withdrawn: U128,
-    /// free + curve_value + flat_value
+    /// free + long_value + short_value
     pub equity: U128,
     /// equity + withdrawn − deposited (lifetime PnL, net of fees and funding)
     pub total_pnl: I128,
@@ -79,8 +79,8 @@ pub struct ConfigView {
 pub struct Solvency {
     pub treasury: U128,
     pub free_total: U128,
-    pub curve_claims: U128,
-    pub flat_equity: U128,
+    pub long_claims: U128,
+    pub short_equity: U128,
     pub fees: U128,
     pub claims_total: U128,
     pub ok: bool,
@@ -105,21 +105,21 @@ impl Contract {
         let mut a = a.clone();
         self.normalize(&mut a);
         let a = &a;
-        let raw = Self::units_value(a.curve_units, l.unit_value_e18);
-        let curve_value = if l.c_raw > l.risk_pool { mul_div(raw, l.risk_pool, l.c_raw) } else { raw };
-        let flat_value = if self.flat_shares == 0 { 0 } else { mul_div(a.flat_shares, l.flat_equity, self.flat_shares) };
-        let equity = a.free + curve_value + flat_value;
+        let raw = Self::units_value(a.long_units, l.unit_value_e18);
+        let long_value = if l.c_raw > l.risk_pool { mul_div(raw, l.risk_pool, l.c_raw) } else { raw };
+        let short_value = if self.short_shares == 0 { 0 } else { mul_div(a.short_shares, l.short_equity, self.short_shares) };
+        let equity = a.free + long_value + short_value;
         AccountView {
             account_id: id.clone(),
             free: U128(a.free),
-            curve_units: U128(a.curve_units),
-            curve_value: U128(curve_value),
-            curve_cost: U128(a.curve_cost),
-            curve_pnl: I128(curve_value as i128 - a.curve_cost as i128),
-            flat_shares: U128(a.flat_shares),
-            flat_value: U128(flat_value),
-            flat_cost: U128(a.flat_cost),
-            flat_pnl: I128(flat_value as i128 - a.flat_cost as i128),
+            long_units: U128(a.long_units),
+            long_value: U128(long_value),
+            long_cost: U128(a.long_cost),
+            long_pnl: I128(long_value as i128 - a.long_cost as i128),
+            short_shares: U128(a.short_shares),
+            short_value: U128(short_value),
+            short_cost: U128(a.short_cost),
+            short_pnl: I128(short_value as i128 - a.short_cost as i128),
             realized_pnl: I128(a.realized_pnl),
             deposited: U128(a.deposited),
             withdrawn: U128(a.withdrawn),
@@ -147,13 +147,13 @@ impl Contract {
             unit_value_e18: U128(l.unit_value_e18.as_u128()),
             total_units: U128(self.total_units),
             risk_pool: U128(l.risk_pool),
-            curve_claims: U128(l.c_eff),
-            curve_claims_raw: U128(l.c_raw),
-            flat_equity: U128(l.flat_equity),
-            flat_shares: U128(self.flat_shares),
-            flat_share_price_e18: U128(self.flat_share_price_e18(&l)),
+            long_claims: U128(l.c_eff),
+            long_claims_raw: U128(l.c_raw),
+            short_equity: U128(l.short_equity),
+            short_shares: U128(self.short_shares),
+            short_share_price_e18: U128(self.short_share_price_e18(&l)),
             utilization_bps: util,
-            flat_epoch: self.flat_epoch,
+            short_epoch: self.short_epoch,
             funding_rate_annual_bps: (self.funding_rate_at_e18(Self::utilization_bps(l.c_raw, l.risk_pool)) * BPS / ONE) as u32,
             funding_base_annual_bps: (self.base_funding_rate_e18() * BPS / ONE) as u32,
             funding_multiplier_bps: self.util_multiplier_bps(Self::utilization_bps(l.c_raw, l.risk_pool)) as u32,
@@ -201,12 +201,12 @@ impl Contract {
     pub fn get_solvency(&self) -> Solvency {
         let l = self.live();
         let fees = self.fees + l.fee_pending;
-        let claims = self.free_total + l.c_eff + l.flat_equity + fees;
+        let claims = self.free_total + l.c_eff + l.short_equity + fees;
         Solvency {
             treasury: U128(self.treasury),
             free_total: U128(self.free_total),
-            curve_claims: U128(l.c_eff),
-            flat_equity: U128(l.flat_equity),
+            long_claims: U128(l.c_eff),
+            short_equity: U128(l.short_equity),
             fees: U128(fees),
             claims_total: U128(claims),
             ok: claims == self.treasury,
@@ -231,20 +231,20 @@ impl Contract {
         (manager || operator, manager) // (can_trade, can_withdraw)
     }
 
-    pub fn preview_open_curve(&self, amount: U128) -> Preview {
-        preview(self.quote_open_curve(&self.live(), amount.0))
+    pub fn preview_open_long(&self, amount: U128) -> Preview {
+        preview(self.quote_open_long(&self.live(), amount.0))
     }
 
-    pub fn preview_close_curve(&self, units: U128) -> Preview {
-        preview(self.quote_close_curve(&self.live(), units.0))
+    pub fn preview_close_long(&self, units: U128) -> Preview {
+        preview(self.quote_close_long(&self.live(), units.0))
     }
 
-    pub fn preview_open_flat(&self, amount: U128) -> Preview {
-        preview(self.quote_open_flat(&self.live(), amount.0))
+    pub fn preview_open_short(&self, amount: U128) -> Preview {
+        preview(self.quote_open_short(&self.live(), amount.0))
     }
 
-    pub fn preview_close_flat(&self, shares: U128) -> Preview {
-        preview(self.quote_close_flat(&self.live(), shares.0))
+    pub fn preview_close_short(&self, shares: U128) -> Preview {
+        preview(self.quote_close_short(&self.live(), shares.0))
     }
 
     /// Payoff curve for charts: value of `units` at each price, at the current NF.

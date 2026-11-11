@@ -5,7 +5,7 @@
 //! * **Deposit**: the platform relayer, the `intents.near` verifier (an
 //!   `ft_withdraw` intent with `msg`), or 1Click calls
 //!   `usdc.ft_transfer_call(curve, amount, msg)`, where msg is
-//!   `{"receiver_id": "...", "action": "open_curve" | "open_flat", "min_out": "..."}`
+//!   `{"receiver_id": "...", "action": "open_long" | "open_short", "min_out": "..."}`
 //!   (all fields optional; empty msg credits the sender).
 //! * **Withdraw**: `withdraw(amount, receiver_id = 1Click deposit address)` does a
 //!   plain `ft_transfer`. Alternatively `receiver_id = "intents.near"` with
@@ -31,8 +31,8 @@ const GAS_BALANCE: Gas = Gas::from_tgas(10);
 #[derive(Clone, Debug, PartialEq)]
 #[serde(rename_all = "snake_case")]
 pub enum DepositAction {
-    OpenCurve,
-    OpenFlat,
+    OpenLong,
+    OpenShort,
 }
 
 #[near(serializers = [json])]
@@ -76,11 +76,11 @@ impl FungibleTokenReceiver for Contract {
         // A panic below makes the token refund the whole transfer, so deposit + open is atomic.
         let min = m.min_out.map(|v| v.0).unwrap_or(0);
         match m.action {
-            Some(DepositAction::OpenCurve) => {
-                self.internal_open_curve(&receiver, amount.0, min);
+            Some(DepositAction::OpenLong) => {
+                self.internal_open_long(&receiver, amount.0, min);
             }
-            Some(DepositAction::OpenFlat) => {
-                self.internal_open_flat(&receiver, amount.0, min);
+            Some(DepositAction::OpenShort) => {
+                self.internal_open_short(&receiver, amount.0, min);
             }
             None => {}
         }

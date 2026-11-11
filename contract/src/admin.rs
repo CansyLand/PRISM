@@ -42,7 +42,7 @@ impl Contract {
         validate_params(&params);
         require!(
             params.power == self.params.power || self.total_units == 0,
-            "power can't change while Curve units exist"
+            "power can't change while long units exist"
         );
         self.accrue(); // book funding at the old rate first
         self.params = params.clone();

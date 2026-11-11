@@ -56,7 +56,7 @@ async function tick(provider, account) {
     console.log(new Date().toISOString(), "pushed", Number(p) / 1e6);
   }
   const m = await call(cfg.curve, "poke", {});
-  console.log(`  util ${m.utilization_bps / 100}%  curve ${Number(m.curve_claims) / 1e6}  flat ${Number(m.flat_equity) / 1e6}  nf ${Number(m.nf) / 1e18}`);
+  console.log(`  util ${m.utilization_bps / 100}%  longs ${Number(m.long_claims) / 1e6}  shorts ${Number(m.short_equity) / 1e6}  nf ${Number(m.nf) / 1e18}`);
 }
 
 async function main() {

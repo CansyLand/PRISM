@@ -10,7 +10,7 @@
 //   withdraw       1Click quote (USDC.near → dest chain) → storage_deposit(depositAddress)
 //                  → curve.withdraw({account_id, amount, receiver_id: depositAddress})
 //                  → REFUNDED? re-credit the user with ft_transfer_call
-//   trade          curve.open_curve / close_curve / open_flat / close_flat with account_id
+//   trade          curve.open_long / close_long / open_short / close_short with account_id
 //
 // Every deposit and withdrawal is recorded in .relayer-state.json, which keeps
 // crediting idempotent (a deposit is never credited twice).
@@ -115,8 +115,8 @@ class Relayer {
       if (!rec.amountOut) throw new Error("SUCCESS without swapDetails.amountOut, so credit it manually");
     }
     const msg = { receiver_id: rec.account_id };
-    if (rec.open === "curve") msg.action = "open_curve";
-    if (rec.open === "flat") msg.action = "open_flat";
+    if (rec.open === "long") msg.action = "open_long";
+    if (rec.open === "short") msg.action = "open_short";
     rec.credited = "in_flight";
     saveState(this.state);
     const res = await this.call(
@@ -178,17 +178,17 @@ class Relayer {
   }
 
   // ─────────────── trading on behalf of a user ───────────────
-  openCurve(tgId, amount, minUnits) {
-    return this.call(this.curve, "open_curve", { amount: String(amount), account_id: this.userId(tgId), min_units: minUnits && String(minUnits) });
+  openLong(tgId, amount, minUnits) {
+    return this.call(this.curve, "open_long", { amount: String(amount), account_id: this.userId(tgId), min_units: minUnits && String(minUnits) });
   }
-  closeCurve(tgId, units, minOut) {
-    return this.call(this.curve, "close_curve", { units: units && String(units), account_id: this.userId(tgId), min_out: minOut && String(minOut) });
+  closeLong(tgId, units, minOut) {
+    return this.call(this.curve, "close_long", { units: units && String(units), account_id: this.userId(tgId), min_out: minOut && String(minOut) });
   }
-  openFlat(tgId, amount, minShares) {
-    return this.call(this.curve, "open_flat", { amount: String(amount), account_id: this.userId(tgId), min_shares: minShares && String(minShares) });
+  openShort(tgId, amount, minShares) {
+    return this.call(this.curve, "open_short", { amount: String(amount), account_id: this.userId(tgId), min_shares: minShares && String(minShares) });
   }
-  closeFlat(tgId, shares, minOut) {
-    return this.call(this.curve, "close_flat", { shares: shares && String(shares), account_id: this.userId(tgId), min_out: minOut && String(minOut) });
+  closeShort(tgId, shares, minOut) {
+    return this.call(this.curve, "close_short", { shares: shares && String(shares), account_id: this.userId(tgId), min_out: minOut && String(minOut) });
   }
 }
 
@@ -204,23 +204,23 @@ if (require.main === module) {
   const run = {
     market: () => r.market(),
     account: () => r.accountOf(a[0]),
-    // deposit <tgId> <originAsset> <amount> <refundTo> [--open curve|flat] [--dry]
+    // deposit <tgId> <originAsset> <amount> <refundTo> [--open long|short] [--dry]
     deposit: () => r.startDeposit({ tgId: a[0], originAsset: a[1], amount: a[2], refundTo: a[3], open: opt("--open"), dry: flag("--dry") }),
     // settle-deposit <depositAddress | tgId> [--simulate <usdcRaw>]
     "settle-deposit": () => r.settleDeposit(a[0], { simulate: opt("--simulate") }),
     // withdraw <tgId> <usdcRaw> <destinationAsset> <recipient> [--dry]
     withdraw: () => r.withdraw({ tgId: a[0], amount: a[1], destinationAsset: a[2], recipient: a[3], dry: flag("--dry") }),
     "settle-withdraw": () => r.settleWithdraw(a[0]),
-    "open-curve": () => r.openCurve(a[0], a[1]),
-    "close-curve": () => r.closeCurve(a[0], a[1]),
-    "open-flat": () => r.openFlat(a[0], a[1]),
-    "close-flat": () => r.closeFlat(a[0], a[1]),
+    "open-long": () => r.openLong(a[0], a[1]),
+    "close-long": () => r.closeLong(a[0], a[1]),
+    "open-short": () => r.openShort(a[0], a[1]),
+    "close-short": () => r.closeShort(a[0], a[1]),
     tokens: () => oneclick.tokens().then((t) => t.filter((x) => x.symbol === "USDC")),
   }[cmd];
   if (!run) {
-    console.log("commands: market | account <tg> | deposit <tg> <originAsset> <amount> <refundTo> [--open curve|flat] [--dry]");
+    console.log("commands: market | account <tg> | deposit <tg> <originAsset> <amount> <refundTo> [--open long|short] [--dry]");
     console.log("          settle-deposit <addr> [--simulate <usdcRaw>] | withdraw <tg> <usdcRaw> <destAsset> <recipient> [--dry]");
-    console.log("          settle-withdraw <addr> | open-curve|close-curve|open-flat|close-flat <tg> [amount] | tokens");
+    console.log("          settle-withdraw <addr> | open-long|close-long|open-short|close-short <tg> [amount] | tokens");
     process.exit(1);
   }
   run().then(out).catch((e) => { console.error("ERROR:", e.message); process.exit(1); });
