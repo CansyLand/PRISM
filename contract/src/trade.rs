@@ -65,6 +65,9 @@ impl Contract {
         if l.c_raw > l.risk_pool {
             return Err("pool is capped until the next price update");
         }
+        if l.short_equity == 0 {
+            return Err("Curve Short is wiped out; wait for new shorts to join");
+        }
         let c_after = Self::units_value(self.total_units + units, l.unit_value_e18);
         let util = util_bps(c_after, l.risk_pool + net);
         Ok(TradeQuote { amount: U128(amount), fee: U128(fee), out: U128(units), utilization_after_bps: util })
