@@ -127,6 +127,16 @@
   /* ── 15 · screen print with cobalt: Buy and logo cobalt, white menu ── */
   .t15 { --lime:#e4f36b; --up:#3557ff; --btn:#3557ff; --btn-ink:#fff; --logo:#ffffff; }
   .t15 .tabs span.on { background: #3557ff; color: #fff; opacity: 1; }
+  /* ── 16 · to the moon: flat night sky, flat stars, the moon is the wallet button ── */
+  .t16 { --lime:#e4f36b; --bg:#151047; --ink:#1d1530; --up:#3557ff; --down:#e8467c; --btn:#f77fa6; --btn-ink:#1d1530; --logo:#ffffff; }
+  .t16 .stars { position: absolute; left: 0; right: 0; top: 0; height: 130px; z-index: 0; pointer-events: none; }
+  .t16 .scr, .t16 .tabs { position: relative; z-index: 1; }
+  .t16 .scr { padding-top: 34px; } .t16 .top { margin-bottom: 18px; }
+  .t16 .top { align-items: center; } .t16 .mode { background: #2a2470; } .t16 .mode span { color: var(--lime); } .t16 .mode span.on { background: var(--lime); color: #1d1530; }
+  .t16 .bal.moon { width: 74px; height: 74px; border-radius: 50%; padding: 0; margin: -6px -2px -6px 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; cursor: pointer;
+    background: radial-gradient(circle at 26% 30%, #dfe49b 0 10%, transparent 10.5%), radial-gradient(circle at 72% 66%, #dfe49b 0 8%, transparent 8.5%), radial-gradient(circle at 64% 22%, #dfe49b 0 5%, transparent 5.5%), radial-gradient(circle at 30% 76%, #dfe49b 0 4%, transparent 4.5%), #f6f9cf; color: #1d1530; }
+  .t16 .bal.moon small { color: #1d1530; opacity: .7; font-size: 7.5px; } .t16 .bal.moon b { font-size: 12px; }
+  .t16 .tabs { background: #2a2470; } .t16 .tabs span { color: var(--lime); opacity: .6; } .t16 .tabs span.on { background: var(--lime); color: #1d1530; opacity: 1; }
   .pals { width: 100%; max-width: 1640px; margin: 34px auto 0; }
   .pals h2 { font-size: 20px; margin: 0 0 4px; } .pals > p { color: #555; margin: 0 0 14px; }
   .palgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
@@ -193,6 +203,7 @@ const LANGS = [
   ["13 · iOS GLASS · QUIET + ICONS", "Like 11 with softer lights (violet 20%, green 30%) and hand-drawn tab icons instead of emojis: the vault with its crowd, the rising curve, and a coin that sprouts. Two styles to switch."],
   ["14 · FLAT SCREEN PRINT", "Three solid inks only: lime, rose and a deep violet-black. No borders, shadows, gradients or glass. Bold blocks like a screen-printed poster."],
   ["15 · SCREEN PRINT · COBALT", "Version 14 with a fourth ink: cobalt for the Buy button, the logo and the active tab, on a white menu bar."],
+  ["16 · TO THE MOON", "The flat screen-print look on a night sky. Flat stars twinkle at the top, and the moon in the top right is the wallet button: your balance is printed on it."],
 ];
 const css = (el, n) => getComputedStyle(el).getPropertyValue(n).trim();
 const SUP = "⁰¹²³⁴⁵⁶⁷⁸⁹", pw = (p) => "x" + String(p).replace(/\d/g, (d) => SUP[d]);
@@ -246,7 +257,7 @@ const PALETTES = [
   const grid = document.getElementById("grid");
   LANGS.forEach(([name, why], i) => {
     const el = document.createElement("div"); el.className = "item";
-    el.innerHTML = `<h2>${name}</h2><p>${why}</p><div class="ph t${i}${i >= 11 && i <= 13 ? " t10 t11" : ""}${i === 15 ? " t14" : ""}"><div class="scr">
+    el.innerHTML = `<h2>${name}</h2><p>${why}</p><div class="ph t${i}${i >= 11 && i <= 13 ? " t10 t11" : ""}${i === 15 || i === 16 ? " t14" : ""}"><div class="scr">
       <div class="top"><span class="lg">${logo}</span><div class="mode"><span class="on">Demo</span><span>Live</span></div><div class="bal"><small>Play money</small><b>$1,000.00</b></div></div>
       <div class="card"><div class="mk"><span>Demo market <em>+5.7%</em></span><span>NEAR</span></div><div class="px"><b>$3.807</b><span>funding −1.1% day</span></div><div class="ch"></div></div>
       <div class="row"><div class="card cl"><h3>Curve Long</h3><div class="str"><span>Strength</span><b>${pw(5)}</b></div><div class="sl"><i></i><u></u></div><div class="tk"><span>${pw(1)}</span><span>${pw(5)}</span><span>${pw(10)}</span></div><div class="amt">$ 0</div><div class="chips"><span>$50</span><span>$100</span><span>$250</span><span>Max</span></div></div>
@@ -322,8 +333,19 @@ const PALETTES = [
       bar.onclick = (e) => { const b = e.target.closest("button"); if (b) set(+b.dataset.k); };
       el.append(bar); set(0);
     }
-    if (i === 14 || i === 15) { el.querySelectorAll(".chips span").forEach((c, n) => (c.textContent = ["25%", "50%", "75%", "Max"][n])); }
-    if (i === 14 || i === 15) { const tabs = el.querySelectorAll(".tabs span i"); ["stats", "trade", "yield"].forEach((k, n) => (tabs[n].innerHTML = ICONS.duo[k])); }
+    if (i === 14 || i === 15 || i === 16) { el.querySelectorAll(".chips span").forEach((c, n) => (c.textContent = ["25%", "50%", "75%", "Max"][n])); }
+    if (i === 14 || i === 15 || i === 16) { const tabs = el.querySelectorAll(".tabs span i"); ["stats", "trade", "yield"].forEach((k, n) => (tabs[n].innerHTML = ICONS.duo[k])); }
+    if (i === 16) { // flat stars + the moon wallet
+      const ph = el.querySelector(".ph"), rnd = (a, b) => a + Math.random() * (b - a);
+      let st = ""; const cols = ["#ffffff", "#e4f36b", "#f77fa6", "#ffffff", "#9fb2ff"];
+      for (let k = 0; k < 34; k++) {
+        const x = rnd(8, 352), y = rnd(4, 124), c = cols[k % cols.length], r = rnd(2.5, 7.5);
+        st += k % 3 ? `<circle cx="${x}" cy="${y}" r="${r / 3}" fill="${c}"/>` : `<path d="M${x} ${y - r}Q${x} ${y} ${x + r} ${y}Q${x} ${y} ${x} ${y + r}Q${x} ${y} ${x - r} ${y}Q${x} ${y} ${x} ${y - r}Z" fill="${c}"/>`;
+      }
+      ph.insertAdjacentHTML("afterbegin", `<svg class="stars" viewBox="0 0 360 130" preserveAspectRatio="none" aria-hidden="true">${st}</svg>`);
+      const bal = ph.querySelector(".bal"); bal.classList.add("moon"); bal.setAttribute("role", "button"); bal.setAttribute("aria-label", "Wallet: $1,000 play money");
+      bal.innerHTML = "<small>Play money</small><b>$1,000</b>";
+    }
     if (i >= 11 && i <= 13) {
       const ph = el.querySelector(".ph");
       ph.insertAdjacentHTML("afterbegin", `<div class="sb"><span>9:41</span><span class="di"></span><span class="ic">●●● ◖</span></div>`);
