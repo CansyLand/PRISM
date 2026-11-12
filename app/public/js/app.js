@@ -64,7 +64,7 @@ function renderPreview() {
   else if (mode === "live" && live?.state?.market && a > Number(live.state.market.max_long_open) / E6) err = `Largest buy right now is ${fmt(Number(live.state.market.max_long_open) / E6)}.`;
   $("buyErr").textContent = err;
   $("buy").disabled = !a || !!err || busy || (mode === "live" && !live?.connected);
-  $("buy").textContent = a ? `Buy ${fmt(a)} at ${pw(p)}` : "Buy";
+  $("buy").textContent = a ? `Buy ${fmt(a, a % 1 ? 2 : 0)}` : "Buy";
 }
 $("amt").addEventListener("input", renderPreview);
 document.querySelectorAll("[data-a]").forEach((b) => (b.onclick = () => { const v = b.dataset.a; $("amt").value = v === "max" ? Math.floor(cash() * 100) / 100 : v; renderPreview(); }));
@@ -107,7 +107,7 @@ function demoClose(why) {
   const m = r.out / r.stake, melted = why === "melted";
   trail.push({ m: exitPx / r.entry - 1, v: m - 1 });
   flip(false); ff(false); chart.mark(null); renderStrength();
-  $("rIco").textContent = r.pnl > 0 ? (m >= 3 ? "🚀" : "🎉") : melted ? "🫠" : "📉";
+  $("rIco").textContent = r.pnl > 0 ? (m >= 3 ? "🚀" : "🎉") : melted ? "🫠" : "☠️";
   $("rTitle").textContent = r.out > 0 ? pct(m - 1, 0) : "Melt Down"; $("rTitle").className = r.out > 0 ? (m >= 1 ? "pos" : "neg") : "neg";
   lastResult = { pts: trail.slice(), p: r.p, melted, out: r.out, mult: m, move: exitPx / r.entry - 1 };
   $("result").querySelector(".modal").className = "modal r-card " + (r.out > 0 && m >= 1 ? "win" : "lose");

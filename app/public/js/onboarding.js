@@ -14,9 +14,9 @@ const SLIDES = [
     draw: drawWick,
   },
   {
-    kicker: "The catch",
+    kicker: "Continuous-Expiry",
     title: "Time melts your position.",
-    text: "That's the price of no liquidation. If the market doesn't rise in time, your position melts down to zero. In the demo, x¹⁰ melts in 20 seconds and x¹ in 40.",
+    text: "Like an ice cream: a dip can't knock it out of your hand, but it slowly melts. That's the small fee you pay every second. If the price rises fast enough, your gains grow faster than it melts. If not, it melts down to zero.",
     draw: drawMelt,
   },
   {
@@ -114,7 +114,7 @@ function crashPath(x) {
   const [x0, y0] = KEYS[k], [x1, y1] = KEYS[k + 1], u = Math.min(1, Math.max(0, (x - x0) / (x1 - x0))), e = (1 - Math.cos(Math.PI * u)) / 2;
   return y0 + (y1 - y0) * e + 0.004 * Math.sin(x * 37) * Math.sin(Math.PI * u);
 }
-const powerV = (x) => Math.pow(crashPath(x), 8) * Math.exp(-0.173 * x), perpV = (x) => 1 + 0.8 * (powerV(x) - 1);
+const powerV = (x) => Math.pow(crashPath(x), 8) * Math.exp(-0.173 * x), perpV = (x) => 1 + 0.5 * (powerV(x) - 1); // first hill half as high as Uprise's
 let LIQ_X = 0.4;
 { // liquidation: halfway (in height) between the perp's peak and Uprise's lowest point
   let peak = 0, peakX = 0, bottom = Infinity;
@@ -140,29 +140,38 @@ function drawWick(ctx, W, H, t) {
   ctx.fillStyle = css("--muted"); ctx.font = `600 12px ${css("--font")}`;
   ctx.fillText(`price ${(crashPath(x) - 1 >= 0 ? "+" : "")}${((crashPath(x) - 1) * 100).toFixed(1)}%`, pad, pad + 4);
 }
-// Slide 3: the same position twice, with a timer draining on top. Flat market: the value melts in a
-// straight line and fades to gray, ending in a Melt Down. Rising market: the curve outruns the melt.
+// Slide 3: the Melt Down card come to life. The market (gray candles) barely moves, the x⁶ curve (on the
+// same % scale) melts a little more every moment, fades to gray and ends at the red MELT DOWN line.
+const P3 = 6, N3 = 24, mkt3 = (u) => 0.03 * Math.sin(u * 9) + 0.012 * Math.sin(u * 31 + 2) + 0.02 * u, val3 = (u) => Math.pow(1 + mkt3(u), P3) * (1 - u) - 1;
 function drawMelt(ctx, W, H, t) {
-  const T = 6, x = Math.min(1, (t % (T + 2)) / T), pad = 14, X = (u) => pad + u * (W - 150);
-  const flat = (u) => 1 - u, rise = (u) => Math.pow(1 + 0.3 * u, 5) * (1 - 0.55 * u), hi = 2.1;
-  const Y = (v) => H - pad - v / hi * (H - 2 * pad - 34);
-  // timer bar
-  const bw = W - 2 * pad; ctx.fillStyle = css("--panel2"); ctx.fillRect(pad, pad, bw, 8);
-  ctx.fillStyle = css(x < 0.8 ? "--gold" : "--down"); ctx.fillRect(pad, pad, bw * (1 - x), 8);
-  ctx.font = `600 11px ${css("--font")}`; ctx.fillStyle = css("--muted"); ctx.textAlign = "left"; ctx.fillText(`⏱ time left ${Math.round((1 - x) * 100)}%`, pad, pad + 24);
-  ctx.strokeStyle = css("--line"); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(pad, Y(1)); ctx.lineTo(W - 20, Y(1)); ctx.stroke();
-  const gray = css("--muted");
-  for (let k = 1; k <= 90; k++) {
-    const u0 = ((k - 1) / 90) * x, u1 = (k / 90) * x;
-    ctx.lineCap = "round"; ctx.lineWidth = 3;
-    ctx.strokeStyle = `color-mix(in srgb, ${css("--down")} ${Math.round(100 - 85 * u1)}%, ${gray})`;
-    ctx.beginPath(); ctx.moveTo(X(u0), Y(flat(u0))); ctx.lineTo(X(u1), Y(flat(u1))); ctx.stroke();
-    ctx.strokeStyle = css("--up"); ctx.beginPath(); ctx.moveTo(X(u0), Y(rise(u0))); ctx.lineTo(X(u1), Y(rise(u1))); ctx.stroke();
+  const T = 6, x = Math.min(1, (t % (T + 2)) / T), pad = 14, R = W - 100, X = (u) => pad + u * (R - pad);
+  const lo = -1.08, hi = 0.45, Y = (v) => pad + 30 + (hi - v) / (hi - lo) * (H - 2 * pad - 30);
+  ctx.setLineDash([3, 3]); ctx.strokeStyle = css("--line"); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(pad, Y(0)); ctx.lineTo(R, Y(0)); ctx.stroke(); ctx.setLineDash([]);
+  const slot = (R - pad) / N3;
+  for (let k = 0; k < N3; k++) {
+    const u0 = k / N3; if (u0 > x) break;
+    const u1 = Math.min(x, (k + 1) / N3), o = mkt3(u0), c = mkt3(u1), h = Math.max(o, c) + 0.012, l = Math.min(o, c) - 0.01, cx = X(u0) + slot / 2;
+    ctx.strokeStyle = ctx.fillStyle = css(c >= o ? "--muted" : "--line");
+    ctx.beginPath(); ctx.moveTo(cx, Y(h)); ctx.lineTo(cx, Y(l)); ctx.stroke();
+    ctx.fillRect(cx - slot * 0.3, Y(Math.max(o, c)), slot * 0.6, Math.max(1, Y(Math.min(o, c)) - Y(Math.max(o, c))));
   }
-  ctx.font = `700 12px ${css("--mono")}`; ctx.textAlign = "left";
-  ctx.fillStyle = css("--up"); ctx.fillText(`price rises: ${pnl(rise(x))}`, X(x) + 8, Y(rise(x)) + 4);
-  if (x >= 1) { ctx.font = "20px sans-serif"; ctx.textAlign = "center"; ctx.fillText("🫠", X(1), Y(0) - 12); ctx.textAlign = "left"; ctx.font = `800 12px ${css("--font")}`; ctx.fillStyle = css("--down"); ctx.fillText("MELT DOWN", X(1) + 14, Y(0) - 8); }
-  else { ctx.fillStyle = gray; ctx.fillText(`price flat: ${pnl(flat(x))}`, X(x) + 8, Y(flat(x)) + 4); }
+  const up = css("--up"), down = css("--down"), gray = css("--muted");
+  ctx.lineWidth = 3.2; ctx.lineCap = "round";
+  for (let k = 1; k <= 120; k++) {
+    const u0 = ((k - 1) / 120) * x, u1 = (k / 120) * x, base = val3(u1) >= 0 ? up : down;
+    ctx.strokeStyle = `color-mix(in srgb, ${base} ${Math.round(100 - 85 * u1)}%, ${gray})`;
+    ctx.beginPath(); ctx.moveTo(X(u0), Y(val3(u0))); ctx.lineTo(X(u1), Y(val3(u1))); ctx.stroke();
+  }
+  ctx.fillStyle = up; ctx.textAlign = "left"; ctx.font = `800 20px ${css("--font")}`; ctx.fillText(pw(P3), pad + 2, Y(0) - 26);
+  ctx.font = `700 11px ${css("--font")}`; ctx.fillText("curve", pad + 3, Y(0) - 12);
+  ctx.font = `700 12px ${css("--mono")}`; ctx.fillStyle = gray; ctx.fillText(`market ${pnl(1 + mkt3(x))}`, R + 6, Y(mkt3(x)) + 4);
+  if (x < 1) { ctx.fillStyle = `color-mix(in srgb, ${val3(x) >= 0 ? up : down} ${Math.round(100 - 85 * x)}%, ${gray})`; ctx.fillText(pnl(1 + val3(x)), R + 6, Y(val3(x)) + 4); }
+  // time left
+  ctx.font = `600 11px ${css("--font")}`; ctx.fillStyle = gray; ctx.fillText(`⏱ time left ${Math.round((1 - x) * 100)}%`, pad, pad + 4);
+  if (x >= 1) {
+    ctx.strokeStyle = down; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(X(1), pad + 14); ctx.lineTo(X(1), H - pad); ctx.stroke();
+    ctx.fillStyle = down; ctx.font = `800 12px ${css("--font")}`; ctx.textAlign = "right"; ctx.fillText("MELT DOWN 🫠", X(1) - 6, pad + 26);
+  }
 }
 function pnl(v) { return (v >= 1 ? "+" : "−") + Math.abs((v - 1) * 100).toFixed(0) + "%"; }
 function drawCoins(ctx, W, H, t) {
