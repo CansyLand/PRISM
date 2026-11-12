@@ -94,7 +94,7 @@ input[type=range] { width: 100%; accent-color: var(--up); margin: 6px 0 0; }
 #vBtn.soft { opacity: .7; }
 .r-head { display: flex; justify-content: space-between; align-items: center; margin: -6px 0 2px; }
 .r-logo { color: var(--ink); } .mark-svg { display: block; height: 54px; width: auto; }
-.r-asset { color: var(--ink); } .near-svg { display: block; height: 30px; width: 30px; }
+.r-asset { color: var(--ink); display: flex; align-items: center; gap: 8px; } .r-asset b { font-weight: 800; font-size: 20px; letter-spacing: .02em; } .near-svg { display: block; height: 26px; width: 26px; }
 .r-hero { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 10px 0 2px; }
 .r-emoji { font-size: 40px; line-height: 1; }
 .r-pct { font-family: var(--font); font-weight: 900; font-size: clamp(44px, 14vw, 60px); letter-spacing: -.045em; line-height: 1; }
