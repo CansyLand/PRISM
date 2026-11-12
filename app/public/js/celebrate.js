@@ -1,6 +1,7 @@
-// "Supernova" celebration for reaching x¹⁰: a white flash, a gold shockwave ring, gold $ signs that spin
-// and flip, and white star sparkles that glitter. Draws on a full-screen canvas that only exists while it runs.
+// "Supernova" celebration for reaching x¹⁰: a dark purple nebula opens behind it (so the gold shows on the
+// colorful app), then a gold shockwave ring, gold $ signs that spin and flip, and white sparkles that glitter. Draws on a full-screen canvas that only exists while it runs.
 const rnd = (a, b) => a + Math.random() * (b - a), pick = (a) => a[Math.floor(Math.random() * a.length)];
+const NEB_HOLD = 1.2, NEB_FADE = 1.4;
 const GOLD = ["#f5c542", "#ffd60a", "#ffb020", "#ffe58a"];
 
 export function supernova(x, y) {
@@ -16,7 +17,12 @@ export function supernova(x, y) {
   const frame = (now) => {
     const dt = Math.max(0, Math.min(0.033, (now - last) / 1000)); last = now; t += dt;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
-    if (t < 0.35) { const a = 1 - t / 0.35, g = ctx.createRadialGradient(x, y, 0, x, y, 220); g.addColorStop(0, `rgba(255,255,255,${0.85 * a})`); g.addColorStop(1, "rgba(255,255,255,0)"); ctx.fillStyle = g; ctx.fillRect(x - 220, y - 220, 440, 440); }
+    // purple nebula: grows in 0.18 s, holds 1.2 s, fades over 1.4 s
+    if (t < NEB_HOLD + NEB_FADE) {
+      const a = t < NEB_HOLD ? 1 : 1 - (t - NEB_HOLD) / NEB_FADE, R = 340 * (0.55 + 0.45 * Math.min(1, t / 0.18)), g = ctx.createRadialGradient(x, y, 0, x, y, R);
+      g.addColorStop(0, "rgba(20,6,46,1)"); g.addColorStop(0.4, "rgba(58,18,120,.92)"); g.addColorStop(0.75, "rgba(120,60,220,.55)"); g.addColorStop(1, "rgba(120,60,220,0)");
+      ctx.save(); ctx.globalAlpha = a; ctx.fillStyle = g; ctx.fillRect(x - R, y - R, 2 * R, 2 * R); ctx.restore();
+    }
     if (t < 0.7) { const a = 1 - t / 0.7; ctx.save(); ctx.strokeStyle = `rgba(245,197,66,${a})`; ctx.lineWidth = 6 * a + 1; ctx.shadowColor = "#f5c542"; ctx.shadowBlur = 30; ctx.beginPath(); ctx.arc(x, y, t * 520, 0, 7); ctx.stroke(); ctx.restore(); }
     ctx.textAlign = "center"; ctx.textBaseline = "middle";
     for (const p of ps) {
@@ -27,7 +33,7 @@ export function supernova(x, y) {
       else { ctx.fillStyle = p.color; ctx.font = `900 ${p.size}px "Inter Tight", sans-serif`; ctx.scale(Math.cos(p.age * p.flip) || 1, 1); ctx.fillText("$", 0, 0); }
       ctx.restore();
     }
-    if (ps.some((p) => p.age < p.life)) requestAnimationFrame(frame); else cv.remove();
+    if (t < NEB_HOLD + NEB_FADE || ps.some((p) => p.age < p.life)) requestAnimationFrame(frame); else cv.remove();
   };
   requestAnimationFrame(frame);
 }
