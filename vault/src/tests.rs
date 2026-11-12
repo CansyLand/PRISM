@@ -29,8 +29,10 @@ fn setup() -> Contract {
         acc("keeper.near"),
         acc("ledger.near"),
         acc("usdc.near"),
-        acc("btc.near"),
+        acc("asset.near"),
+        8,
         acc("swap.near"),
+        Venue::Mock,
         U128(usd(1)),
     )
 }
@@ -40,14 +42,14 @@ fn ok(v: serde_json::Value) -> PromiseResult {
 }
 
 /// Simulate a sync that sees these balances.
-fn sync(c: &mut Contract, ts: u64, usdc: u128, btc: u128, free: u128, short_shares: u128, short_value: u128, claims: u128, pool_shares: u128) {
+fn sync(c: &mut Contract, ts: u64, usdc: u128, asset: u128, free: u128, short_shares: u128, short_value: u128, claims: u128, pool_shares: u128) {
     let account = if short_shares == 0 && free == 0 {
         serde_json::Value::Null
     } else {
         json!({ "free": free.to_string(), "short_shares": short_shares.to_string(), "short_value": short_value.to_string() })
     };
     let market = json!({ "price": PX.to_string(), "price_fresh": true, "power": 3, "long_claims": claims.to_string(), "short_shares": pool_shares.to_string() });
-    ctx("vault.near", ts, vec![ok(account), ok(market), ok(json!(usdc.to_string())), ok(json!(btc.to_string()))]);
+    ctx("vault.near", ts, vec![ok(account), ok(market), ok(json!(usdc.to_string())), ok(json!(asset.to_string()))]);
     c.on_sync();
 }
 
@@ -161,7 +163,7 @@ fn strangers_cannot_move_funds() {
 #[should_panic(expected = "only USDC deposits")]
 fn rejects_other_tokens() {
     let mut c = setup();
-    ctx("btc.near", T0, vec![]);
+    ctx("asset.near", T0, vec![]);
     let _ = c.ft_on_transfer(acc("alice.near"), U128(1_000), "deposit".into());
 }
 
@@ -171,4 +173,18 @@ fn failed_sync_marks_snapshot_stale() {
     ctx("vault.near", T0, vec![PromiseResult::Failed, PromiseResult::Failed, PromiseResult::Failed, PromiseResult::Failed]);
     c.on_sync();
     assert!(!c.get_vault().fresh);
+}
+
+#[test]
+fn ref_dcl_swap_message_names_pool_and_min_out() {
+    let mut c = setup();
+    c.venue = Venue::RefDcl { pool_id: "usdc.near|wrap.near|100".into() };
+    let m = c.swap_msg(&acc("usdc.near"), 1234);
+    assert_eq!(m, r#"{"Swap":{"pool_ids":["usdc.near|wrap.near|100"],"output_token":"usdc.near","min_output_amount":"1234"}}"#);
+}
+
+#[test]
+fn wnear_decimals_do_not_overflow() {
+    // 1,000,000 wNEAR (24 dp) at $3.60: value = 3.6M USDC.
+    assert_eq!(mul_div(1_000_000 * 10u128.pow(24), 3_600_000, 10u128.pow(24)), 3_600_000_000_000);
 }

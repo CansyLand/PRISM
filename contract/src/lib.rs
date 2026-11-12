@@ -190,6 +190,8 @@ pub struct Contract {
     /// Tracked USDC we owe in total. Must be ≤ the real token balance.
     pub(crate) treasury: u128,
     pub(crate) open_paused: bool,
+    /// Set by `emergency_withdraw`: every trade and withdrawal stops for good.
+    pub(crate) emergency: bool,
     pub(crate) accounts: IterableMap<AccountId, Account>,
     pub(crate) managers: IterableSet<AccountId>,
     pub(crate) snapshots: LookupMap<u64, Snapshot>,
@@ -248,6 +250,7 @@ impl Contract {
             fees: 0,
             treasury: 0,
             open_paused: false,
+            emergency: false,
             accounts: IterableMap::new(StorageKey::Accounts),
             managers: IterableSet::new(StorageKey::Managers),
             snapshots: LookupMap::new(StorageKey::Snapshots),
@@ -417,6 +420,7 @@ impl Contract {
 
     /// Books pending funding: NF decays, and the protocol fee moves from R to fees.
     pub(crate) fn accrue(&mut self) {
+        require!(!self.emergency, "market is in emergency shutdown");
         let (nf, funding, fee) = self.pending_accrual();
         let now = now_secs();
         if now > self.last_accrual_ts {

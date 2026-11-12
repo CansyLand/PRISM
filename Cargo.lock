@@ -2473,6 +2473,7 @@ dependencies = [
  "near-contract-standards",
  "near-sdk",
  "serde_json",
+ "uint",
 ]
 
 [[package]]
@@ -2482,6 +2483,7 @@ dependencies = [
  "near-contract-standards",
  "near-sdk",
  "serde_json",
+ "uint",
 ]
 
 [[package]]

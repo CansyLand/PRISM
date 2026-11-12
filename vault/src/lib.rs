@@ -1,8 +1,8 @@
-//! Uprise hedged vault ("Crab"): the Curve Short side, delta-hedged with BTC.
+//! Uprise hedged vault ("Crab"): the Curve Short side, delta-hedged with the underlying (wNEAR on mainnet, BTC or wNEAR on testnet).
 //!
 //! Yield hunters deposit USDC and get vault shares. The vault is an ordinary account in the
 //! Uprise ledger: it opens Curve Short with part of its cash and holds `p × long claims` worth of
-//! BTC (pro rata to its share of the short pool) so a BTC move barely changes its value. What is
+//! the underlying (pro rata to its share of the short pool) so a price move barely changes its value. What is
 //! left is the funding that Curve Long pays.
 //!
 //! Pricing: deposits and withdrawals are queued and settle at the next `sync()`, which reads the
@@ -24,7 +24,6 @@ use near_sdk::{
     PromiseOrValue,
 };
 
-const BTC_UNIT: u128 = 100_000_000;
 const MAX_QUEUE: usize = 40;
 const GAS_VIEW: Gas = Gas::from_tgas(10);
 const GAS_FT: Gas = Gas::from_tgas(10);
@@ -83,15 +82,25 @@ trait SelfCallbacks {
     fn on_paid(&mut self, account_id: AccountId, amount: U128);
 }
 
+/// Where the hedge trades. `Mock`: the testnet oracle-priced swap (`{"min_out": …}`).
+/// `RefDcl`: Ref Finance concentrated-liquidity pool on mainnet, e.g.
+/// `17208628…133a1|wrap.near|100` on `dclv2.ref-labs.near` (output comes back to the vault).
+#[near(serializers = [borsh, json])]
+#[derive(Clone, Debug)]
+pub enum Venue {
+    Mock,
+    RefDcl { pool_id: String },
+}
+
 #[near(serializers = [borsh, json])]
 #[derive(Clone, Default, Debug)]
 pub struct Snapshot {
     pub ts: u64,
     /// USDC held by the vault itself (includes queued deposits).
     pub usdc: U128,
-    /// BTC held as the hedge (8 dp).
-    pub btc: U128,
-    /// Ledger oracle price, USDC 6 dp per BTC.
+    /// Hedge asset held (raw units of its token).
+    pub asset: U128,
+    /// Ledger oracle price, USDC 6 dp per 1 whole asset.
     pub price: U128,
     pub power: u8,
     /// Vault's Curve Short value and its free balance inside the ledger.
@@ -115,7 +124,7 @@ pub struct Pending {
 pub struct VaultView {
     pub ledger: AccountId,
     pub usdc: AccountId,
-    pub btc: AccountId,
+    pub asset: AccountId,
     pub swap: AccountId,
     pub keeper: AccountId,
     pub total_shares: U128,
@@ -124,7 +133,7 @@ pub struct VaultView {
     pub snapshot: Snapshot,
     pub snapshot_age_secs: u64,
     pub fresh: bool,
-    pub hedge_btc_value: U128,
+    pub hedge_value: U128,
     /// Hedge value minus target (USDC): positive = over-hedged.
     pub hedge_error_usd: I128,
     pub pending_deposits: Vec<Pending>,
@@ -151,8 +160,11 @@ pub struct Contract {
     keeper: AccountId,
     ledger: AccountId,
     usdc: AccountId,
-    btc: AccountId,
+    asset: AccountId,
+    /// 10^decimals of the hedge asset (1e8 for BTC, 1e24 for wNEAR).
+    asset_unit: u128,
     swap: AccountId,
+    venue: Venue,
     total_shares: u128,
     shares: LookupMap<AccountId, u128>,
     /// Payouts that failed (receiver not registered on the token); claim with `claim_owed`.
@@ -175,10 +187,23 @@ fn now() -> u64 {
     env::block_timestamp() / 1_000_000_000
 }
 
-fn mul_div(a: u128, b: u128, c: u128) -> u128 {
-    // a·b fits in u128 for USDC/BTC amounts used here (≤ 1e30); checked so it reverts otherwise.
-    a.checked_mul(b).unwrap_or_else(|| env::panic_str("overflow")) / c
+#[allow(deprecated, semicolon_in_expressions_from_macros, clippy::all)]
+mod u256 {
+    uint::construct_uint! {
+        pub struct U256(4);
+    }
 }
+use u256::U256;
+
+/// a·b/c in 256-bit, so 24-decimal assets (wNEAR) can't overflow. Panics if the result exceeds u128.
+fn mul_div(a: u128, b: u128, c: u128) -> u128 {
+    let r = U256::from(a) * U256::from(b) / U256::from(c);
+    if r > U256::from(u128::MAX) {
+        env::panic_str("overflow");
+    }
+    r.as_u128()
+}
+
 
 fn result_json<T: for<'de> Deserialize<'de>>(i: u64) -> Option<T> {
     match env::promise_result_checked(i, 64 * 1024) {
@@ -195,8 +220,10 @@ impl Contract {
         keeper: AccountId,
         ledger: AccountId,
         usdc: AccountId,
-        btc: AccountId,
+        asset: AccountId,
+        asset_decimals: u8,
         swap: AccountId,
+        venue: Venue,
         min_deposit: U128,
     ) -> Self {
         Self {
@@ -204,8 +231,10 @@ impl Contract {
             keeper,
             ledger,
             usdc,
-            btc,
+            asset,
+            asset_unit: 10u128.pow(asset_decimals as u32),
             swap,
+            venue,
             total_shares: 0,
             shares: LookupMap::new(Key::Shares),
             owed: LookupMap::new(Key::Owed),
@@ -255,7 +284,7 @@ impl Contract {
             .get_account(me.clone())
             .and(ext_ledger::ext(self.ledger.clone()).with_static_gas(GAS_VIEW).get_market())
             .and(ext_ft_core::ext(self.usdc.clone()).with_static_gas(GAS_VIEW).ft_balance_of(me.clone()))
-            .and(ext_ft_core::ext(self.btc.clone()).with_static_gas(GAS_VIEW).ft_balance_of(me.clone()))
+            .and(ext_ft_core::ext(self.asset.clone()).with_static_gas(GAS_VIEW).ft_balance_of(me.clone()))
             .then(ext_self::ext(me).with_static_gas(GAS_ON_SYNC).on_sync())
     }
 
@@ -264,8 +293,8 @@ impl Contract {
         let acc: Option<Option<LedgerAccount>> = result_json(0);
         let market: Option<LedgerMarket> = result_json(1);
         let usdc: Option<U128> = result_json(2);
-        let btc: Option<U128> = result_json(3);
-        let (Some(acc), Some(m), Some(usdc), Some(btc)) = (acc, market, usdc, btc) else {
+        let asset: Option<U128> = result_json(3);
+        let (Some(acc), Some(m), Some(usdc), Some(asset)) = (acc, market, usdc, asset) else {
             self.snap_valid = false;
             log!("sync failed: a view call did not return");
             return;
@@ -276,9 +305,9 @@ impl Contract {
         let price = m.price.0;
         // Tokens owed to people (failed payouts) still sit in our USDC balance.
         let mut cash = usdc.0.saturating_sub(self.owed_total);
-        let btc_value = mul_div(btc.0, price, BTC_UNIT);
+        let asset_value = mul_div(asset.0, price, self.asset_unit);
         let queued: u128 = self.deposits.iter().map(|d| d.amount.0).sum();
-        let nav_before = (cash + btc_value + short_value + free).saturating_sub(queued);
+        let nav_before = (cash + asset_value + short_value + free).saturating_sub(queued);
         // Mint queued deposits at the pre-deposit price.
         let deposits = std::mem::take(&mut self.deposits);
         let mut nav = nav_before;
@@ -322,7 +351,7 @@ impl Contract {
         self.snap = Snapshot {
             ts: now(),
             usdc: U128(cash),
-            btc: btc,
+            asset: asset,
             price: m.price,
             power: m.power,
             short_value: U128(short_value),
@@ -375,35 +404,35 @@ impl Contract {
             .withdraw(amount, None, None, None, None)
     }
 
-    /// Buy BTC with `usdc_amount`; only allowed while the hedge is below target.
+    /// Buy the hedge asset with `usdc_amount`; only allowed while the hedge is below target.
     pub fn hedge_buy(&mut self, usdc_amount: U128) -> near_sdk::Promise {
         self.keeper_step();
-        let have = mul_div(self.snap.btc.0, self.snap.price.0, BTC_UNIT);
+        let have = mul_div(self.snap.asset.0, self.snap.price.0, self.asset_unit);
         let target = self.snap.hedge_target_usd.0;
         require!(have < target, "hedge is already at or above target");
         require!(usdc_amount.0 <= (target - have) * 105 / 100 + 1_000_000, "buy overshoots the hedge target");
         require!(usdc_amount.0 <= self.snap.usdc.0, "more than the vault's cash");
-        let min_btc = mul_div(usdc_amount.0, BTC_UNIT, self.snap.price.0) * 98 / 100;
+        let min_asset = mul_div(usdc_amount.0, self.asset_unit, self.snap.price.0) * 98 / 100;
         ext_ft_core::ext(self.usdc.clone())
             .with_attached_deposit(NearToken::from_yoctonear(1))
             .with_static_gas(GAS_FT_CALL)
-            .ft_transfer_call(self.swap.clone(), usdc_amount, None, json!({ "min_out": U128(min_btc) }).to_string())
+            .ft_transfer_call(self.swap.clone(), usdc_amount, None, self.swap_msg(&self.asset.clone(), min_asset))
     }
 
-    /// Sell `btc_amount` of BTC; only allowed while the hedge is above target.
-    pub fn hedge_sell(&mut self, btc_amount: U128) -> near_sdk::Promise {
+    /// Sell `asset_amount` of the hedge asset; only allowed while the hedge is above target.
+    pub fn hedge_sell(&mut self, asset_amount: U128) -> near_sdk::Promise {
         self.keeper_step();
-        let have = mul_div(self.snap.btc.0, self.snap.price.0, BTC_UNIT);
+        let have = mul_div(self.snap.asset.0, self.snap.price.0, self.asset_unit);
         let target = self.snap.hedge_target_usd.0;
         require!(have > target, "hedge is already at or below target");
-        let value = mul_div(btc_amount.0, self.snap.price.0, BTC_UNIT);
+        let value = mul_div(asset_amount.0, self.snap.price.0, self.asset_unit);
         require!(value <= (have - target) * 105 / 100 + 1_000_000, "sell overshoots the hedge target");
-        require!(btc_amount.0 <= self.snap.btc.0, "more BTC than the vault holds");
+        require!(asset_amount.0 <= self.snap.asset.0, "more of the asset than the vault holds");
         let min_usdc = value * 98 / 100;
-        ext_ft_core::ext(self.btc.clone())
+        ext_ft_core::ext(self.asset.clone())
             .with_attached_deposit(NearToken::from_yoctonear(1))
             .with_static_gas(GAS_FT_CALL)
-            .ft_transfer_call(self.swap.clone(), btc_amount, None, json!({ "min_out": U128(min_usdc) }).to_string())
+            .ft_transfer_call(self.swap.clone(), asset_amount, None, self.swap_msg(&self.usdc.clone(), min_usdc))
     }
 
     // ── owner ──
@@ -419,16 +448,31 @@ impl Contract {
         self.max_snapshot_age_secs = secs;
     }
 
+    /// Owner emergency exit: send any token the vault holds (USDC, the hedge asset) to `receiver_id`.
+    /// Combined with `deallocate` + `pull` (which the owner may also call) this empties the vault.
+    /// Logged as an event; depositors should know the owner holds this power.
+    #[payable]
+    pub fn emergency_withdraw(&mut self, token: AccountId, amount: U128, receiver_id: AccountId) -> near_sdk::Promise {
+        near_sdk::assert_one_yocto();
+        require!(env::predecessor_account_id() == self.owner, "only owner");
+        self.snap_valid = false;
+        emit("emergency_withdraw", json!({ "token": token, "amount": amount, "receiver_id": receiver_id }));
+        ext_ft_core::ext(token)
+            .with_attached_deposit(NearToken::from_yoctonear(1))
+            .with_static_gas(GAS_FT)
+            .ft_transfer(receiver_id, amount, Some("uprise vault emergency".into()))
+    }
+
     // ── views ──
 
     pub fn get_vault(&self) -> VaultView {
         let s = &self.snap;
-        let hedge_value = if s.price.0 == 0 { 0 } else { mul_div(s.btc.0, s.price.0, BTC_UNIT) };
+        let hedge_value = if s.price.0 == 0 { 0 } else { mul_div(s.asset.0, s.price.0, self.asset_unit) };
         let age = now().saturating_sub(s.ts);
         VaultView {
             ledger: self.ledger.clone(),
             usdc: self.usdc.clone(),
-            btc: self.btc.clone(),
+            asset: self.asset.clone(),
             swap: self.swap.clone(),
             keeper: self.keeper.clone(),
             total_shares: U128(self.total_shares),
@@ -436,7 +480,7 @@ impl Contract {
             snapshot: s.clone(),
             snapshot_age_secs: age,
             fresh: self.snap_valid && age <= self.max_snapshot_age_secs,
-            hedge_btc_value: U128(hedge_value),
+            hedge_value: U128(hedge_value),
             hedge_error_usd: I128(hedge_value as i128 - s.hedge_target_usd.0 as i128),
             pending_deposits: self.deposits.clone(),
             pending_withdrawals: self.withdrawals.clone(),
@@ -463,6 +507,16 @@ impl Contract {
 }
 
 impl Contract {
+    fn swap_msg(&self, token_out: &AccountId, min_out: u128) -> String {
+        match &self.venue {
+            Venue::Mock => json!({ "min_out": U128(min_out) }).to_string(),
+            Venue::RefDcl { pool_id } => json!({
+                "Swap": { "pool_ids": [pool_id], "output_token": token_out, "min_output_amount": U128(min_out) }
+            })
+            .to_string(),
+        }
+    }
+
     fn keeper_step(&mut self) {
         let caller = env::predecessor_account_id();
         require!(caller == self.keeper || caller == self.owner, "only the keeper");

@@ -183,6 +183,26 @@ fn realized_vol_tracks_the_oracle_and_lifts_funding() {
     assert!(c.get_market().realized_vol_bps <= 12_000);
 }
 
+#[test]
+#[should_panic(expected = "emergency shutdown")]
+fn emergency_withdraw_stops_the_market() {
+    let mut c = setup(params());
+    deposit(&mut c, "alice.near", usd(1_000), T0, "");
+    ctx("owner.near", T0, 1);
+    let _ = c.emergency_withdraw(U128(usd(1_000)), acc("owner.near"));
+    assert!(c.get_market().emergency);
+    ctx("alice.near", T0, 0);
+    c.open_short(U128(usd(100)), None, None);
+}
+
+#[test]
+#[should_panic(expected = "owner only")]
+fn only_owner_can_emergency_withdraw() {
+    let mut c = setup(params());
+    ctx("alice.near", T0, 1);
+    let _ = c.emergency_withdraw(U128(1), acc("alice.near"));
+}
+
 fn setup(p: Params) -> Contract {
     ctx("owner.near", T0, 0);
     let mut c = Contract::new(

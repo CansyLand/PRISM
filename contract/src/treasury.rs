@@ -142,6 +142,7 @@ impl Contract {
         msg: Option<String>,
     ) -> near_sdk::Promise {
         assert_one_yocto();
+        require!(!self.emergency, "market is in emergency shutdown");
         let who = self.resolve_withdrawer(account_id);
         let amount = amount.0;
         require!(amount > 0, "zero amount");
@@ -162,6 +163,22 @@ impl Contract {
             }),
         );
         self.send(Payee::Account(who), receiver, amount, memo, msg)
+    }
+
+    /// Owner emergency exit: send `amount` of the collateral token to `receiver_id` and stop all
+    /// trading. Bypasses account balances on purpose, so users' claims are no longer backed after it.
+    /// It exists for a contract bug or exploit in progress; every use is an on-chain event.
+    #[payable]
+    pub fn emergency_withdraw(&mut self, amount: U128, receiver_id: AccountId) -> near_sdk::Promise {
+        assert_one_yocto();
+        self.assert_owner();
+        self.open_paused = true;
+        self.emergency = true;
+        emit("emergency_withdraw", json!({ "amount": amount, "receiver_id": receiver_id }));
+        ext_ft_core::ext(self.token.clone())
+            .with_attached_deposit(NearToken::from_yoctonear(1))
+            .with_static_gas(GAS_FT_TRANSFER)
+            .ft_transfer(receiver_id, amount, Some("uprise emergency".into()))
     }
 
     /// Owner: send accumulated protocol fees out.

@@ -48,6 +48,7 @@ pub struct MarketView {
     pub fees: U128,
     pub treasury: U128,
     pub open_paused: bool,
+    pub emergency: bool,
 }
 
 #[near(serializers = [json])]
@@ -171,6 +172,7 @@ impl Contract {
             fees: U128(self.fees + l.fee_pending),
             treasury: U128(self.treasury),
             open_paused: self.open_paused,
+            emergency: self.emergency,
         }
     }
 

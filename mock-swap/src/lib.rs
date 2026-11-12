@@ -1,4 +1,4 @@
-//! Testnet-only swap between mock USDC (6 dp) and mock BTC (8 dp) at an oracle price.
+//! Testnet-only swap between mock USDC (6 dp) and a mock hedge asset (BTC 8 dp, wNEAR 24 dp) at an oracle price.
 //! Stands in for a real DEX so the hedged vault's rebalancing can be tested end to end.
 //! The keeper pushes the same price here and to the ledger. Reserves are tracked, so a swap
 //! larger than the reserve reverts and the input is refunded by the token.
@@ -13,7 +13,6 @@ use near_sdk::json_types::U128;
 use near_sdk::serde_json::{self, json};
 use near_sdk::{env, log, near, require, AccountId, Gas, NearToken, PanicOnDefault, PromiseOrValue};
 
-const BTC_UNIT: u128 = 100_000_000; // 1 BTC in raw units (8 dp)
 const BPS: u128 = 10_000;
 
 #[near(contract_state)]
@@ -23,7 +22,9 @@ pub struct Contract {
     pusher: AccountId,
     usdc: AccountId,
     btc: AccountId,
-    /// USDC (6 dp) per 1 BTC.
+    /// 10^decimals of the asset token (1e8 for BTC, 1e24 for wNEAR).
+    asset_unit: u128,
+    /// USDC (6 dp) per 1 whole asset.
     price: u128,
     price_ts: u64,
     fee_bps: u16,
@@ -52,6 +53,23 @@ pub struct SwapView {
     pub volume_usdc: U128,
 }
 
+#[allow(deprecated, semicolon_in_expressions_from_macros, clippy::all)]
+mod u256 {
+    uint::construct_uint! {
+        pub struct U256(4);
+    }
+}
+use u256::U256;
+
+/// a·b/c in 256-bit, so 24-decimal assets (wNEAR) can't overflow. Panics if the result exceeds u128.
+fn mul_div(a: u128, b: u128, c: u128) -> u128 {
+    let r = U256::from(a) * U256::from(b) / U256::from(c);
+    if r > U256::from(u128::MAX) {
+        env::panic_str("overflow");
+    }
+    r.as_u128()
+}
+
 fn now() -> u64 {
     env::block_timestamp() / 1_000_000_000
 }
@@ -59,13 +77,14 @@ fn now() -> u64 {
 #[near]
 impl Contract {
     #[init]
-    pub fn new(owner: AccountId, pusher: AccountId, usdc: AccountId, btc: AccountId, fee_bps: u16) -> Self {
+    pub fn new(owner: AccountId, pusher: AccountId, usdc: AccountId, btc: AccountId, asset_decimals: u8, fee_bps: u16) -> Self {
         require!(fee_bps <= 100, "fee too high");
         Self {
             owner,
             pusher,
             usdc,
             btc,
+            asset_unit: 10u128.pow(asset_decimals as u32),
             price: 0,
             price_ts: 0,
             fee_bps,
@@ -123,10 +142,10 @@ impl Contract {
     fn out_for(&self, token_in: &AccountId, amount: u128) -> u128 {
         require!(self.price > 0, "no price yet");
         let gross = if *token_in == self.usdc {
-            amount * BTC_UNIT / self.price
+            mul_div(amount, self.asset_unit, self.price)
         } else {
             require!(*token_in == self.btc, "unknown token");
-            amount * self.price / BTC_UNIT
+            mul_div(amount, self.price, self.asset_unit)
         };
         gross * (BPS - self.fee_bps as u128) / BPS
     }
