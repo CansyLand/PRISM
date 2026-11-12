@@ -88,6 +88,30 @@
   .t10 .tabs { position: absolute; left: 14px; right: 14px; bottom: 16px; border: 0; border-radius: 999px; background: rgba(40,40,48,.45); box-shadow: var(--sh); padding: 6px; }
   .t10 .tabs span { border-radius: 999px; font-weight: 600; } .t10 .tabs span.on { background: rgba(255,255,255,.14); color: #fff; padding: 5px 24px; font-size: 11px; } .t10 .tabs span.on i { font-size: 20px; }
   .t10 .hb { position: absolute; bottom: 6px; left: 50%; width: 130px; height: 5px; margin-left: -65px; border-radius: 3px; background: rgba(255,255,255,.8); }
+  .t10 .lights { position: absolute; inset: 0; z-index: 0; overflow: hidden; background: #08060f; }
+  .t10 .lights i { position: absolute; width: 320px; height: 320px; border-radius: 50%; filter: blur(8px); opacity: .85; }
+  .t10 .lights .l1 { background: radial-gradient(circle, hsl(var(--h1, 265) 85% 60%) 0%, transparent 68%); left: -90px; top: 40px; animation: float1 19s ease-in-out infinite alternate; }
+  .t10 .lights .l2 { background: radial-gradient(circle, hsl(var(--h2, 330) 85% 60%) 0%, transparent 68%); right: -110px; bottom: 60px; animation: float2 23s ease-in-out infinite alternate; }
+  .t10 .lights::after { content: ""; position: absolute; inset: 0; background: radial-gradient(rgba(255,255,255,.18) 1.2px, transparent 1.4px) 0 0/16px 16px; }
+  @keyframes float1 { 0% { transform: translate(0, 0) scale(1); } 35% { transform: translate(140px, 180px) scale(1.15); } 70% { transform: translate(40px, 380px) scale(.9); } 100% { transform: translate(170px, 90px) scale(1.05); } }
+  @keyframes float2 { 0% { transform: translate(0, 0) scale(1); } 30% { transform: translate(-150px, -220px) scale(.9); } 65% { transform: translate(-40px, -420px) scale(1.2); } 100% { transform: translate(-180px, -120px) scale(1); } }
+  @media (prefers-reduced-motion: reduce) { .t10 .lights i { animation: none; } }
+  .t10 .scr, .t10 .hb { position: relative; z-index: 1; } .t10 .tabs { z-index: 1; } .t10 .hb { position: absolute; }
+  .ctl { width: 360px; margin-top: 12px; background: #fff; border-radius: 16px; padding: 12px 14px; display: grid; gap: 8px; font-size: 12.5px; }
+  .ctl label { display: grid; grid-template-columns: 70px 1fr 34px; align-items: center; gap: 8px; font-weight: 700; }
+  .ctl input[type=range] { width: 100%; -webkit-appearance: none; appearance: none; height: 10px; border-radius: 5px; background: linear-gradient(90deg, hsl(0 85% 60%), hsl(60 85% 60%), hsl(120 85% 60%), hsl(180 85% 60%), hsl(240 85% 60%), hsl(300 85% 60%), hsl(360 85% 60%)); }
+  .ctl input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #fff; border: 2px solid #111; }
+  .pals { width: 100%; max-width: 1640px; margin: 34px auto 0; }
+  .pals h2 { font-size: 20px; margin: 0 0 4px; } .pals > p { color: #555; margin: 0 0 14px; }
+  .palgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+  .pal { background: #0c0b12; color: #fff; border-radius: 18px; padding: 14px; cursor: pointer; border: 2px solid transparent; position: relative; overflow: hidden; }
+  .pal[aria-pressed="true"] { border-color: #111; box-shadow: 0 0 0 2px #fff inset; }
+  .pal h3 { margin: 0 0 10px; font-size: 14px; position: relative; } .pal .sw { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; position: relative; }
+  .pal .sw div { border-radius: 10px; height: 46px; display: flex; align-items: flex-end; padding: 4px; font: 600 9px "JetBrains Mono", monospace; color: rgba(0,0,0,.65); }
+  .pal .sw div.dk { color: rgba(255,255,255,.8); }
+  .pal .demo { display: flex; gap: 8px; margin-top: 10px; align-items: center; position: relative; font: 700 13px -apple-system, system-ui, sans-serif; }
+  .pal .demo span { padding: 6px 12px; border-radius: 999px; }
+  .pal::before { content: ""; position: absolute; inset: 0; opacity: .35; background: var(--glow); }
   .bgbar { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; width: 360px; }
   .bgbar button { display: flex; align-items: center; gap: 6px; border: 1px solid #c9c9d2; background: #fff; border-radius: 999px; padding: 5px 10px 5px 5px; font: 600 12px "Inter Tight", sans-serif; cursor: pointer; }
   .bgbar button i { width: 18px; height: 18px; border-radius: 50%; display: block; border: 1px solid rgba(0,0,0,.15); }
@@ -99,6 +123,11 @@
   <h1>Uprise · design languages</h1>
   <p>Same trading screen and layout, nine very different feels. Number 0 is the current app for reference.</p>
   <div class="grid" id="grid"></div>
+  <section class="pals">
+    <h2>Color palettes for Liquid Glass</h2>
+    <p>Softer gain and loss colors that belong with the two background lights. Click one to apply it to phone 10 (lights, chart, curve and Buy button).</p>
+    <div class="palgrid" id="pals"></div>
+  </section>
 </div>
 <script>
 const LANGS = [
@@ -130,6 +159,23 @@ function profit(up, down, line, ink) {
   const pts = (a, b) => Array.from({ length: 21 }, (_, k) => { const r = a + (b - a) * k / 20; return `${X(r).toFixed(1)},${Y(f(r)).toFixed(1)}`; }).join(" ");
   return `<svg viewBox="0 0 ${W} ${H}"><line x1="4" x2="${W - 4}" y1="${Y(0)}" y2="${Y(0)}" stroke="${line}"/><line x1="${X(0)}" x2="${X(0)}" y1="6" y2="${H - 16}" stroke="${line}"/><polyline points="${pts(-R, 0)}" fill="none" stroke="${down}" stroke-width="3" stroke-linecap="round"/><polyline points="${pts(0, R)}" fill="none" stroke="${up}" stroke-width="3" stroke-linecap="round"/><circle cx="${X(0.1)}" cy="${Y(f(0.1))}" r="3.5" fill="${up}"/><text x="${X(0.1) - 4}" y="${Y(f(0.1)) + 4}" font-size="9" fill="${up}" text-anchor="end" font-weight="700">+61%</text><text x="${W / 2}" y="${H - 3}" font-size="8.5" fill="${ink}" opacity=".6" text-anchor="middle">price</text></svg>`;
 }
+function drawCharts(el) {
+  const ph = el.querySelector(".ph"), up = css(ph, "--up"), down = css(ph, "--down"), line = css(ph, "--line"), ink = css(ph, "--ink");
+  const lineC = line === "transparent" ? css(ph, "--muted") : line;
+  el.querySelector(".ch").innerHTML = candles(up, down, lineC);
+  el.querySelector(".pc").innerHTML = profit(up, down, lineC, ink);
+}
+// Palettes tuned for Liquid Glass: softer gain/loss colors that sit with the two background lights.
+const PALETTES = [
+  { name: "Mint & Coral", h1: 265, h2: 330, up: "#5ee6a8", down: "#ff7a85", btn: "#5ee6a8", btnInk: "#06261a" },
+  { name: "NEAR", h1: 160, h2: 250, up: "#00ec97", down: "#ff6b8a", btn: "#00ec97", btnInk: "#002b1b" },
+  { name: "Aqua & Salmon", h1: 205, h2: 15, up: "#4fd8d0", down: "#ff8f7a", btn: "#4fd8d0", btnInk: "#05282a" },
+  { name: "Seafoam & Peach", h1: 185, h2: 30, up: "#7ee8c4", down: "#ffb085", btn: "#7ee8c4", btnInk: "#0a2b22" },
+  { name: "Lime & Rose", h1: 280, h2: 140, up: "#b6f36b", down: "#f77fa6", btn: "#b6f36b", btnInk: "#1f2b05" },
+  { name: "Pastel", h1: 270, h2: 200, up: "#9be7b0", down: "#f4a3b4", btn: "#c9b6ff", btnInk: "#1d1240" },
+  { name: "Ice & Ember", h1: 215, h2: 25, up: "#8fd3ff", down: "#ff9a62", btn: "#8fd3ff", btnInk: "#06223a" },
+  { name: "Gold & Plum", h1: 45, h2: 285, up: "#f5d06b", down: "#c77dff", btn: "#f5d06b", btnInk: "#2a1f02" },
+];
 (async () => {
   const html = await fetch("index.html").then((r) => r.text());
   const logo = (html.match(/<div class="logo">([\s\S]*?<\/svg>)/) || [])[1] || "<b>UPRISE</b>";
@@ -163,14 +209,38 @@ function profit(up, down, line, ink) {
       bar.innerHTML = BGS.map(([n, bg], k) => `<button aria-pressed="${k === 0}" data-k="${k}"><i style="background:${bg}"></i>${n}</button>`).join("");
       bar.onclick = (e) => { const b = e.target.closest("button"); if (!b) return; ph.style.background = BGS[+b.dataset.k][1]; bar.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", x === b)); };
       el.append(bar);
+      // animated lights over dots (the default for this variant)
+      ph.insertAdjacentHTML("afterbegin", `<div class="lights"><i class="l1"></i><i class="l2"></i></div>`);
+      const lights = ph.querySelector(".lights");
+      const showLights = (on) => { lights.hidden = !on; };
+      bar.insertAdjacentHTML("afterbegin", `<button aria-pressed="true" data-k="live"><i style="background:radial-gradient(circle at 30% 30%, #8e6bff, #ff4f9a 70%)"></i>Dots, live</button>`);
+      bar.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", x.dataset.k === "live"));
+      bar.onclick = (e) => {
+        const b = e.target.closest("button"); if (!b) return;
+        if (b.dataset.k === "live") { ph.style.background = ""; showLights(true); } else { ph.style.background = BGS[+b.dataset.k][1]; showLights(false); }
+        bar.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", x === b));
+      };
+      const ctl = document.createElement("div"); ctl.className = "ctl";
+      ctl.innerHTML = `<label>Light 1 <input type="range" min="0" max="360" value="265" data-v="--h1"><span>265°</span></label><label>Light 2 <input type="range" min="0" max="360" value="330" data-v="--h2"><span>330°</span></label>`;
+      ctl.oninput = (e) => { const r = e.target; ph.style.setProperty(r.dataset.v, r.value); r.nextElementSibling.textContent = r.value + "°"; };
+      el.append(ctl);
+      window.applyPalette = (P) => {
+        ph.style.setProperty("--h1", P.h1); ph.style.setProperty("--h2", P.h2);
+        ph.style.setProperty("--up", P.up); ph.style.setProperty("--down", P.down); ph.style.setProperty("--btn", P.btn); ph.style.setProperty("--btn-ink", P.btnInk);
+        ctl.querySelectorAll("input").forEach((r) => { r.value = r.dataset.v === "--h1" ? P.h1 : P.h2; r.nextElementSibling.textContent = r.value + "°"; });
+        ph.style.background = ""; showLights(true); bar.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", x.dataset.k === "live"));
+        drawCharts(el);
+      };
       ph.insertAdjacentHTML("afterbegin", `<div class="sb"><span>9:41</span><span class="di"></span><span class="ic">●●● ◖</span></div>`);
       ph.insertAdjacentHTML("beforeend", `<div class="hb"></div>`);
     }
-    const ph = el.querySelector(".ph"), up = css(ph, "--up"), down = css(ph, "--down"), line = css(ph, "--line"), ink = css(ph, "--ink");
-    const lineC = line === "transparent" ? css(ph, "--muted") : line;
-    el.querySelector(".ch").innerHTML = candles(up, down, lineC);
-    el.querySelector(".pc").innerHTML = profit(up, down, lineC, ink);
+    drawCharts(el);
   });
+  const hsl = (h) => `hsl(${h} 85% 60%)`;
+  document.getElementById("pals").innerHTML = PALETTES.map((P, k) => `<div class="pal" data-k="${k}" style="--glow: radial-gradient(60% 80% at 0% 0%, ${hsl(P.h1)}, transparent 70%), radial-gradient(60% 80% at 100% 100%, ${hsl(P.h2)}, transparent 70%)">
+    <h3>${P.name}</h3><div class="sw">${[["light 1", hsl(P.h1)], ["light 2", hsl(P.h2)], ["gain", P.up], ["loss", P.down], ["button", P.btn]].map(([n, c]) => `<div style="background:${c}">${n}</div>`).join("")}</div>
+    <div class="demo"><span style="background:${P.btn};color:${P.btnInk}">Buy $100</span><span style="color:${P.up}">+61%</span><span style="color:${P.down}">−41%</span></div></div>`).join("");
+  document.getElementById("pals").onclick = (e) => { const c = e.target.closest(".pal"); if (!c) return; window.applyPalette?.(PALETTES[+c.dataset.k]); document.querySelectorAll(".pal").forEach((x) => x.setAttribute("aria-pressed", x === c)); document.querySelectorAll(".item")[10].scrollIntoView({ behavior: "smooth", block: "center" }); };
 })();
 </script>
 </body>
