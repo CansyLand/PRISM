@@ -20,12 +20,22 @@
   input[type=range] { width: 100%; accent-color: var(--up); margin: 10px 0 4px; }
   .ticks { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; }
   .replay { margin-top: 12px; }
+  .np { background: #f77fa6; margin: 0 -16px 10px; padding: 22px 16px 28px; border-radius: 0 0 26px 26px; } .np h1, .np .sub { color: #1d1530; } .np .why { color: #1d1530; opacity: .8; } .np .label { color: #1d1530; }
+  .demo.d15 { background: #e4f36b; border: 0; color: #1d1530; font-family: "Space Grotesk", "Inter Tight", sans-serif; }
+  .demo.d15 .row span { color: #1d1530; opacity: .75; } .demo.d15 .row b { color: #e8467c; } .demo.d15 .ticks { color: #1d1530; opacity: .75; }
+  .demo.d15 input[type=range] { accent-color: #1d1530; } .demo.d15 .replay { background: #1d1530; color: #e4f36b; border: 0; border-radius: 999px; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <h1>x¹⁰ celebration: pick one</h1>
   <p class="sub">Drag each slider to x¹⁰ (or press Replay). Every effect uses colorful $ signs in different sizes with spin, glow and glitter.</p>
+  <section class="np">
+    <h1>New palette · the supernova on design 15</h1>
+    <p class="sub">Same shapes and motion as E · Supernova, re-thought so it pops on the rose page and lime cards.</p>
+    <div class="grid" id="grid2"></div>
+  </section>
+  <h1 style="margin-top:34px">Round 1 · original effects</h1>
   <div class="grid" id="grid"></div>
 </div>
 <script>
@@ -62,18 +72,22 @@ class Stage {
       const fade = Math.min(1, (p.life - p.age) / 0.5), twinkle = 0.65 + 0.35 * Math.sin(p.age * 18 + p.tw);
       ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.globalAlpha = Math.max(0, fade) * (p.glitter ? twinkle : 1);
       ctx.shadowColor = p.color; ctx.shadowBlur = p.glow;
-      if (p.glyph === "✦") { star(ctx, p.size * 0.5, p.color); }
-      else { ctx.fillStyle = p.color; ctx.font = `900 ${p.size}px "Inter Tight", sans-serif`; ctx.scale(Math.cos(p.age * p.flip || 0) || 1, 1); ctx.fillText(p.glyph, 0, 0); }
+      if (p.glyph === "✦") { star(ctx, p.size * 0.5, p.color, p.stroke, p.sw); }
+      else {
+        ctx.font = `900 ${p.size}px "Inter Tight", sans-serif`; ctx.scale(Math.cos(p.age * p.flip || 0) || 1, 1);
+        if (p.stroke) { ctx.shadowBlur = 0; ctx.lineJoin = "round"; ctx.lineWidth = p.sw || 3; ctx.strokeStyle = p.stroke; ctx.strokeText(p.glyph, 0, 0); }
+        ctx.fillStyle = p.color; ctx.fillText(p.glyph, 0, 0);
+      }
       ctx.restore();
     }
     this.ps = this.ps.filter((p) => p.age < p.life);
     if (this.ps.length || this.fx.length) requestAnimationFrame((t) => this.frame(t)); else { this.run = false; ctx.clearRect(0, 0, r.width, r.height); }
   }
 }
-function star(ctx, s, col) {
+function star(ctx, s, col, stroke, sw) {
   ctx.fillStyle = col; ctx.beginPath();
   for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2, rr = i % 2 ? s * 0.25 : s; ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); }
-  ctx.closePath(); ctx.fill();
+  ctx.closePath(); if (stroke) { ctx.shadowBlur = 0; ctx.lineWidth = sw || 2; ctx.strokeStyle = stroke; ctx.lineJoin = "round"; ctx.stroke(); } ctx.fill();
 }
 
 // ── effects: (stage, x, y) where x/y is the slider thumb in canvas pixels ──
@@ -116,8 +130,41 @@ function supernova(st, x, y) {
 function burst2(st, x, y, n) { for (let i = 0; i < n; i++) { const a = rnd(-Math.PI, 0), v = rnd(150, 380); st.add({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, flip: rnd(3, 8) }); } }
 function flash(st, x, y, R) { let t = 0; st.effect({ draw(ctx, dt) { t += dt; const a = Math.max(0, 1 - t / 0.35), g = ctx.createRadialGradient(x, y, 0, x, y, R); g.addColorStop(0, `rgba(255,255,255,${0.9 * a})`); g.addColorStop(1, "rgba(255,255,255,0)"); ctx.fillStyle = g; ctx.fillRect(x - R, y - R, 2 * R, 2 * R); if (t > 0.35) this.done = true; } }); }
 
+// ── supernova, re-colored for design 15 (rose page, lime cards, ink, cobalt) ──
+const INK = "#1d1530", LIME = "#e4f36b", ROSE = "#f77fa6", COB = "#3557ff";
+function supernovaV(st, x, y, o) {
+  if (o.backdrop) { let t = 0; st.effect({ draw(ctx, dt) { t += dt; const R = Math.min(1, t / 0.25) * 170, a = t < 0.9 ? 1 : Math.max(0, 1 - (t - 0.9) / 0.6); ctx.save(); ctx.globalAlpha = a; ctx.fillStyle = o.backdrop; ctx.beginPath(); ctx.arc(x, y, R, 0, 7); ctx.fill(); ctx.restore(); if (t > 1.5) this.done = true; } }); }
+  if (o.flash) { let t = 0; st.effect({ draw(ctx, dt) { t += dt; const a = Math.max(0, 1 - t / 0.35), R = 220, g = ctx.createRadialGradient(x, y, 0, x, y, R); g.addColorStop(0, o.flash.replace("A", 0.9 * a)); g.addColorStop(1, o.flash.replace("A", 0)); ctx.fillStyle = g; ctx.fillRect(x - R, y - R, 2 * R, 2 * R); if (t > 0.35) this.done = true; } }); }
+  let t = 0; st.effect({ draw(ctx, dt) { t += dt; const rr = t * 520, a = Math.max(0, 1 - t / 0.7); ctx.save(); ctx.globalAlpha = a; ctx.strokeStyle = o.ring; ctx.lineWidth = (o.ringW || 6) * a + 1.5; if (o.glow) { ctx.shadowColor = o.ring; ctx.shadowBlur = 30; } ctx.beginPath(); ctx.arc(x, y, rr, 0, 7); ctx.stroke(); ctx.restore(); if (t > 0.7) this.done = true; } });
+  for (let i = 0; i < 60; i++) { const a = rnd(0, Math.PI * 2), v = rnd(200, 600); st.add({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, g: 240, drag: 0.97, color: pick(o.dollars), size: rnd(16, 36), glow: o.glow ? 26 : 0, flip: rnd(3, 8), stroke: o.stroke, sw: o.sw }); }
+  for (let i = 0; i < 50; i++) { const a = rnd(0, Math.PI * 2), v = rnd(80, 420); st.add({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, g: 100, glyph: "✦", size: rnd(8, 18), color: pick(o.sparks), glow: o.glow ? 18 : 0, glitter: true, life: rnd(1, 1.8), stroke: o.sparkStroke, sw: 1.5 }); }
+}
+const NEW = [
+  { name: "N1 · INK PRINT", why: "Everything in ink, like the rest of the print design: ink $ and ring, white sparkles, no glow. Calm but crisp on both rose and lime.", o: { dollars: [INK], sparks: ["#fff"], ring: INK, flash: "rgba(255,255,255,A)" } },
+  { name: "N2 · COBALT POP", why: "Cobalt and white $ with a cobalt ring, the action color of the app. Reads as 'this is the big one'.", o: { dollars: [COB, COB, "#fff"], sparks: ["#fff", COB], ring: COB, flash: "rgba(255,255,255,A)" } },
+  { name: "N3 · STICKERS", why: "Each $ is a sticker: lime, white, cobalt or rose fill with a thick ink outline. Visible on any background, and very screen-print.", o: { dollars: [LIME, "#fff", COB, ROSE], sparks: [LIME, "#fff"], sparkStroke: INK, stroke: INK, sw: 4, ring: INK, ringW: 8, flash: "rgba(255,255,255,A)" } },
+  { name: "N4 · NIGHT HOLE", why: "An ink disc pops open behind the thumb and the original glowing gold supernova plays inside it. The old magic, framed.", o: { backdrop: INK, dollars: ["#f5c542", "#ffd60a", "#ffb020", "#ffe58a"], sparks: ["#fff"], ring: "#f5c542", glow: true, flash: "rgba(255,255,255,A)" } },
+  { name: "N5 · PALETTE MIX", why: "All four inks at once: cobalt, ink, white and deep rose $ with thin ink outlines, cobalt and white sparkles.", o: { dollars: [COB, INK, "#fff", "#e8467c"], sparks: [COB, "#fff"], stroke: INK, sw: 2, ring: COB, flash: "rgba(255,255,255,A)" } },
+  { name: "N6 · HALO", why: "Ink $ with a white outline halo, a big white ring and flash. Feels light and celebratory without new colors.", o: { dollars: [INK, COB], sparks: ["#fff"], stroke: "#fff", sw: 4, ring: "#fff", ringW: 9, flash: "rgba(255,255,255,A)" } },
+];
+
 // ── build the cards ──
 const grid = document.getElementById("grid");
+// new palette section
+const ng = document.getElementById("grid2");
+for (const e of NEW) {
+  const el = document.createElement("div"); el.className = "opt";
+  el.innerHTML = `<p class="label">${e.name}</p><div class="demo d15"><canvas></canvas>
+    <div class="row"><span>Strength</span><b>${pw(5)}</b></div>
+    <input type="range" min="1" max="10" step="1" value="5" aria-label="Strength">
+    <div class="ticks"><span>${pw(1)}</span><span>${pw(5)}</span><span>${pw(10)}</span></div>
+    <button class="btn ghost small replay">Replay</button></div><p class="why">${e.why}</p>`;
+  ng.append(el);
+  const cv = el.querySelector("canvas"), st = new Stage(cv), sl = el.querySelector("input"), lbl = el.querySelector(".row b");
+  const fire = () => { const c = cv.getBoundingClientRect(), s = sl.getBoundingClientRect(); supernovaV(st, s.right - 8 - c.left, s.top + s.height / 2 - c.top, e.o); };
+  let was = 5; sl.addEventListener("input", () => { const v = +sl.value; lbl.textContent = pw(v); if (v === 10 && was !== 10) fire(); was = v; });
+  el.querySelector(".replay").onclick = () => { sl.value = 10; lbl.textContent = pw(10); was = 10; fire(); };
+}
 for (const e of EFFECTS) {
   const el = document.createElement("div"); el.className = "opt";
   el.innerHTML = `<p class="label">${e.name}</p><div class="demo"><canvas></canvas>
