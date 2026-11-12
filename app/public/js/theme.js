@@ -15,3 +15,6 @@ export function fit(cv) {
   const ctx = cv.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, r.width, r.height);
   return { ctx, W: r.width, H: r.height };
 }
+/** Curve strength as an exponent: 6 → "x⁶" (the Curve Long pays price^6). Leverage elsewhere stays "10×". */
+const SUP = "⁰¹²³⁴⁵⁶⁷⁸⁹";
+export const pw = (p) => "x" + String(p).replace(/\d/g, (d) => SUP[d]);

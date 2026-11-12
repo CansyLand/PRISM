@@ -1,7 +1,7 @@
 // Analytics arena: traders on the left, the vault in the middle, liquidity providers on the right,
 // coins flying between them. Demo: a small simulated crowd. Live: real ledger accounts, with
 // coins animated from the changes between polls (an approximation of on-chain flows).
-import { css, fit } from "./theme.js";
+import { css, fit, pw } from "./theme.js";
 const rand = (a, b) => a + Math.random() * (b - a);
 const big = (v) => (Math.abs(v) >= 1e6 ? "$" + (v / 1e6).toFixed(2) + "M" : Math.abs(v) >= 1e4 ? "$" + (v / 1e3).toFixed(1) + "k" : "$" + Math.round(v).toLocaleString("en-US"));
 
@@ -170,7 +170,7 @@ export class Arena {
     // people
     for (const p of this.retail) {
       ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.fillStyle = C("--panel2"); ctx.fill();
-      if (p.open) { const m = p.value / Math.max(1e-9, p.stake); ctx.lineWidth = Math.max(2, p.r * 0.22); ctx.beginPath(); ctx.arc(p.x, p.y, p.r - 1, a0, a0 + Math.min(1, m) * Math.PI * 2); ctx.strokeStyle = m >= 1 ? C("--up") : C("--down"); ctx.stroke(); if (p.r > 10) { ctx.fillStyle = C("--up"); ctx.font = F(Math.max(8, p.r * 0.55), 700, true); ctx.fillText(p.p + "×", p.x, p.y + p.r * 0.2); } }
+      if (p.open) { const m = p.value / Math.max(1e-9, p.stake); ctx.lineWidth = Math.max(2, p.r * 0.22); ctx.beginPath(); ctx.arc(p.x, p.y, p.r - 1, a0, a0 + Math.min(1, m) * Math.PI * 2); ctx.strokeStyle = m >= 1 ? C("--up") : C("--down"); ctx.stroke(); if (p.r > 10) { ctx.fillStyle = C("--up"); ctx.font = F(Math.max(8, p.r * 0.6), 800); ctx.fillText(pw(p.p), p.x, p.y + p.r * 0.2); } }
       else { ctx.lineWidth = 1; ctx.strokeStyle = C("--line"); ctx.stroke(); }
     }
     for (const h of this.hunters) {

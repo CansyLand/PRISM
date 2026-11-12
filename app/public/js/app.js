@@ -3,7 +3,7 @@ import { Demo, CANDLE_MS, timeLeft } from "./demo.js";
 import { showOnboarding } from "./onboarding.js";
 import { Arena } from "./analytics.js";
 import { CurveCard } from "./curvecard.js";
-import { css, fit } from "./theme.js";
+import { css, fit, pw } from "./theme.js";
 import { crabIntro } from "./crabintro.js";
 
 const $ = (id) => document.getElementById(id);
@@ -34,16 +34,16 @@ document.querySelectorAll(".modal-bg").forEach((m) => m.addEventListener("click"
 const P = () => +$("p").value;
 function renderStrength() {
   const p = P(), name = mode === "live" ? (live?.cfg?.asset || "NEAR") : "the price";
-  $("pLabel").textContent = p + "×";
+  $("pLabel").textContent = pw(p);
   const mismatch = mode === "live" && live?.cfg && p !== live.cfg.power;
-  $("pNote").textContent = mismatch ? `The live market offers ${live.cfg.power}× right now. More strengths are coming.` : "";
+  $("pNote").textContent = mismatch ? `The live market offers ${pw(live.cfg.power)} right now. More strengths are coming.` : "";
   $("pNote").hidden = !mismatch;
   showCurve(p);
 }
 // the slim card follows the slider, or the open position (with a dot at today's price move)
 function showCurve(p, at = null) {
   curve.set(p, at);
-  $("ccP").textContent = p + "×";
+  $("ccP").textContent = pw(p);
 }
 $("p").addEventListener("input", () => { renderStrength(); renderPreview(); });
 
@@ -60,11 +60,11 @@ function renderPreview() {
   let err = "";
   if (mode === "live" && !live?.connected) err = "";
   else if (a > cash() + 1e-9) err = mode === "demo" ? "More than your play money." : "Not enough balance. Tap your balance to add money.";
-  else if (mode === "live" && p !== live?.cfg?.power) err = `Pick ${live?.cfg?.power}× for the live market.`;
+  else if (mode === "live" && p !== live?.cfg?.power) err = `Pick ${pw(live?.cfg?.power)} for the live market.`;
   else if (mode === "live" && live?.state?.market && a > Number(live.state.market.max_long_open) / E6) err = `Largest buy right now is ${fmt(Number(live.state.market.max_long_open) / E6)}.`;
   $("buyErr").textContent = err;
   $("buy").disabled = !a || !!err || busy || (mode === "live" && !live?.connected);
-  $("buy").textContent = a ? `Buy ${fmt(a)} at ${p}×` : "Buy";
+  $("buy").textContent = a ? `Buy ${fmt(a)} at ${pw(p)}` : "Buy";
 }
 $("amt").addEventListener("input", renderPreview);
 document.querySelectorAll("[data-a]").forEach((b) => (b.onclick = () => { const v = b.dataset.a; $("amt").value = v === "max" ? Math.floor(cash() * 100) / 100 : v; renderPreview(); }));
@@ -109,53 +109,83 @@ function demoClose(why) {
   flip(false); ff(false); chart.mark(null); renderStrength();
   $("rIco").textContent = r.pnl > 0 ? (m >= 3 ? "🚀" : "🎉") : melted ? "🫠" : "📉";
   $("rTitle").textContent = r.out > 0 ? pct(m - 1, 0) : "Melt Down"; $("rTitle").className = r.out > 0 ? (m >= 1 ? "pos" : "neg") : "neg";
+  lastResult = { pts: trail.slice(), p: r.p, melted, out: r.out, mult: m, move: exitPx / r.entry - 1 };
+  $("result").querySelector(".modal").className = "modal r-card " + (r.out > 0 && m >= 1 ? "win" : "lose");
   modal("result"); drawResult($("rChart"), trail, r.p, melted);
   $("rText").textContent = r.out > 0 ? (r.pnl <= 0 && why === "ended" ? "The replay ended, so the position was closed." : "")
-    : `The price didn't rise fast enough before the ${r.p}× timer ran out.`;
+    : `The price didn't rise fast enough before the ${pw(r.p)} timer ran out.`;
   $("result").querySelector("[data-close]").onclick = () => {
     modal("result", false); $("px").textContent = fmtP(chart.price()); $("chg").textContent = ""; render();
     if (demo.trades === 1 && mode === "demo") pointAtLive();
   };
   render();
 }
-// result chart: the market as gray candles (own scale, lower band) and your curve on the full height,
-// green while in profit, red while under. A melt down fades the curve toward gray as time runs out.
-function drawResult(cv, pts, p, melted) {
-  const f = fit(cv); if (!f || pts.length < 2) return; const { ctx, W, H } = f;
-  const R = W - 58, n = pts.length, X = (i) => 6 + i / (n - 1) * (R - 6);
-  // candles: group samples
-  const per = Math.max(1, Math.ceil(n / 28)), cand = [];
-  for (let k = 0; k < n; k += per) { const g = pts.slice(k, k + per + 1).map((s) => s.m); cand.push({ i0: k, o: g[0], c: g.at(-1), h: Math.max(...g), l: Math.min(...g) }); }
-  let mlo = 0, mhi = 0; for (const s of pts) { mlo = Math.min(mlo, s.m); mhi = Math.max(mhi, s.m); } const mp = (mhi - mlo) * 0.1 || 0.02;
-  const bandTop = H * 0.55, YM = (v) => H - 6 - (v - mlo + mp) / (mhi - mlo + 2 * mp) * (H - 6 - bandTop);
-  let vlo = 0, vhi = 0; for (const s of pts) { vlo = Math.min(vlo, s.v); vhi = Math.max(vhi, s.v); } const vp = (vhi - vlo) * 0.08 || 0.1;
-  const y0 = YM(0), YV = (v) => (v >= 0 ? y0 - v / (vhi + vp || 1) * (y0 - 22) : y0 + v / (vlo - vp || -1) * (H - 6 - y0));
-  ctx.setLineDash([3, 3]); ctx.strokeStyle = css("--line"); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(6, y0); ctx.lineTo(R, y0); ctx.stroke(); ctx.setLineDash([]);
-  const cw = (R - 6) / cand.length;
-  for (const c of cand) {
-    const cx = X(Math.min(n - 1, c.i0 + per / 2)); ctx.strokeStyle = ctx.fillStyle = css(c.c >= c.o ? "--muted" : "--line");
-    ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(cx, YM(c.h)); ctx.lineTo(cx, YM(c.l)); ctx.stroke();
-    ctx.fillRect(cx - cw * 0.3, YM(Math.max(c.o, c.c)), cw * 0.6, Math.max(1, YM(Math.min(c.o, c.c)) - YM(Math.max(c.o, c.c))));
+// result chart: the market as gray candles and your curve, both in % on ONE scale, so +45% vs +3000%
+// looks like it is. The curve is green while in profit and red while under; a melt down fades to gray.
+function drawResult(cv, pts, p, melted) { const f = fit(cv); if (f) paintResult(f.ctx, f.W, f.H, pts, p, melted); }
+function paintResult(ctx, W, H, pts, p, melted, big = 1) {
+  if (pts.length < 2) return;
+  const R = W - 58 * big, n = pts.length, X = (i) => 6 + i / (n - 1) * (R - 6);
+  let lo = 0, hi = 0; for (const s of pts) { lo = Math.min(lo, s.m, s.v); hi = Math.max(hi, s.m, s.v); }
+  const pad = (hi - lo) * 0.06 || 0.05; lo -= pad; hi += pad;
+  const top = 44 * big, Y = (v) => top + (hi - v) / (hi - lo) * (H - top - 6);
+  ctx.setLineDash([3, 3]); ctx.strokeStyle = css("--line"); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(6, Y(0)); ctx.lineTo(R, Y(0)); ctx.stroke(); ctx.setLineDash([]);
+  const per = Math.max(1, Math.ceil(n / 28)), cw = (R - 6) / Math.ceil(n / per);
+  for (let k = 0; k < n; k += per) {
+    const g = pts.slice(k, k + per + 1).map((s) => s.m), o = g[0], c = g.at(-1), h = Math.max(...g), l = Math.min(...g), cx = X(Math.min(n - 1, k + per / 2));
+    ctx.strokeStyle = ctx.fillStyle = css(c >= o ? "--muted" : "--line");
+    ctx.lineWidth = big; ctx.beginPath(); ctx.moveTo(cx, Y(h)); ctx.lineTo(cx, Y(l)); ctx.stroke();
+    ctx.fillRect(cx - cw * 0.3, Y(Math.max(o, c)), cw * 0.6, Math.max(big, Y(Math.min(o, c)) - Y(Math.max(o, c))));
   }
   const up = css("--up"), down = css("--down"), gray = css("--muted");
-  ctx.lineWidth = 3.2; ctx.lineCap = "round";
+  ctx.lineWidth = 3.2 * big; ctx.lineCap = "round";
   for (let i = 1; i < n; i++) {
     const a = pts[i - 1], b = pts[i], base = (a.v + b.v) / 2 >= 0 ? up : down, fade = melted ? Math.round(100 - 85 * (i / (n - 1))) : 100;
     ctx.strokeStyle = fade < 100 ? `color-mix(in srgb, ${base} ${fade}%, ${gray})` : base;
-    ctx.beginPath(); ctx.moveTo(X(i - 1), YV(a.v)); ctx.lineTo(X(i), YV(b.v)); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(X(i - 1), Y(a.v)); ctx.lineTo(X(i), Y(b.v)); ctx.stroke();
   }
-  const end = pts.at(-1), endCol = melted ? gray : end.v >= 0 ? up : down;
-  ctx.font = `700 11px ${css("--font")}`; ctx.fillStyle = up; ctx.textAlign = "left"; ctx.fillText(`${p}× curve`, 14, Math.min(YV(pts[0].v), y0) - 12);
-  ctx.font = `700 12px ${css("--mono")}`;
-  ctx.fillStyle = endCol; ctx.beginPath(); ctx.arc(X(n - 1), YV(end.v), 4.5, 0, 7); ctx.fill();
-  const yv = YV(end.v), ym = YM(end.m), apart = Math.abs(ym - yv) < 14 ? (yv < ym ? -7 : 7) : 0;
-  ctx.fillText(pct(end.v, 0), R + 8, yv + 4 + apart);
-  ctx.fillStyle = css("--muted"); ctx.fillText(pct(end.m, 0), R + 8, ym + 4 - apart);
+  // "x¹⁰ / curve" above the start
+  const sy = Math.max(top - 6 * big, Y(pts[0].v) - 16 * big);
+  ctx.fillStyle = up; ctx.textAlign = "left";
+  ctx.font = `800 ${20 * big}px ${css("--font")}`; ctx.fillText(pw(p), 8, sy - 14 * big);
+  ctx.font = `700 ${11 * big}px ${css("--font")}`; ctx.fillText("curve", 9, sy);
+  const end = pts.at(-1), endCol = melted ? gray : end.v >= 0 ? up : down, yv = Y(end.v), ym = Y(end.m), apart = Math.abs(ym - yv) < 14 * big ? (yv < ym ? -7 : 7) * big : 0;
+  ctx.font = `700 ${12 * big}px ${css("--mono")}`;
+  ctx.fillStyle = endCol; ctx.beginPath(); ctx.arc(X(n - 1), yv, 4.5 * big, 0, 7); ctx.fill();
+  ctx.fillText(pct(end.v, 0), R + 8 * big, yv + 4 * big + apart);
+  ctx.fillStyle = gray; ctx.fillText(pct(end.m, 0), R + 8 * big, ym + 4 * big - apart);
   if (melted) {
-    const x = X(n - 1); ctx.strokeStyle = down; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(x, 6); ctx.lineTo(x, H - 6); ctx.stroke();
-    ctx.fillStyle = down; ctx.font = `800 11px ${css("--font")}`; ctx.textAlign = "right"; ctx.fillText("MELT DOWN", x - 6, 16);
+    const x = X(n - 1); ctx.strokeStyle = down; ctx.lineWidth = 2.5 * big; ctx.beginPath(); ctx.moveTo(x, 6); ctx.lineTo(x, H - 6); ctx.stroke();
+    ctx.fillStyle = down; ctx.font = `800 ${11 * big}px ${css("--font")}`; ctx.textAlign = "right"; ctx.fillText("MELT DOWN", x - 6 * big, 16 * big);
   }
 }
+// Share: draw a 1200×675 image (the X card size). Phones get the share sheet with the image; desktop
+// downloads it and opens a prepared X post (X's web share link can't carry an image).
+let lastResult = null;
+function shareCanvas(r) {
+  const W = 1200, H = 675, cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+  const ctx = cv.getContext("2d"), win = r.out > 0 && r.mult >= 1, tint = css(win ? "--up" : "--down");
+  const g = ctx.createRadialGradient(W * 0.25, 0, 0, W * 0.25, 0, W * 0.9); g.addColorStop(0, `color-mix(in srgb, ${tint} 22%, ${css("--panel")})`); g.addColorStop(0.7, css("--panel")); g.addColorStop(1, css("--bg"));
+  ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = css("--accent"); ctx.font = `800 34px ${css("--font")}`; ctx.textAlign = "left"; ctx.fillText("⇡ Uprise", 56, 86);
+  ctx.fillStyle = win ? css("--up") : css("--down"); ctx.font = `800 110px ${css("--mono")}`; ctx.fillText(r.out > 0 ? pct(r.mult - 1, 0) : "Melt Down", 56, 250);
+  ctx.fillStyle = css("--muted"); ctx.font = `600 30px ${css("--font")}`; ctx.fillText(`market ${pct(r.move, 0)} · ${pw(r.p)} curve`, 60, 306);
+  ctx.font = `600 24px ${css("--font")}`; ctx.fillText("No liquidation. Just a curve. · uprise.wtf", 60, H - 52);
+  ctx.save(); ctx.translate(500, 110); paintResult(ctx, 660, 470, r.pts, r.p, r.melted, 1.7); ctx.restore();
+  return cv;
+}
+window.uprise = { shareCanvas: () => lastResult && shareCanvas(lastResult) }; // for checking the share image
+async function shareResult() {
+  const r = lastResult; if (!r) return;
+  const cv = shareCanvas(r), win = r.out > 0 && r.mult >= 1;
+  const blob = await new Promise((ok) => cv.toBlob(ok, "image/png")), file = new File([blob], "uprise-trade.png", { type: "image/png" });
+  const text = r.out > 0 ? `Market ${pct(r.move, 0)}.\nMy ${pw(r.p)} curve: ${pct(r.mult - 1, 0)} ${win ? "🚀" : ""}\n\nNo liquidation, just a curve.\n\nuprise.wtf` : `Melt Down 🫠 My ${pw(r.p)} curve ran out of time.\n\nuprise.wtf`;
+  try { if (navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file], text }); return; } } catch (e) { if (e.name === "AbortError") return; }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = "uprise-trade.png"; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  window.open("https://x.com/intent/post?text=" + encodeURIComponent(text), "_blank", "noopener");
+  toast("Image saved. Attach it to your post.");
+}
+$("rShare").onclick = () => shareResult().catch((e) => toast(String(e.message || e), true));
 function pointAtLive() {
   const b = document.querySelector('[data-mode="live"]').getBoundingClientRect(), h = $("hand");
   h.style.left = b.left + b.width / 2 - 40 + "px"; h.style.top = b.bottom + 4 + "px"; h.hidden = false;
@@ -195,7 +225,7 @@ function renderPosition() {
     const v = shown.v, px = shown.px;
     showCurve(q.p, px / q.entry - 1);
     const left = timeLeft(q.p, q.t);
-    $("posP").textContent = q.p + "×"; $("posValue").textContent = fmt(v); $("posPaid").textContent = fmt(q.stake);
+    $("posP").textContent = pw(q.p); $("posValue").textContent = fmt(v); $("posPaid").textContent = fmt(q.stake);
     $("posEntry").textContent = fmtP(q.entry); $("posNow").textContent = fmtP(px); $("px").textContent = fmtP(px);
     const pnl = v - q.stake; $("posPnl").textContent = `${pnl >= 0 ? "+" : "−"}${fmt(Math.abs(pnl))} · ×${(v / q.stake).toFixed(2)}`; $("posPnl").className = "num " + (pnl >= 0 ? "pos" : "neg");
     $("meltBar").style.width = left * 100 + "%";
@@ -206,7 +236,7 @@ function renderPosition() {
     const a = live?.state?.ledgerAcc; if (!a || BigInt(a.long_units) === 0n) return;
     const v = Number(a.long_value) / E6, c = Number(a.long_cost) / E6, m = live.state.market;
     showCurve(m.power);
-    $("posP").textContent = m.power + "×"; $("posValue").textContent = fmt(v); $("posPaid").textContent = fmt(c);
+    $("posP").textContent = pw(m.power); $("posValue").textContent = fmt(v); $("posPaid").textContent = fmt(c);
     $("posEntry").textContent = "—"; $("posNow").textContent = fmtP(Number(m.price) / E6);
     $("posPnl").textContent = `${v >= c ? "+" : "−"}${fmt(Math.abs(v - c))} · ×${(v / c).toFixed(2)}`; $("posPnl").className = "num " + (v >= c ? "pos" : "neg");
     const f = m.funding_rate_annual_bps / 1e4; $("meltBar").style.width = Math.max(4, Math.min(100, (1 - f / 10) * 100)) + "%";

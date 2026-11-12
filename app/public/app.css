@@ -89,6 +89,11 @@ input[type=range] { width: 100%; accent-color: var(--up); margin: 6px 0 0; }
 /* crab: the deposit button stays on screen above the tab bar */
 #vBtn { position: sticky; bottom: calc(86px + env(safe-area-inset-bottom)); z-index: 4; box-shadow: 0 8px 24px rgba(0,0,0,.35); }
 #vBtn.soft { opacity: .7; }
+.r-card.win { background: radial-gradient(120% 120% at 50% 0%, color-mix(in srgb, var(--up) 14%, var(--panel)), var(--panel) 65%); }
+.r-card.lose { background: radial-gradient(120% 120% at 50% 0%, color-mix(in srgb, var(--down) 12%, var(--panel)), var(--panel) 65%); }
+.r-actions { display: grid; grid-template-columns: 1fr 1.4fr; gap: 8px; }
+#rShare { display: flex; align-items: center; justify-content: center; gap: 8px; }
+#pLabel, #ccP, #posP { font-family: var(--font); font-weight: 800; }
 /* flip card */
 .flip { display: grid; perspective: 1400px; }
 .flip .face { grid-area: 1 / 1; backface-visibility: hidden; -webkit-backface-visibility: hidden; transition: transform .6s cubic-bezier(.2,.8,.2,1); }

@@ -1,5 +1,5 @@
 // First-visit explainer: three short screens, ELI5.
-import { css, fit } from "./theme.js";
+import { css, fit, pw } from "./theme.js";
 const SLIDES = [
   {
     kicker: "Continuous-Expiry Power Perpetuals",
@@ -12,6 +12,12 @@ const SLIDES = [
     title: "No liquidation on wicks.",
     text: "A normal perpetual gets liquidated in a dip and it's over. Uprise rises faster, survives the dip and comes back. You pay by slowly melting over time, so you're betting on a rise within a time window.",
     draw: drawWick,
+  },
+  {
+    kicker: "The catch",
+    title: "Time melts your position.",
+    text: "That's the price of no liquidation. If the market doesn't rise in time, your position melts down to zero. In the demo, x¹⁰ melts in 20 seconds and x¹ in 40.",
+    draw: drawMelt,
   },
   {
     kicker: "Try it",
@@ -75,8 +81,8 @@ export function showOnboarding(root, onDone) {
 }
 
 // Slide 1 (plays once): the price as gray candles in the lower band, and the Uprise curve (green) =
-// price^6. The curve follows the price's wiggles but its bend upward is unmistakable by the end.
-const P1 = 6, N1 = 22, curve1 = (u) => Math.pow(smooth1(u), P1) * Math.pow(noisy1(u) / smooth1(u), 2.5), smooth1 = (u) => 1 + 0.3 * u, noisy1 = (u) => smooth1(u) + 0.022 * Math.sin(u * 23) + 0.012 * Math.sin(u * 61 + 1);
+// price^10: almost flat at first, then bending up hard. The curve follows the price's wiggles but its bend upward is unmistakable by the end.
+const P1 = 10, N1 = 22, curve1 = (u) => Math.pow(smooth1(u), P1) * Math.pow(noisy1(u) / smooth1(u), 2.5), smooth1 = (u) => 1 + 0.3 * u, noisy1 = (u) => smooth1(u) + 0.022 * Math.sin(u * 23) + 0.012 * Math.sin(u * 61 + 1);
 function drawCurves(ctx, W, H, t) {
   const T = 5, x = Math.min(1, t / T), pad = 14, X = (u) => pad + u * (W - 165);
   // candles get their own scale in the lower 40% so they're readable; the curve uses the full height
@@ -98,7 +104,7 @@ function drawCurves(ctx, W, H, t) {
   const pv = noisy1(x), uv = curve1(x);
   ctx.font = `700 13px ${css("--mono")}`; ctx.textAlign = "left";
   ctx.fillStyle = css("--muted"); ctx.fillText(`price ${pnl(pv)}`, X(x) + slot + 6, YC(pv) + 4);
-  ctx.fillStyle = css("--up"); ctx.fillText(`Uprise ${P1}× ${pnl(uv)}`, X(x) + 8, YV(uv) + 4);
+  ctx.fillStyle = css("--up"); ctx.font = `700 14px ${css("--font")}`; ctx.fillText(`Uprise ${pw(P1)} ${pnl(uv)}`, X(x) + 8, YV(uv) + 4);
 }
 // Slide 2: a leveraged perp (red) moves like Uprise (green) but is liquidated halfway down the drop;
 // Uprise dips all the way, survives and climbs back far above the start.
@@ -133,6 +139,30 @@ function drawWick(ctx, W, H, t) {
   ctx.fillText(`Uprise ${pnl(uv)}`, X(x) + 8, Y(uv) + (liq ? 4 : -8));
   ctx.fillStyle = css("--muted"); ctx.font = `600 12px ${css("--font")}`;
   ctx.fillText(`price ${(crashPath(x) - 1 >= 0 ? "+" : "")}${((crashPath(x) - 1) * 100).toFixed(1)}%`, pad, pad + 4);
+}
+// Slide 3: the same position twice, with a timer draining on top. Flat market: the value melts in a
+// straight line and fades to gray, ending in a Melt Down. Rising market: the curve outruns the melt.
+function drawMelt(ctx, W, H, t) {
+  const T = 6, x = Math.min(1, (t % (T + 2)) / T), pad = 14, X = (u) => pad + u * (W - 150);
+  const flat = (u) => 1 - u, rise = (u) => Math.pow(1 + 0.3 * u, 5) * (1 - 0.55 * u), hi = 2.1;
+  const Y = (v) => H - pad - v / hi * (H - 2 * pad - 34);
+  // timer bar
+  const bw = W - 2 * pad; ctx.fillStyle = css("--panel2"); ctx.fillRect(pad, pad, bw, 8);
+  ctx.fillStyle = css(x < 0.8 ? "--gold" : "--down"); ctx.fillRect(pad, pad, bw * (1 - x), 8);
+  ctx.font = `600 11px ${css("--font")}`; ctx.fillStyle = css("--muted"); ctx.textAlign = "left"; ctx.fillText(`⏱ time left ${Math.round((1 - x) * 100)}%`, pad, pad + 24);
+  ctx.strokeStyle = css("--line"); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(pad, Y(1)); ctx.lineTo(W - 20, Y(1)); ctx.stroke();
+  const gray = css("--muted");
+  for (let k = 1; k <= 90; k++) {
+    const u0 = ((k - 1) / 90) * x, u1 = (k / 90) * x;
+    ctx.lineCap = "round"; ctx.lineWidth = 3;
+    ctx.strokeStyle = `color-mix(in srgb, ${css("--down")} ${Math.round(100 - 85 * u1)}%, ${gray})`;
+    ctx.beginPath(); ctx.moveTo(X(u0), Y(flat(u0))); ctx.lineTo(X(u1), Y(flat(u1))); ctx.stroke();
+    ctx.strokeStyle = css("--up"); ctx.beginPath(); ctx.moveTo(X(u0), Y(rise(u0))); ctx.lineTo(X(u1), Y(rise(u1))); ctx.stroke();
+  }
+  ctx.font = `700 12px ${css("--mono")}`; ctx.textAlign = "left";
+  ctx.fillStyle = css("--up"); ctx.fillText(`price rises: ${pnl(rise(x))}`, X(x) + 8, Y(rise(x)) + 4);
+  if (x >= 1) { ctx.font = "20px sans-serif"; ctx.textAlign = "center"; ctx.fillText("🫠", X(1), Y(0) - 12); ctx.textAlign = "left"; ctx.font = `800 12px ${css("--font")}`; ctx.fillStyle = css("--down"); ctx.fillText("MELT DOWN", X(1) + 14, Y(0) - 8); }
+  else { ctx.fillStyle = gray; ctx.fillText(`price flat: ${pnl(flat(x))}`, X(x) + 8, Y(flat(x)) + 4); }
 }
 function pnl(v) { return (v >= 1 ? "+" : "−") + Math.abs((v - 1) * 100).toFixed(0) + "%"; }
 function drawCoins(ctx, W, H, t) {
