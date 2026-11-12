@@ -297,19 +297,27 @@ function openFund() {
 }
 $("fTest").onclick = () => withBusy($("fTest"), "Adding…", async () => { await live.faucet(); toast("1,000 test USDC added"); modal("fundModal", false); await liveRefresh(); });
 $("fBridge").onclick = () => { modal("fundModal", false); renderWallet(); modal("wallet"); document.querySelector('#wSeg [data-w="in"]').click(); };
+// wallet tokens (FastNEAR API), without USDC since that's what we swap into
+async function walletTokens() {
+  const api = live.cfg.testnet ? "https://test.api.fastnear.com" : "https://api.fastnear.com";
+  const r = await fetch(`${api}/v1/account/${live.accountId}/ft`).then((x) => x.json());
+  const toks = (r.tokens || []).filter((t) => BigInt(t.balance || 0) > 0n && t.contract_id !== live.cfg.usdc).slice(0, 8);
+  const rows = await Promise.all(toks.map(async (t) => { const m = await live.view(t.contract_id, "ft_metadata").catch(() => null); const d = m?.decimals ?? 0; return { sym: m?.symbol || t.contract_id, amt: Number(BigInt(t.balance)) / 10 ** d }; }));
+  const acct = await live.provider.viewAccount({ accountId: live.accountId }).catch(() => null), nearBal = acct ? Number(BigInt(acct.amount) / 10n ** 20n) / 1e4 : 0;
+  if (nearBal > 0) rows.unshift({ sym: "NEAR", amt: nearBal });
+  return rows;
+}
+const tokenRows = (rows) => rows.length ? rows.map((t) => `<div class="tok-row"><b>${t.sym}</b><span>${t.amt.toLocaleString("en-US", { maximumFractionDigits: 4 })}</span><button class="chip" ${live.cfg.testnet ? "disabled" : ""}>Swap</button></div>`).join("") : '<p class="hint">No tokens found in this wallet.</p>';
+const SWAP_NOTE = () => (live.cfg.testnet ? "Swaps run through NEAR Intents on mainnet. On testnet, use the test USDC button." : "Pick a token to swap into USDC. NEAR Intents finds the best price.");
 $("fSwap").onclick = async () => {
-  $("fSwapPane").hidden = false; $("fTokens").innerHTML = '<p class="hint">Looking at your wallet…</p>';
-  $("fSwapNote").textContent = live.cfg.testnet ? "Swaps run through NEAR Intents on mainnet. On testnet, use the testnet USDC button." : "Pick a token to swap into USDC. NEAR Intents finds the best price.";
-  try {
-    const api = live.cfg.testnet ? "https://test.api.fastnear.com" : "https://api.fastnear.com";
-    const r = await fetch(`${api}/v1/account/${live.accountId}/ft`).then((x) => x.json());
-    const toks = (r.tokens || []).filter((t) => BigInt(t.balance || 0) > 0n && t.contract_id !== live.cfg.usdc).slice(0, 8); // USDC is what we swap into
-    const rows = await Promise.all(toks.map(async (t) => { const m = await live.view(t.contract_id, "ft_metadata").catch(() => null); const d = m?.decimals ?? 0; return { sym: m?.symbol || t.contract_id, amt: Number(BigInt(t.balance)) / 10 ** d }; }));
-    const acct = await live.provider.viewAccount({ accountId: live.accountId }).catch(() => null), nearBal = acct ? Number(BigInt(acct.amount) / 10n ** 20n) / 1e4 : 0;
-    if (nearBal > 0) rows.unshift({ sym: "NEAR", amt: nearBal });
-    $("fTokens").innerHTML = rows.length ? rows.map((t) => `<div class="tok-row"><b>${t.sym}</b><span>${t.amt.toLocaleString("en-US", { maximumFractionDigits: 4 })}</span><button class="chip" ${live.cfg.testnet ? "disabled" : ""}>Swap</button></div>`).join("") : '<p class="hint">No tokens found in this wallet.</p>';
-  } catch { $("fTokens").innerHTML = '<p class="hint">Couldn\'t read your wallet right now.</p>'; }
+  $("fSwapPane").hidden = false; $("fTokens").innerHTML = '<p class="hint">Looking at your wallet…</p>'; $("fSwapNote").textContent = SWAP_NOTE();
+  try { $("fTokens").innerHTML = tokenRows(await walletTokens()); } catch { $("fTokens").innerHTML = '<p class="hint">Couldn\'t read your wallet right now.</p>'; }
 };
+async function fillSwapCard() {
+  $("swHint").textContent = SWAP_NOTE(); $("swBtn").disabled = live.cfg.testnet; $("swTokens").innerHTML = '<p class="hint">Looking at your wallet…</p>';
+  try { $("swTokens").innerHTML = tokenRows(await walletTokens()); } catch { $("swTokens").innerHTML = '<p class="hint">Couldn\'t read your wallet right now.</p>'; }
+}
+
 async function liveRefresh() {
   if (mode !== "live" || !live) return;
   try {
@@ -422,6 +430,8 @@ function renderWallet() {
   $("wUsdc").textContent = fmt(Number(st.usdc || 0n) / E6); $("wFree").textContent = fmt(Number(st.ledgerAcc?.free || 0) / E6);
   $("wGas").textContent = live.kind === "device" ? "paid by Uprise" : "your wallet";
   $("faucet").hidden = !live.cfg.testnet || !live.connected;
+  // right card: wallet users swap what they hold; device wallets get their deposit address
+  const ext = live.kind === "wallet"; $("depSwap").hidden = !ext; $("depNear").hidden = ext; if (ext) fillSwapCard();
   document.querySelector('#wSeg [data-w="key"]').textContent = live.kind === "device" ? "Security" : "Sign out";
   $("xBtn").disabled = live.cfg.testnet; $("xHint").textContent = live.cfg.testnet ? "Cross-chain deposits through NEAR Intents run on mainnet. On testnet, use the test USDC button." : "Send USDC from Ethereum, Solana, Base or Arbitrum. NEAR Intents delivers it here as USDC on NEAR.";
   $("secHint").textContent = live.kind === "device" ? "Your key lives on this device. Save a recovery email so you can't lose it." : "You're signed in with your NEAR wallet. Your keys stay in your wallet.";

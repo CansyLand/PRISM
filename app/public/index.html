@@ -205,7 +205,7 @@
     <div class="big-ico">💸</div>
     <h2>Add USDC to start</h2>
     <p class="hint">Uprise trades in USDC on NEAR. Pick how you want to get some.</p>
-    <button class="btn" id="fBridge">Move USDC from another chain</button>
+    <button class="btn" id="fBridge">Cross-chain deposit</button>
     <button class="btn ghost" id="fSwap">Swap tokens in my wallet</button>
     <button class="btn ghost" id="fTest" hidden>Add 1,000 testnet USDC</button>
     <div id="fSwapPane" hidden>
@@ -235,14 +235,31 @@
       <div class="segment" id="wSeg" role="tablist"><button role="tab" data-w="in" aria-selected="true">Add money</button><button role="tab" data-w="out" aria-selected="false">Send</button><button role="tab" data-w="key" aria-selected="false">Security</button></div>
       <div data-wpane="in">
         <button class="btn" id="faucet">Get 1,000 test USDC</button>
-        <h3>Send USDC on NEAR to</h3>
-        <div class="addr" id="addr">—</div>
-        <button class="btn small" id="copy">Copy address</button>
-        <h3>From another chain or exchange</h3>
-        <p class="hint" id="xHint">Send USDC from Ethereum, Solana, Base or Arbitrum. NEAR Intents delivers it here as USDC on NEAR.</p>
-        <div class="row-gap"><select id="xAsset" class="select"></select><label class="field small"><input id="xAmt" inputmode="decimal" placeholder="$0"></label></div>
-        <button class="btn ghost" id="xBtn">Get deposit address</button>
-        <div class="addr" id="xOut" hidden></div>
+        <!-- two ways in: cross-chain (left) and on NEAR (right: swap for wallet users, address for device wallets) -->
+        <div class="dep2">
+          <div class="dep-card">
+            <h3>Cross-chain deposit</h3>
+            <p class="hint" id="xHint">Send USDC from Ethereum, Solana, Base or Arbitrum. NEAR Intents delivers it here as USDC on NEAR.</p>
+            <select id="xAsset" class="select"></select>
+            <label class="field small"><input id="xAmt" inputmode="decimal" placeholder="$0"></label>
+            <button class="btn ghost" id="xBtn">Get deposit address</button>
+            <div class="addr" id="xOut" hidden></div>
+          </div>
+          <div class="dep-card" id="depNear">
+            <h3>Deposit on NEAR</h3>
+            <p class="hint">Send USDC on NEAR to this address.</p>
+            <div class="addr" id="addr">—</div>
+            <button class="btn small" id="copy">Copy address</button>
+          </div>
+          <div class="dep-card" id="depSwap" hidden>
+            <h3>Swap</h3>
+            <p class="hint" id="swHint">Turn tokens in your wallet into USDC.</p>
+            <div class="tok-list" id="swTokens"></div>
+            <label class="field small"><input id="swAmt" inputmode="decimal" placeholder="amount"></label>
+            <button class="btn" id="swBtn">Swap to USDC</button>
+            <div class="powered">powered by <span class="pw-logo"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21.443 0c-.89 0-1.714.46-2.18 1.218l-5.017 7.448a.533.533 0 0 0 .792.7l4.938-4.282a.2.2 0 0 1 .334.151v13.41a.2.2 0 0 1-.354.128L5.03.905A2.555 2.555 0 0 0 3.078 0h-.521A2.557 2.557 0 0 0 0 2.557v18.886a2.557 2.557 0 0 0 4.736 1.338l5.017-7.448a.533.533 0 0 0-.792-.7l-4.938 4.283a.2.2 0 0 1-.333-.152V5.352a.2.2 0 0 1 .354-.128l14.924 17.87c.486.574 1.2.905 1.952.906h.521A2.558 2.558 0 0 0 24 21.445V2.557A2.558 2.558 0 0 0 21.443 0Z"/></svg><b>NEAR</b> Intents</span></div>
+          </div>
+        </div>
       </div>
       <div data-wpane="out" hidden>
         <label class="field small"><input id="sTo" placeholder="receiver.near"></label>

@@ -262,3 +262,8 @@ nav.tabs .ico svg, nav.tabs button.main .ico svg { width: 24px; height: 24px; }
 .pw-logo { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; } .pw-logo svg { width: 13px; height: 13px; display: block; } .pw-logo b { letter-spacing: .02em; }
 .sheet .kv span:first-child { flex: none; } .sheet .kv span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; } .sheet .addr-inline { max-width: 62%; }
 .sheet .rows { grid-template-columns: minmax(0, 1fr); } .sheet .kv { min-width: 0; }
+/* wallet: two deposit cards side by side (stacked on narrow screens) */
+.dep2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+.dep-card { background: rgba(29,21,48,.07); border-radius: 18px; padding: 12px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.dep-card h3 { margin: 0; } .dep-card .hint { margin: 0; font-size: 12px; } .dep-card .btn, .dep-card .field, .dep-card .select { margin-top: 4px; } .dep-card .addr { font-size: 11px; }
+@media (max-width: 460px) { .dep2 { grid-template-columns: 1fr; } }

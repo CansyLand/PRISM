@@ -73,7 +73,11 @@ export class Arena {
       const traders = accts.filter((a) => a.account_id !== L.cfg.vault);
       this.retail = traders.slice(0, 40).map((a) => ({ id: a.account_id, bank: e6(a.free), value: e6(a.long_value), open: BigInt(a.long_units) > 0n, p: market.power, stake: e6(a.long_cost) }));
       Object.assign(this.vault, { nav: e6(s.nav), usdc: e6(s.usdc) + e6(s.short_value) + e6(s.ledger_free), asset: e6(vault.hedge_value), owed: e6(market.long_claims), label: "Crab vault" });
-      this.hunters = [{ id: "depositors", value: e6(s.nav) }];
+      // the vault's depositors: you (always shown and marked) and everyone else as one circle
+      const mine = L.accountId ? e6(L.state?.pos?.value || 0) + e6(L.state?.pos?.pending_deposit || 0) : 0; // includes a deposit still waiting for the next vault update
+      this.hunters = mine > 0 ? [{ id: "you", value: mine, me: true }, { id: "others", value: Math.max(0, e6(s.nav) - mine) }] : [{ id: "depositors", value: e6(s.nav) }];
+      // your own trader circle is always in the list, marked
+      if (L.accountId) { const me = this.retail.find((r) => r.id === L.accountId); if (me) me.me = true; else { const a = accts.find((x) => x.account_id === L.accountId); if (a) this.retail.unshift({ id: a.account_id, bank: e6(a.free), value: e6(a.long_value), open: BigInt(a.long_units) > 0n, p: market.power, stake: e6(a.long_cost), me: true }); } }
       const share = Number(market.short_shares) > 0 ? Number(s.short_shares) / Number(market.short_shares) : 0, perYear = market.funding_rate_annual_bps / 1e4 * e6(market.long_claims) * share * 0.9;
       Object.assign(this.vault, { apy: e6(s.nav) > 0 ? perYear / e6(s.nav) : 0, perDay: perYear / 365, earned: null });
       this.layout();
@@ -177,10 +181,12 @@ export class Arena {
       ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.fillStyle = C("--panel"); ctx.fill();
       if (p.open) { const m = p.value / Math.max(1e-9, p.stake); ctx.lineWidth = Math.max(2, p.r * 0.22); ctx.beginPath(); ctx.arc(p.x, p.y, p.r - 1, a0, a0 + Math.min(1, m) * Math.PI * 2); ctx.strokeStyle = m >= 1 ? C("--up") : C("--down"); ctx.stroke(); if (p.r > 10) { ctx.fillStyle = C("--up"); ctx.font = F(Math.max(8, p.r * 0.6), 800); ctx.fillText(pw(p.p), p.x, p.y + p.r * 0.2); } }
       else { ctx.lineWidth = 1; ctx.strokeStyle = C("--line"); ctx.stroke(); }
+      if (p.me) { ctx.lineWidth = 2.5; ctx.strokeStyle = C("--ink"); ctx.beginPath(); ctx.arc(p.x, p.y, p.r + 4, 0, 7); ctx.stroke(); ctx.fillStyle = C("--ink"); ctx.font = F(9, 800); ctx.fillText("YOU", p.x, p.y - p.r - 7); }
     }
     for (const h of this.hunters) {
-      ctx.beginPath(); ctx.arc(h.x, h.y, h.r, 0, 7); ctx.fillStyle = color(C("--usdc"), 0.2); ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = C("--usdc"); ctx.stroke();
-      ctx.fillStyle = C("--ink"); ctx.font = F(Math.max(9, Math.min(12, h.r * 0.34)), 700, true); ctx.fillText(big(h.value), h.x, h.y + 4);
+      ctx.beginPath(); ctx.arc(h.x, h.y, h.r, 0, 7); ctx.fillStyle = h.me ? C("--usdc") : color(C("--usdc"), 0.2); ctx.fill(); ctx.lineWidth = h.me ? 3 : 2; ctx.strokeStyle = h.me ? C("--ink") : C("--usdc"); ctx.stroke();
+      ctx.fillStyle = h.me ? "#fff" : C("--ink"); ctx.font = F(Math.max(9, Math.min(12, h.r * 0.34)), 700, true); ctx.fillText(big(h.value), h.x, h.y + (h.me ? 8 : 4));
+      if (h.me) { ctx.font = F(9, 800); ctx.fillText("YOU", h.x, h.y - 6); } else if (h.id === "others") { ctx.fillStyle = C("--muted"); ctx.font = F(8.5, 700); ctx.fillText("OTHERS", h.x, h.y - h.r - 6); }
     }
   }
 }
