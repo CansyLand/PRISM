@@ -2,19 +2,22 @@ import { CandleChart, fmtP } from "./candles.js";
 import { Demo, CANDLE_MS, meltSeconds } from "./demo.js";
 import { showOnboarding } from "./onboarding.js";
 import { Arena } from "./analytics.js";
-import { CurveCard, pctTxt } from "./curvecard.js";
+import { CurveCard } from "./curvecard.js";
+import { css, fit } from "./theme.js";
+import { crabIntro } from "./crabintro.js";
 
 const $ = (id) => document.getElementById(id);
 const E6 = 1e6;
 const fmt = (v, d = 2) => (v < 0 ? "−" : "") + "$" + Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
 const pct = (v, d = 0) => (v >= 0 ? "+" : "−") + Math.abs(v * 100).toFixed(d) + "%";
-try { if (new URLSearchParams(location.search).has("fresh")) { ["uprise.v1.onboarded", "uprise.v1.crabSeen", "uprise.demo.v1", "uprise.mode"].forEach((k) => localStorage.removeItem(k)); history.replaceState(null, "", location.pathname); } } catch {}
+try { if (new URLSearchParams(location.search).has("fresh")) { ["uprise.v1.onboarded", "uprise.v1.crabSeen", "uprise.demo.v2", "uprise.mode"].forEach((k) => localStorage.removeItem(k)); history.replaceState(null, "", location.pathname); } } catch {}
 const ls = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
 
 let mode = ls.get("uprise.mode") || "demo", tab = "bull", live = null, demo = null, busy = false;
 const chart = new CandleChart($("candles"));
 const arena = new Arena($("arena"));
-const curve = new CurveCard($("curveCv"));
+crabIntro($("crabIntro"));
+const curve = new CurveCard($("curveCv")), rCurve = new CurveCard($("rCurve"), { still: true });
 
 // ── toast + busy buttons ──
 let tt;
@@ -40,8 +43,7 @@ function renderStrength() {
 // the slim card follows the slider, or the open position (with a dot at today's price move)
 function showCurve(p, at = null) {
   curve.set(p, at);
-  $("ccP").textContent = p + "×"; $("ccUp").textContent = pctTxt(1.1 ** p - 1); $("ccDn").textContent = pctTxt(0.9 ** p - 1);
-  $("ccNote").textContent = at != null ? "The dot is your position now." : mode === "demo" ? `Flat price: melts away in ${Math.round(meltSeconds(p))} s of fast-forward.` : "Pays funding every second you hold it.";
+  $("ccP").textContent = p + "×";
 }
 $("p").addEventListener("input", () => { renderStrength(); renderPreview(); });
 
@@ -68,7 +70,7 @@ $("amt").addEventListener("input", renderPreview);
 document.querySelectorAll("[data-a]").forEach((b) => (b.onclick = () => { const v = b.dataset.a; $("amt").value = v === "max" ? Math.floor(cash() * 100) / 100 : v; renderPreview(); }));
 
 // ── DEMO: fast-forward replay ──
-let playing = null; // { stop }
+let playing = null, trail = []; // { stop }, prices seen while the position was open
 function loadDemoChart() { chart.set(demo.history()); chart.mark(null); $("px").textContent = fmtP(chart.price()); $("chg").textContent = ""; }
 async function demoBuy() {
   const a = amount(), p = P();
@@ -76,13 +78,15 @@ async function demoBuy() {
   $("amt").value = "";
   chart.mark(demo.position.entry, `your entry ${fmtP(demo.position.entry)}`);
   flip(true); ff(true, "1 day = ⅓ s");
-  const future = demo.future(); let i = 0, stopped = false, last = performance.now();
+  const future = demo.future(); let i = 0, stopped = false, last = performance.now(), lastS = 0;
+  trail = [demo.position.entry];
   playing = { stop: () => (stopped = true) };
   const frame = (now) => {
     if (stopped) return;
     chart.step(now); chart.draw();
     const dt = Math.max(0, (now - last) / 1000); last = now;
     const q = demo.update(chart.price(), dt);
+    const px = chart.price(); if (now - lastS > 80 && Number.isFinite(px)) { trail.push(px); lastS = now; }
     renderPosition();
     if (q?.melted) return demoClose("melted");
     requestAnimationFrame(frame);
@@ -93,14 +97,18 @@ async function demoBuy() {
 function demoClose(why) {
   if (!demo.position) return;
   playing?.stop(); playing = null;
-  const r = demo.close();
+  const exitPx = chart.price(), r = demo.close();
+  trail.push(exitPx);
   flip(false); ff(false); chart.mark(null); renderStrength();
   const m = r.out / r.stake;
   $("rIco").textContent = r.pnl > 0 ? (m >= 3 ? "🚀" : "🎉") : why === "melted" ? "🫠" : "📉";
   $("rTitle").textContent = r.pnl > 0 ? `+${fmt(r.pnl)}` : r.out > 0 ? `${fmt(r.pnl)}` : `Melted away`;
-  $("rText").textContent = (r.out > 0 ? `You turned ${fmt(r.stake)} into ${fmt(r.out)} (×${m.toFixed(2)}) at ${r.p}×. ` : `The price didn't rise fast enough, so the ${r.p}× position melted. That's the time window at work. `)
-    + (r.pnl > 0 ? "Closing at the right moment matters: the position keeps melting while you wait." : why === "ended" ? "The replay ended, so the position was closed." : "Try a lower strength or close sooner next time.");
-  modal("result");
+  const move = exitPx / r.entry - 1, pure = (1 + move) ** r.p;
+  $("rPx").textContent = pct(move, 1); $("rPx").className = "num " + (move >= 0 ? "pos" : "neg");
+  $("rP").textContent = r.p + "×"; $("rMul").textContent = "×" + m.toFixed(2); $("rMul").className = "num " + (m >= 1 ? "pos" : "neg");
+  modal("result"); drawTrail($("rPrice"), trail); rCurve.set(r.p, move);
+  $("rText").textContent = (r.out > 0 ? `Price ${pct(move, 0)} on a ${r.p}× curve is ×${pure.toFixed(2)}; melting over time leaves ×${m.toFixed(2)}: ${fmt(r.stake)} became ${fmt(r.out)}. ` : `The price didn't rise fast enough, so the ${r.p}× position melted. That's the time window at work. `)
+    + (r.pnl > 0 ? "" : why === "ended" ? "The replay ended, so the position was closed." : "Try a lower strength or close sooner next time.");
   $("result").querySelector("[data-close]").onclick = () => {
     modal("result", false); loadDemoChart(); render();
     if (demo.trades === 1 && mode === "demo") pointAtLive();
@@ -112,7 +120,33 @@ function pointAtLive() {
   h.style.left = b.left + b.width / 2 - 40 + "px"; h.style.top = b.bottom + 4 + "px"; h.hidden = false;
   setTimeout(() => (h.hidden = true), 9000);
 }
-function ff(on, text) { $("ff").hidden = !on; if (text) $("ffText").textContent = text; }
+// your vault stake over time: green area, dashed line = what you put in, the crab walks at the head
+function drawStake(cv, hist, cost) {
+  const f = fit(cv); if (!f || hist.length < 2) return; const { ctx, W, H } = f;
+  const step = Math.max(1, Math.floor(hist.length / 200)), pts = hist.filter((_, i) => i % step === 0 || i === hist.length - 1);
+  let lo = Math.min(cost, ...pts), hi = Math.max(cost, ...pts); const pad = (hi - lo) * 0.15 || 1; lo -= pad; hi += pad * 1.6;
+  const X = (i) => 2 + i / (pts.length - 1) * (W - 34), Y = (v) => 18 + (hi - v) / (hi - lo) * (H - 34);
+  ctx.beginPath(); pts.forEach((v, i) => (i ? ctx.lineTo(X(i), Y(v)) : ctx.moveTo(X(i), Y(v))));
+  ctx.lineTo(X(pts.length - 1), H - 16); ctx.lineTo(X(0), H - 16); ctx.closePath();
+  const g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, `color-mix(in srgb, ${css("--up")} 35%, transparent)`); g.addColorStop(1, "transparent");
+  ctx.fillStyle = g; ctx.fill();
+  ctx.setLineDash([3, 3]); ctx.strokeStyle = css("--muted"); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(0, Y(cost)); ctx.lineTo(W, Y(cost)); ctx.stroke(); ctx.setLineDash([]);
+  ctx.beginPath(); pts.forEach((v, i) => (i ? ctx.lineTo(X(i), Y(v)) : ctx.moveTo(X(i), Y(v)))); ctx.strokeStyle = css("--up"); ctx.lineWidth = 2.2; ctx.lineJoin = "round"; ctx.stroke();
+  const ex = X(pts.length - 1), ey = Y(pts.at(-1));
+  ctx.font = "20px sans-serif"; ctx.textAlign = "center"; ctx.fillText("🦀", ex + 2, ey + 4);
+  ctx.font = `600 10px ${css("--font")}`; ctx.fillStyle = css("--muted"); ctx.textAlign = "left";
+  ctx.fillText("start", 2, H - 3); ctx.textAlign = "right"; ctx.fillText("today", W - 2, H - 3); ctx.fillText(`you put in ${fmt(cost, 0)}`, W - 30, Y(cost) + 13);
+}
+// small price line for the result card: entry dashed, end dot
+function drawTrail(cv, pts) {
+  const f = fit(cv); if (!f || pts.length < 2) return; const { ctx, W, H } = f;
+  let lo = Math.min(...pts), hi = Math.max(...pts); const pad = (hi - lo) * 0.12 || hi * 0.01; lo -= pad; hi += pad;
+  const X = (i) => 4 + i / (pts.length - 1) * (W - 12), Y = (v) => 4 + (hi - v) / (hi - lo) * (H - 8), up = pts.at(-1) >= pts[0];
+  ctx.setLineDash([3, 3]); ctx.strokeStyle = css("--muted"); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(0, Y(pts[0])); ctx.lineTo(W, Y(pts[0])); ctx.stroke(); ctx.setLineDash([]);
+  ctx.beginPath(); pts.forEach((v, i) => (i ? ctx.lineTo(X(i), Y(v)) : ctx.moveTo(X(i), Y(v)))); ctx.strokeStyle = css(up ? "--up" : "--down"); ctx.lineWidth = 2.2; ctx.lineJoin = "round"; ctx.stroke();
+  ctx.fillStyle = css("--ink"); ctx.beginPath(); ctx.arc(X(pts.length - 1), Y(pts.at(-1)), 4, 0, 7); ctx.fill();
+}
+function ff(on) { $("ff").hidden = !on; }
 function flip(on) { $("flip").classList.toggle("flipped", on); }
 
 function renderPosition() {
@@ -195,11 +229,14 @@ function renderCrab() {
     const tvl = 250_000 + demo.vault.stake;
     $("vYield").textContent = "+18%"; $("vTvl").textContent = fmt(tvl, 0); $("vFund").textContent = "$124/day"; $("vUtil").textContent = "31%";
     $("vBar").innerHTML = `<i style="width:62%;background:var(--usdc)"></i><i style="width:38%;background:var(--near)"></i>`;
+    $("stakeCv").parentElement.hidden = false; drawStake($("stakeCv"), demo.vault.hist, demo.vault.cost);
+    const mo = demo.vault.days / 30.44; $("sSince").textContent = mo >= 1 ? `${mo.toFixed(mo < 10 ? 1 : 0)} months in` : "";
     $("vHedge").textContent = "Demo vault. Your stake grows a day every second while you watch.";
     $("sValue").textContent = fmt(demo.vault.stake); const e = demo.vault.stake - demo.vault.cost; $("sEarned").textContent = (e >= 0 ? "+" : "") + fmt(e); $("sEarned").className = e > 0 ? "pos" : "";
     $("sPendRow").hidden = true; $("vNote").textContent = "";
   } else {
     const st = live?.state || {}, v = st.vault, m = st.market;
+    $("stakeCv").parentElement.hidden = true; $("sSince").textContent = "";
     if (!v || !m) return;
     const s = v.snapshot, nav = Number(s.nav) / E6, assetV = Number(v.hedge_value) / E6, usdcV = Math.max(0, nav - assetV);
     const claims = Number(m.long_claims) / E6, share = Number(m.short_shares) > 0 ? Number(s.short_shares) / Number(m.short_shares) : 0;

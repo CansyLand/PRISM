@@ -1,7 +1,7 @@
 // Analytics arena: traders on the left, the vault in the middle, liquidity providers on the right,
 // coins flying between them. Demo: a small simulated crowd. Live: real ledger accounts, with
 // coins animated from the changes between polls (an approximation of on-chain flows).
-const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+import { css, fit } from "./theme.js";
 const rand = (a, b) => a + Math.random() * (b - a);
 const big = (v) => (Math.abs(v) >= 1e6 ? "$" + (v / 1e6).toFixed(2) + "M" : Math.abs(v) >= 1e4 ? "$" + (v / 1e3).toFixed(1) + "k" : "$" + Math.round(v).toLocaleString("en-US"));
 
@@ -51,7 +51,10 @@ export class Arena {
     this.vault.asset += (delta - this.vault.asset) * Math.min(1, dt);
     this.vault.nav = this.hunters.reduce((a, h) => a + h.value, 0);
     const grow = Math.pow(1.18, dt / 365 * 30); // ~a month per second of demo yield
-    for (const h of this.hunters) { this.vault.earned += h.value * (grow - 1); h.value *= grow; }
+    for (const h of this.hunters) {
+      const add = h.value * (grow - 1); this.vault.earned += add; h.value *= grow;
+      h.yAcc = (h.yAcc || 0) + add; while (h.yAcc >= 150) { h.yAcc -= 150; this.emit(this.yieldC, h, "yield", 1); }
+    }
     this.vault.perDay = this.vault.nav * 0.18 / 365;
     if (Math.random() < dt * 0.15) { const h = this.hunters[Math.floor(Math.random() * this.hunters.length)]; const x = Math.round(rand(2, 8)) * 1000; h.value += x; this.emit(h, this.vault, "bar", Math.min(12, x / 1000)); }
   }
@@ -68,8 +71,9 @@ export class Arena {
       this.hunters = [{ id: "depositors", value: e6(s.nav) }];
       const share = Number(market.short_shares) > 0 ? Number(s.short_shares) / Number(market.short_shares) : 0, perYear = market.funding_rate_annual_bps / 1e4 * e6(market.long_claims) * share * 0.9;
       Object.assign(this.vault, { apy: e6(s.nav) > 0 ? perYear / e6(s.nav) : 0, perDay: perYear / 365, earned: null });
-      this.exch.total = e6(market.fees);
       this.layout();
+      if (perYear > 0) this.emit(this.yieldC, this.hunters[0], "yield", Math.min(6, Math.max(1, Math.round(perYear / 365 / 10))));
+      this.exch.total = e6(market.fees);
       for (const r of this.retail) {
         const p = this.prev.get(r.id);
         if (p) {
@@ -89,19 +93,31 @@ export class Arena {
   emit(from, to, kind, n) {
     for (let k = 0; k < n && this.coins.length < 900; k++) this.coins.push({ from, to, kind, t: -k * 0.03, dur: rand(0.7, 1.1), jx: rand(-1, 1), jy: rand(-1, 1), arc: rand(-0.3, 0.3) });
   }
+  // Circular layout: the vault in the middle, yield above and fees below (mirrored), traders on three
+  // arcs to the left, liquidity providers on two arcs to the right.
   layout() {
     const r = this.cv.getBoundingClientRect(); this.W = r.width; this.H = r.height;
-    const W = this.W, H = this.H, place = (list, box, maxR) => {
-      const n = list.length; if (!n) return;
-      const cols = Math.max(1, Math.ceil(Math.sqrt(n * box.w / box.h))), rows = Math.ceil(n / cols), cw = box.w / cols, ch = box.h / rows, rr = Math.min(maxR, Math.min(cw, ch) * 0.36);
-      list.forEach((o, k) => { o.x = box.x + cw * (k % cols + 0.5); o.y = box.y + ch * (Math.floor(k / cols) + 0.5); o.r = rr; });
+    const W = this.W, H = this.H, cx = W / 2, cy = H * 0.5, vr = Math.min(W * 0.14, H * 0.15);
+    Object.assign(this.vault, { x: cx, y: cy, r: vr });
+    const D = vr + Math.min(80, H * 0.19), sr = Math.min(28, vr * 0.58);
+    this.yieldC = { x: cx, y: cy - D, r: sr }; Object.assign(this.exch, { x: cx, y: cy + D, r: sr });
+    this.market = { x: cx, y: 18, r: 6 };
+    const maxR = Math.min(W / 2 - 28, H / 2 - 24), minR = vr + 34;
+    this.rings = [];
+    const arcs = (list, side, fr, spread, maxDot) => {
+      const radii = fr.map((f) => minR + (maxR - minR) * f), n = list.length; if (!n) return;
+      const tot = radii.reduce((a, b) => a + b, 0), counts = radii.map((R) => Math.floor((n * R) / tot));
+      for (let left = n - counts.reduce((a, b) => a + b, 0), k = radii.length - 1; left > 0; left--, k = (k + radii.length - 1) % radii.length) counts[k]++;
+      const sep = radii.length > 1 ? (radii[1] - radii[0]) * 0.46 : maxDot, base = side < 0 ? Math.PI : 0;
+      let i = 0;
+      radii.forEach((R, k) => {
+        const c = counts[k]; if (!c) return; const slot = (2 * spread) / c, dot = Math.min(maxDot, R * slot * 0.42, sep);
+        this.rings.push({ R, a0: base - spread, a1: base + spread });
+        for (let j = 0; j < c; j++) { const a = base - spread + (j + 0.5) * slot, o = list[i++]; o.x = cx + Math.cos(a) * R; o.y = cy + Math.sin(a) * R; o.r = dot; }
+      });
     };
-    Object.assign(this.vault, { x: W / 2, y: H * 0.52, r: Math.min(W * 0.15, H * 0.18) });
-    this.yieldC = { r: Math.min(34, this.vault.r * 0.55) }; Object.assign(this.yieldC, { x: W / 2, y: this.vault.y - this.vault.r - 16 - this.yieldC.r });
-    Object.assign(this.exch, { x: W / 2, y: H - 30 });
-    this.market = { x: W / 2, y: 18, r: 6 };
-    place(this.retail, { x: 8, y: 34, w: W * 0.3, h: H - 50 }, 18);
-    place(this.hunters, { x: W * 0.68, y: 34, w: W * 0.3, h: H - 50 }, 30);
+    arcs(this.retail, -1, [0, 0.5, 1], 0.95, 15);
+    arcs(this.hunters, 1, [0.3, 1], 0.75, 26);
   }
   frame(now) {
     if (!this.running) return;
@@ -113,11 +129,24 @@ export class Arena {
   draw(dt) {
     const cv = this.cv, r = cv.getBoundingClientRect(); if (!r.width) return;
     if (r.width !== this.W || r.height !== this.H || !this.vault.x) this.layout();
-    const dpr = devicePixelRatio || 1; cv.width = r.width * dpr; cv.height = r.height * dpr;
-    const ctx = cv.getContext("2d"); ctx.scale(dpr, dpr);
+    const fitted = fit(cv); if (!fitted) return; const { ctx } = fitted;
     const C = (n) => css(n), F = (s, w = 600, mono) => `${w} ${s}px ${mono ? css("--mono") : css("--font")}`;
+    ctx.lineWidth = 1; ctx.strokeStyle = C("--line");
+    for (const g of this.rings || []) { ctx.beginPath(); ctx.arc(this.vault.x, this.vault.y, g.R, g.a0 - 0.12, g.a1 + 0.12); ctx.stroke(); }
     ctx.font = F(10.5, 700); ctx.fillStyle = C("--up"); ctx.textAlign = "left"; ctx.fillText("🐂 TRADERS", 8, 20);
     ctx.fillStyle = C("--crab"); ctx.textAlign = "right"; ctx.fillText("LIQUIDITY PROVIDERS 🦀", this.W - 8, 20);
+    // coins first, so the vault, yield and people stay readable on top
+    const col = { coin: C("--gold"), win: C("--gold"), fund: C("--accent"), bar: C("--crab"), asset: C("--near"), yield: C("--up") };
+    this.coins = this.coins.filter((c) => (c.t += dt / c.dur) < 1);
+    for (const c of this.coins) {
+      if (c.t < 0) continue;
+      const e = c.t < 0.5 ? 2 * c.t * c.t : 1 - (-2 * c.t + 2) ** 2 / 2;
+      const fx = c.from.x + c.jx * (c.from.r || 6) * 0.4, fy = c.from.y + c.jy * (c.from.r || 6) * 0.4, tx = c.to.x + c.jx * (c.to.r || 6) * 0.5, ty = c.to.y + c.jy * (c.to.r || 6) * 0.5;
+      const mx = (fx + tx) / 2 - (ty - fy) * c.arc, my = (fy + ty) / 2 + (tx - fx) * c.arc;
+      const x = (1 - e) ** 2 * fx + 2 * (1 - e) * e * mx + e * e * tx, y = (1 - e) ** 2 * fy + 2 * (1 - e) * e * my + e * e * ty;
+      ctx.fillStyle = col[c.kind];
+      if (c.kind === "bar") ctx.fillRect(x - 5, y - 3, 10, 6); else { ctx.beginPath(); ctx.arc(x, y, c.kind === "fund" || c.kind === "yield" ? 2.4 : 3.4, 0, 7); ctx.fill(); }
+    }
     // vault: ring = USDC vs NEAR, inside = total
     const v = this.vault, tot = Math.max(1e-9, v.usdc + v.asset), a0 = -Math.PI / 2, aN = v.asset / tot * Math.PI * 2;
     ctx.lineWidth = 10;
@@ -147,18 +176,6 @@ export class Arena {
     for (const h of this.hunters) {
       ctx.beginPath(); ctx.arc(h.x, h.y, h.r, 0, 7); ctx.fillStyle = color(C("--crab"), 0.2); ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = C("--crab"); ctx.stroke();
       ctx.fillStyle = C("--ink"); ctx.font = F(Math.max(9, Math.min(12, h.r * 0.34)), 700, true); ctx.fillText(big(h.value), h.x, h.y + 4);
-    }
-    // coins
-    const col = { coin: C("--gold"), win: C("--gold"), fund: C("--accent"), bar: C("--crab"), asset: C("--near") };
-    this.coins = this.coins.filter((c) => (c.t += dt / c.dur) < 1);
-    for (const c of this.coins) {
-      if (c.t < 0) continue;
-      const e = c.t < 0.5 ? 2 * c.t * c.t : 1 - (-2 * c.t + 2) ** 2 / 2;
-      const fx = c.from.x + c.jx * (c.from.r || 6) * 0.4, fy = c.from.y + c.jy * (c.from.r || 6) * 0.4, tx = c.to.x + c.jx * (c.to.r || 6) * 0.5, ty = c.to.y + c.jy * (c.to.r || 6) * 0.5;
-      const mx = (fx + tx) / 2 - (ty - fy) * c.arc, my = (fy + ty) / 2 + (tx - fx) * c.arc;
-      const x = (1 - e) ** 2 * fx + 2 * (1 - e) * e * mx + e * e * tx, y = (1 - e) ** 2 * fy + 2 * (1 - e) * e * my + e * e * ty;
-      ctx.fillStyle = col[c.kind];
-      if (c.kind === "bar") ctx.fillRect(x - 5, y - 3, 10, 6); else { ctx.beginPath(); ctx.arc(x, y, c.kind === "fund" ? 2.2 : 3.4, 0, 7); ctx.fill(); }
     }
   }
 }

@@ -1,23 +1,26 @@
 // Slim card next to "Curve Long": the shape of the chosen strength. X = price move, Y = your PnL.
 // The curve morphs smoothly when the slider moves; with an open position a dot shows where you are.
-const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+import { css, fit } from "./theme.js";
 
 export class CurveCard {
-  constructor(canvas) { this.cv = canvas; this.p = 5; this.shown = 5; this.R = 0.15; // x range: price −R … +R, widens to follow an open position
+  constructor(canvas, { still = false } = {}) { this.still = still; this.cv = canvas; this.p = 5; this.shown = 5; this.R = 0.15; // x range: price −R … +R, widens to follow an open position
     this.at = null; this.raf = 0; this.kick(); }
-  set(p, at = null) { this.p = p; this.at = Number.isFinite(at) ? at : null; this.kick(); }
+  set(p, at = null) {
+    this.p = p; this.at = Number.isFinite(at) ? at : null;
+    if (this.still) { this.shown = p; this.R = Math.min(0.6, Math.max(0.15, Math.abs(this.at ?? 0) * 1.2)); }
+    this.kick();
+  }
   kick() { if (!this.raf) this.raf = requestAnimationFrame(() => this.frame()); }
   frame() {
     this.raf = 0;
     const d = this.p - this.shown; this.shown = Math.abs(d) < 0.005 ? this.p : this.shown + d * 0.18;
     const wantR = Math.min(0.6, Math.max(0.15, Math.abs(this.at ?? 0) * 1.2)); this.R += (wantR - this.R) * 0.1;
     this.draw();
-    if (this.shown !== this.p || this.at != null) this.kick();
+    if (this.shown !== this.p || Math.abs(wantR - this.R) > 0.002 || (this.at != null && !this.still)) this.kick();
   }
   draw() {
     const cv = this.cv, rect = cv.getBoundingClientRect(); if (!rect.width) return;
-    const dpr = devicePixelRatio || 1; cv.width = rect.width * dpr; cv.height = rect.height * dpr;
-    const ctx = cv.getContext("2d"); ctx.scale(dpr, dpr);
+    const fitted = fit(cv); if (!fitted) return; const { ctx } = fitted;
     const W = rect.width, H = rect.height, p = this.shown, R = this.R, f = (r) => Math.pow(1 + r, p) - 1;
     const top = Math.max(0.2, f(R)) * 1.08, bot = Math.min(-0.2, f(-R)) * 1.08, pl = 4, pr = 4, pt = 8, pb = 16;
     const X = (r) => pl + (r + R) / (2 * R) * (W - pl - pr), Y = (v) => pt + (top - v) / (top - bot) * (H - pt - pb);

@@ -1,6 +1,6 @@
 // Candlestick chart on a canvas. The last candle can be "forming": its price walks
 // open → one wick → the other wick → close, and the body and wicks grow as it goes.
-const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+import { css, fit } from "./theme.js";
 
 export class CandleChart {
   constructor(canvas, { maxCandles = 70 } = {}) {
@@ -29,7 +29,7 @@ export class CandleChart {
 
   step(now) {
     const f = this.forming; if (!f) return;
-    const x = Math.min(1, (now - f.t0) / f.ms), seg = Math.min(2, Math.floor(x * 3)), u = x * 3 - seg;
+    const x = Math.min(1, Math.max(0, (now - f.t0) / f.ms)), seg = Math.min(2, Math.floor(x * 3)), u = x * 3 - seg;
     const p = f.path[seg] + (f.path[seg + 1] - f.path[seg]) * (x >= 1 ? 1 : u);
     f.live = [f.target[0], Math.max(f.live[1], p), Math.min(f.live[2], p), p];
     if (x >= 1) this.finish();
@@ -37,8 +37,7 @@ export class CandleChart {
 
   draw() {
     const cv = this.cv, r = cv.getBoundingClientRect(); if (!r.width) return;
-    const dpr = devicePixelRatio || 1; cv.width = r.width * dpr; cv.height = r.height * dpr;
-    const ctx = cv.getContext("2d"); ctx.scale(dpr, dpr);
+    const fitted = fit(cv); if (!fitted) return; const { ctx } = fitted;
     const all = [...this.candles.slice(-(this.max - (this.forming ? 1 : 0)))];
     if (this.forming) all.push(this.forming.live);
     if (!all.length) return;

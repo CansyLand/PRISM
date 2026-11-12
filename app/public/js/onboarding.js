@@ -1,10 +1,10 @@
 // First-visit explainer: three short screens, ELI5.
-const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+import { css, fit } from "./theme.js";
 const SLIDES = [
   {
     kicker: "Continuous-Expiry Power Perpetuals",
     title: "When the price rises, your position grows faster.",
-    text: "Pick how strong: 1× follows the price, 5× and 10× grow much faster on every step up.",
+    text: "A power perpetual multiplies your gains as the price climbs, so a big move can pay many times more than a normal leveraged perpetual.",
     draw: drawCurves,
   },
   {
@@ -42,8 +42,7 @@ export function showOnboarding(root, onDone) {
   };
   const loop = (now) => {
     const r = cv.getBoundingClientRect(), dpr = devicePixelRatio || 1;
-    cv.width = r.width * dpr; cv.height = r.height * dpr;
-    const ctx = cv.getContext("2d"); ctx.scale(dpr, dpr);
+    const fitted = fit(cv); if (!fitted) { raf = requestAnimationFrame(loop); return; } const { ctx } = fitted;
     SLIDES[i].draw(ctx, r.width, r.height, (now - t0) / 1000);
     raf = requestAnimationFrame(loop);
   };
@@ -93,14 +92,17 @@ function drawCurves(ctx, W, H, t) {
   ctx.fillText(`price ${(pricePath(x) - 1 >= 0 ? "+" : "")}${((pricePath(x) - 1) * 100).toFixed(1)}%`, pad, pad + 4);
 }
 // Two positions on the same price: a 5× perpetual (linear, liquidated at 25% left) and an 8× power
-// perpetual (price^8, slowly melting). Uprise rises faster, both fall to the same low, only Uprise recovers.
-const KEYS = [[0, 1], [0.3, 1.06], [0.5, 0.85], [1, 1.12]];
+// perpetual (price^8, slowly melting). Uprise rises faster; the perp is liquidated halfway down a deep
+// wick, while Uprise rides it out and recovers far above the start.
+const KEYS = [[0, 1], [0.25, 1.06], [0.5, 0.7], [1, 1.2]];
 function crashPath(x) {
   let k = 0; while (k < KEYS.length - 2 && x > KEYS[k + 1][0]) k++;
   const [x0, y0] = KEYS[k], [x1, y1] = KEYS[k + 1], u = Math.min(1, Math.max(0, (x - x0) / (x1 - x0))), e = (1 - Math.cos(Math.PI * u)) / 2;
   return y0 + (y1 - y0) * e + 0.004 * Math.sin(x * 37) * Math.sin(Math.PI * u);
 }
-const LIQ_X = 0.5, perpV = (x) => 1 + 5 * (crashPath(x) - 1), powerV = (x) => Math.pow(crashPath(x), 8) * Math.exp(-0.173 * x);
+let LIQ_X = 0.5; const perpV = (x) => 1 + 5 * (crashPath(x) - 1), powerV = (x) => Math.pow(crashPath(x), 8) * Math.exp(-0.173 * x);
+// the perp is liquidated (25% of margin left) halfway down the drop
+for (let x = 0.25; x < 0.5; x += 0.001) if (1 + 5 * (crashPath(x) - 1) <= 0.25) { LIQ_X = x; break; }
 function drawWick(ctx, W, H, t) {
   const T = 6, x = Math.min(1, (t % (T + 1.8)) / T), pad = 14, liq = x >= LIQ_X;
   let hi = 1.25; for (let k = 0; k <= 40; k++) hi = Math.max(hi, powerV((k / 40) * x) * 1.12);

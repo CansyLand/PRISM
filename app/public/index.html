@@ -75,11 +75,8 @@
       </div>
     </section>
     <section class="card curvecard" aria-label="How your curve pays">
-      <div class="cc-k">Your curve <b class="num" id="ccP">5×</b></div>
+      <div class="cc-k">Your profit <b class="num" id="ccP">5×</b></div>
       <div class="cc-plot"><canvas id="curveCv" aria-hidden="true"></canvas></div>
-      <div class="cc-row"><span>Price +10%</span><b class="num pos" id="ccUp"></b></div>
-      <div class="cc-row"><span>Price −10%</span><b class="num neg" id="ccDn"></b></div>
-      <p class="cc-note" id="ccNote"></p>
     </section>
     </div>
   </main>
@@ -99,7 +96,8 @@
       <p class="hint" id="vHedge"></p>
     </section>
     <section class="card">
-      <h3>Your stake</h3>
+      <div class="row-between"><h3>Your stake</h3><span class="muted small" id="sSince"></span></div>
+      <div class="stake-plot"><canvas id="stakeCv" aria-label="Your stake over time"></canvas></div>
       <div class="rows">
         <div class="kv"><span>Value</span><span id="sValue">—</span></div>
         <div class="kv"><span>Earned</span><span id="sEarned">—</span></div>
@@ -108,7 +106,7 @@
       <div class="segment" id="vSeg" role="tablist"><button role="tab" data-v="dep" aria-selected="true">Deposit</button><button role="tab" data-v="wd" aria-selected="false">Withdraw</button></div>
       <label class="field" style="margin-top:10px"><span>$</span><input id="vAmt" inputmode="decimal" placeholder="0" aria-label="Vault amount"></label>
       <div class="chips"><button class="chip" data-va="100">$100</button><button class="chip" data-va="500">$500</button><button class="chip" data-va="max">Max</button></div>
-      <button class="btn crab" id="vBtn" disabled>Deposit</button>
+      <button class="btn up" id="vBtn" disabled>Deposit</button>
       <p class="hint" id="vNote"></p>
       <p class="err" id="vErr"></p>
     </section>
@@ -119,7 +117,7 @@
     <section class="card">
       <div class="row-between"><h2>📊 The market, live</h2><span class="tag" id="arenaTag">demo</span></div>
       <canvas id="arena" aria-label="Animation of money moving between traders, the vault and liquidity providers"></canvas>
-      <div class="legend"><span><em style="background:var(--gold)"></em>$10 traded</span><span><em style="background:var(--accent)"></em>premium (funding)</span><span><em style="background:var(--crab)"></em>$1,000 deposited</span><span><em style="background:var(--near)"></em>NEAR balancing</span></div>
+      <div class="legend"><span><em style="background:var(--gold)"></em>$10 traded</span><span><em style="background:var(--accent)"></em>premium (funding)</span><span><em style="background:var(--crab)"></em>$1,000 deposited</span><span><em style="background:var(--near)"></em>NEAR balancing</span><span><em style="background:var(--up)"></em>yield to providers</span></div>
       <p class="hint" id="arenaNote"></p>
     </section>
   </main>
@@ -131,7 +129,7 @@
   <button role="tab" aria-selected="false" data-tab="stats"><span class="ico">📊</span>Analytics</button>
 </nav>
 
-<div class="ff" id="ff" hidden aria-live="polite">⏩ <b id="ffText">1 day = ⅓ s</b></div>
+<div class="ff" id="ff" hidden aria-label="Fast-forward">⏱️ <b>100x &gt;&gt;</b></div>
 <div class="hand" id="hand" hidden><span class="finger">👆</span><span>Try it live</span></div>
 
 <div class="overlay" id="onboarding" hidden></div>
@@ -142,8 +140,8 @@
     <h2>Earn while bulls bet</h2>
     <ol class="thoughts">
       <li><b>Provide liquidity, earn yield.</b> You become the other side of every Curve Long.</li>
-      <li><b>Bulls pay a premium</b> every second they hold a position. That premium flows to you.</li>
-      <li><b>Your USDC is balanced with NEAR</b>, so price moves mostly cancel out.</li>
+      <li><b>Bulls pay a premium</b> every second they hold a position. That premium flows to you.<canvas class="ci-cv" id="ciPremium" aria-hidden="true"></canvas></li>
+      <li><b>Your USDC is balanced with NEAR</b>, so price moves mostly cancel out.<canvas class="ci-cv tall" id="ciBalance" aria-hidden="true"></canvas></li>
     </ol>
     <button class="btn crab" data-close>Got it</button>
   </div>
@@ -153,6 +151,11 @@
   <div class="modal">
     <div class="big-ico" id="rIco">🎉</div>
     <h2 id="rTitle"></h2>
+    <div class="r-viz" aria-hidden="true">
+      <figure><canvas id="rPrice"></canvas><figcaption>Price <b class="num" id="rPx"></b></figcaption></figure>
+      <span class="r-op">→</span>
+      <figure><canvas id="rCurve"></canvas><figcaption><span id="rP"></span> curve <b class="num" id="rMul"></b></figcaption></figure>
+    </div>
     <p class="hint" id="rText"></p>
     <button class="btn" data-close>Next trade</button>
   </div>
