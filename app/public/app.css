@@ -15,8 +15,9 @@ button, input, select { font: inherit; color: inherit; }
 .app { max-width: 520px; margin: 0 auto; min-height: 100dvh; padding: max(10px, env(safe-area-inset-top)) 16px calc(92px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 12px; }
 main { display: flex; flex-direction: column; gap: 12px; }
 .top { display: flex; align-items: center; gap: 10px; }
-.logo { font-weight: 800; font-size: 21px; letter-spacing: -0.03em; }
-.logo span { background: linear-gradient(90deg, var(--accent), var(--up)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.logo { color: var(--ink); display: flex; align-items: center; }
+.logo-svg { display: block; height: 26px; width: auto; }
+.logo-svg.sm { height: 18px; }
 .mode { display: flex; background: var(--panel); border: 1px solid var(--line); border-radius: 99px; padding: 3px; }
 .mode button { border: 0; background: transparent; border-radius: 99px; padding: 5px 12px; font-weight: 700; font-size: 13px; color: var(--muted); cursor: pointer; }
 .mode button[aria-selected="true"] { background: var(--ink); color: var(--bg); }
@@ -90,7 +91,7 @@ input[type=range] { width: 100%; accent-color: var(--up); margin: 6px 0 0; }
 #vBtn { position: sticky; bottom: calc(86px + env(safe-area-inset-bottom)); z-index: 4; box-shadow: 0 8px 24px rgba(0,0,0,.35); }
 #vBtn.soft { opacity: .7; }
 .r-head { display: flex; justify-content: space-between; align-items: center; margin: -6px 0 2px; }
-.r-logo { font-weight: 800; color: var(--accent); font-size: 15px; letter-spacing: -.01em; }
+.r-logo { color: var(--ink); }
 .r-asset { font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--muted); border: 1px solid var(--line); border-radius: 8px; padding: 3px 7px; }
 .r-hero { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 10px 0 2px; }
 .r-emoji { font-size: 40px; line-height: 1; }

@@ -186,12 +186,15 @@ function paintResult(ctx, W, H, pts, p, melted, big = 1) {
 // Share: draw a 1200×675 image (the X card size). Phones get the share sheet with the image; desktop
 // downloads it and opens a prepared X post (X's web share link can't carry an image).
 let lastResult = null;
+const LOGO = new Image(); LOGO.src = "brand/logo-uprise.svg"; // white logo for the share image (dark background)
 function shareCanvas(r) {
   const W = 1200, H = 675, cv = document.createElement("canvas"); cv.width = W; cv.height = H;
   const ctx = cv.getContext("2d"), win = r.out > 0 && r.mult >= 1, tint = css(win ? "--up" : "--down");
   const g = ctx.createRadialGradient(W * 0.25, 0, 0, W * 0.25, 0, W * 0.9); g.addColorStop(0, `color-mix(in srgb, ${tint} 22%, ${css("--panel")})`); g.addColorStop(0.7, css("--panel")); g.addColorStop(1, css("--bg"));
   ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-  ctx.fillStyle = css("--accent"); ctx.font = `800 34px ${css("--font")}`; ctx.textAlign = "left"; ctx.fillText("⇡ Uprise", 56, 86);
+  if (LOGO.complete && LOGO.naturalWidth) ctx.drawImage(LOGO, 56, 48, 240, 240 * 278.54 / 1000);
+  else { ctx.fillStyle = "#fff"; ctx.font = `800 34px ${css("--font")}`; ctx.textAlign = "left"; ctx.fillText("Uprise", 56, 86); }
+  ctx.textAlign = "left";
   ctx.fillStyle = win ? css("--up") : css("--down"); ctx.font = `800 110px ${css("--mono")}`; ctx.fillText(r.out > 0 ? pct(r.mult - 1, 0) : "Melt Down", 56, 250);
   ctx.fillStyle = css("--muted"); ctx.font = `600 30px ${css("--font")}`; ctx.fillText(`market ${pct(r.move, 0)} · ${pw(r.p)} curve`, 60, 306);
   ctx.font = `600 24px ${css("--font")}`; ctx.fillText("No liquidation. Just a curve. · uprise.wtf", 60, H - 52);
