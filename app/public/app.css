@@ -93,7 +93,7 @@ input[type=range] { width: 100%; accent-color: var(--up); margin: 6px 0 0; }
 #vBtn { position: sticky; bottom: calc(86px + env(safe-area-inset-bottom)); z-index: 4; box-shadow: 0 8px 24px rgba(0,0,0,.35); }
 #vBtn.soft { opacity: .7; }
 .r-head { display: flex; justify-content: space-between; align-items: center; margin: -6px 0 2px; }
-.r-logo { color: var(--ink); } .mark-svg { display: block; height: 72px; width: auto; }
+.r-logo { color: var(--ink); } .mark-svg { display: block; height: 54px; width: auto; }
 .r-asset { font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--muted); border: 1px solid var(--line); border-radius: 8px; padding: 3px 7px; }
 .r-hero { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 10px 0 2px; }
 .r-emoji { font-size: 40px; line-height: 1; }
