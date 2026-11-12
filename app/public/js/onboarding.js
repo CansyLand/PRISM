@@ -74,30 +74,31 @@ export function showOnboarding(root, onDone) {
   show(); raf = requestAnimationFrame(loop);
 }
 
-// Slide 1: the price as candles (1×, gray) and the Uprise curve (green): price^3, drawn smooth.
-const P1 = 3, N1 = 20, smooth1 = (u) => 1 + 0.3 * u, noisy1 = (u) => smooth1(u) + 0.03 * Math.sin(u * 23) + 0.015 * Math.sin(u * 61 + 1);
+// Slide 1 (plays once): the price as gray candles in the lower band, and the Uprise curve (green) =
+// price^6. The curve follows the price's wiggles but its bend upward is unmistakable by the end.
+const P1 = 6, N1 = 22, curve1 = (u) => Math.pow(smooth1(u), P1) * Math.pow(noisy1(u) / smooth1(u), 2.5), smooth1 = (u) => 1 + 0.3 * u, noisy1 = (u) => smooth1(u) + 0.022 * Math.sin(u * 23) + 0.012 * Math.sin(u * 61 + 1);
 function drawCurves(ctx, W, H, t) {
-  const T = 5, x = Math.min(1, (t % (T + 1.5)) / T), pad = 14;
-  const hi = Math.max(1.4, Math.pow(smooth1(x), P1) * 1.08), lo = 0.95;
-  const Y = (v) => H - pad - (v - lo) / (hi - lo) * (H - 2 * pad), X = (u) => pad + u * (W - 165);
-  ctx.strokeStyle = css("--line"); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(pad, Y(1)); ctx.lineTo(W - 20, Y(1)); ctx.stroke();
-  // candles
+  const T = 5, x = Math.min(1, t / T), pad = 14, X = (u) => pad + u * (W - 165);
+  // candles get their own scale in the lower 40% so they're readable; the curve uses the full height
+  const cLo = 0.96, cHi = 1.36, bandTop = H * 0.58, YC = (v) => H - pad - (v - cLo) / (cHi - cLo) * (H - pad - bandTop);
+  let vHi = 1.6; for (let k = 0; k <= 60; k++) vHi = Math.max(vHi, curve1((k / 60) * x) * 1.08);
+  const YV = (v) => H - pad - (v - 1) / (vHi - 1) * (H - 2 * pad - 10) - (YC(cLo) - YC(1));
+  ctx.strokeStyle = css("--line"); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(pad, YC(1)); ctx.lineTo(W - 20, YC(1)); ctx.stroke();
   const slot = (X(1) - X(0)) / N1;
   for (let k = 0; k < N1; k++) {
     const u0 = k / N1; if (u0 > x) break;
-    const u1 = Math.min(x, (k + 1) / N1), o = noisy1(u0), c = noisy1(u1), wig = 0.012 + 0.012 * Math.abs(Math.sin(k * 7.3));
+    const u1 = Math.min(x, (k + 1) / N1), o = noisy1(u0), c = noisy1(u1), wig = 0.01 + 0.012 * Math.abs(Math.sin(k * 7.3));
     const h = Math.max(o, c) + wig * (u1 - u0) * N1, l = Math.min(o, c) - wig * 0.8 * (u1 - u0) * N1, cx = X(u0) + slot / 2;
     ctx.strokeStyle = ctx.fillStyle = css(c >= o ? "--muted" : "--line");
-    ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(cx, Y(h)); ctx.lineTo(cx, Y(l)); ctx.stroke();
-    ctx.fillRect(cx - slot * 0.3, Y(Math.max(o, c)), slot * 0.6, Math.max(1, Y(Math.min(o, c)) - Y(Math.max(o, c))));
+    ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(cx, YC(h)); ctx.lineTo(cx, YC(l)); ctx.stroke();
+    ctx.fillRect(cx - slot * 0.3, YC(Math.max(o, c)), slot * 0.6, Math.max(1, YC(Math.min(o, c)) - YC(Math.max(o, c))));
   }
-  // the curve
-  ctx.beginPath(); for (let k = 0; k <= 80; k++) { const u = (k / 80) * x, v = Math.pow(smooth1(u), P1); k ? ctx.lineTo(X(u), Y(v)) : ctx.moveTo(X(u), Y(v)); }
-  ctx.strokeStyle = css("--up"); ctx.lineWidth = 3.5; ctx.lineCap = "round"; ctx.stroke();
-  const pv = noisy1(x), uv = Math.pow(smooth1(x), P1);
+  ctx.beginPath(); for (let k = 0; k <= 120; k++) { const u = (k / 120) * x, v = curve1(u); k ? ctx.lineTo(X(u), YV(v)) : ctx.moveTo(X(u), YV(v)); }
+  ctx.strokeStyle = css("--up"); ctx.lineWidth = 3.5; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.stroke();
+  const pv = noisy1(x), uv = curve1(x);
   ctx.font = `700 13px ${css("--mono")}`; ctx.textAlign = "left";
-  ctx.fillStyle = css("--muted"); ctx.fillText(`price ${pnl(pv)}`, X(x) + slot + 6, Y(pv) + 4);
-  ctx.fillStyle = css("--up"); ctx.fillText(`Uprise ${P1}× ${pnl(uv)}`, X(x) + 8, Y(uv) + 4);
+  ctx.fillStyle = css("--muted"); ctx.fillText(`price ${pnl(pv)}`, X(x) + slot + 6, YC(pv) + 4);
+  ctx.fillStyle = css("--up"); ctx.fillText(`Uprise ${P1}× ${pnl(uv)}`, X(x) + 8, YV(uv) + 4);
 }
 // Slide 2: a leveraged perp (red) moves like Uprise (green) but is liquidated halfway down the drop;
 // Uprise dips all the way, survives and climbs back far above the start.
@@ -121,13 +122,13 @@ function drawWick(ctx, W, H, t) {
   const Y = (v) => H - pad - 6 - v / hi * (H - 2 * pad - 20), X = (u) => pad + u * (W - 165);
   ctx.strokeStyle = css("--line"); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(pad, Y(1)); ctx.lineTo(W - 60, Y(1)); ctx.stroke();
   const line = (fn, to, col, w) => { ctx.beginPath(); for (let k = 0; k <= 90; k++) { const u = (k / 90) * to, v = fn(u); k ? ctx.lineTo(X(u), Y(v)) : ctx.moveTo(X(u), Y(v)); } ctx.strokeStyle = css(col); ctx.lineWidth = w; ctx.lineCap = "round"; ctx.stroke(); };
-  line(perpV, Math.min(x, LIQ_X), "--down", 3);
   line(powerV, x, "--up", 3);
+  line(perpV, Math.min(x, LIQ_X), "--down", 3); // drawn on top so it's never hidden
   const ex = Math.min(x, LIQ_X), pv = perpV(ex), uv = powerV(x);
   if (liq) {
     ctx.font = "22px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("💥", X(LIQ_X), Y(pv)); ctx.textBaseline = "alphabetic";
-    ctx.font = `700 12px ${css("--font")}`; ctx.fillStyle = css("--down"); ctx.textAlign = "right"; ctx.fillText("Perp: liquidated", X(LIQ_X) - 14, Y(pv) + 4);
-  } else { ctx.font = `700 13px ${css("--mono")}`; ctx.textAlign = "left"; ctx.fillStyle = css("--down"); ctx.fillText(`Perp ${pnl(pv)}`, X(ex) + 8, Y(pv) + 16); }
+    ctx.font = `700 12px ${css("--font")}`; ctx.fillStyle = css("--down"); ctx.textAlign = "right"; ctx.fillText("Perp 10×: liquidated", Math.max(X(LIQ_X) - 14, pad + ctx.measureText("Perp 10×: liquidated").width), Y(pv) + (X(LIQ_X) - 14 < pad + 130 ? 24 : 4));
+  } else { ctx.font = `700 13px ${css("--mono")}`; ctx.textAlign = "left"; ctx.fillStyle = css("--down"); ctx.fillText(`Perp 10× ${pnl(pv)}`, X(ex) + 8, Y(pv) + 16); }
   ctx.font = `700 13px ${css("--mono")}`; ctx.textAlign = "left"; ctx.fillStyle = css("--up");
   ctx.fillText(`Uprise ${pnl(uv)}`, X(x) + 8, Y(uv) + (liq ? 4 : -8));
   ctx.fillStyle = css("--muted"); ctx.font = `600 12px ${css("--font")}`;

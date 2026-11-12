@@ -108,11 +108,9 @@ function demoClose(why) {
   trail.push({ m: exitPx / r.entry - 1, v: m - 1 });
   flip(false); ff(false); chart.mark(null); renderStrength();
   $("rIco").textContent = r.pnl > 0 ? (m >= 3 ? "🚀" : "🎉") : melted ? "🫠" : "📉";
-  $("rTitle").textContent = r.pnl > 0 ? `+${fmt(r.pnl)}` : r.out > 0 ? `${fmt(r.pnl)}` : `Melt Down`;
-  $("rCurveLbl").textContent = `${r.p}× curve`;
+  $("rTitle").textContent = r.out > 0 ? pct(m - 1, 0) : "Melt Down"; $("rTitle").className = r.out > 0 ? (m >= 1 ? "pos" : "neg") : "neg";
   modal("result"); drawResult($("rChart"), trail, r.p, melted);
-  $("rText").textContent = r.out > 0
-    ? `${fmt(r.stake)} became ${fmt(r.out)}.` + (r.pnl > 0 ? "" : why === "ended" ? " The replay ended, so the position was closed." : "")
+  $("rText").textContent = r.out > 0 ? (r.pnl <= 0 && why === "ended" ? "The replay ended, so the position was closed." : "")
     : `The price didn't rise fast enough before the ${r.p}× timer ran out.`;
   $("result").querySelector("[data-close]").onclick = () => {
     modal("result", false); $("px").textContent = fmtP(chart.price()); $("chg").textContent = ""; render();
@@ -120,27 +118,43 @@ function demoClose(why) {
   };
   render();
 }
-// result chart: the market (gray) and your curve (green) on one axis, in % since you bought.
-// A melt down gets a red line where the timer ran out.
+// result chart: the market as gray candles (own scale, lower band) and your curve on the full height,
+// green while in profit, red while under. A melt down fades the curve toward gray as time runs out.
 function drawResult(cv, pts, p, melted) {
   const f = fit(cv); if (!f || pts.length < 2) return; const { ctx, W, H } = f;
-  let lo = 0, hi = 0; for (const s of pts) { lo = Math.min(lo, s.m, s.v); hi = Math.max(hi, s.m, s.v); }
-  const pad = (hi - lo) * 0.1 || 0.1; lo -= pad; hi += pad;
-  const R = W - 64, X = (i) => 6 + i / (pts.length - 1) * (R - 6), Y = (v) => 8 + (hi - v) / (hi - lo) * (H - 26);
-  ctx.setLineDash([3, 3]); ctx.strokeStyle = css("--line"); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(6, Y(0)); ctx.lineTo(R, Y(0)); ctx.stroke(); ctx.setLineDash([]);
-  const line = (key, col, w) => { ctx.beginPath(); pts.forEach((s, i) => (i ? ctx.lineTo(X(i), Y(s[key])) : ctx.moveTo(X(i), Y(s[key])))); ctx.strokeStyle = col; ctx.lineWidth = w; ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.stroke(); };
-  const end = pts.at(-1), curveCol = css(end.v >= 0 ? "--up" : "--down");
-  line("m", css("--muted"), 2); line("v", curveCol, 3.2);
-  ctx.font = `700 12px ${css("--mono")}`; ctx.textAlign = "left";
-  const ym = Y(end.m), yv = Y(end.v), apart = Math.abs(ym - yv) < 14 ? (yv < ym ? -7 : 7) : 0;
-  ctx.fillStyle = css("--muted"); ctx.fillText(pct(end.m, 0), R + 8, ym + 4 - apart);
-  ctx.fillStyle = curveCol; ctx.fillText(pct(end.v, 0), R + 8, yv + 4 + apart);
-  ctx.beginPath(); ctx.arc(X(pts.length - 1), yv, 4.5, 0, 7); ctx.fill();
-  if (melted) {
-    const x = X(pts.length - 1); ctx.strokeStyle = css("--down"); ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(x, 6); ctx.lineTo(x, H - 18); ctx.stroke();
-    ctx.fillStyle = css("--down"); ctx.font = `800 11px ${css("--font")}`; ctx.textAlign = "right"; ctx.fillText("MELT DOWN", x - 6, 16);
+  const R = W - 58, n = pts.length, X = (i) => 6 + i / (n - 1) * (R - 6);
+  // candles: group samples
+  const per = Math.max(1, Math.ceil(n / 28)), cand = [];
+  for (let k = 0; k < n; k += per) { const g = pts.slice(k, k + per + 1).map((s) => s.m); cand.push({ i0: k, o: g[0], c: g.at(-1), h: Math.max(...g), l: Math.min(...g) }); }
+  let mlo = 0, mhi = 0; for (const s of pts) { mlo = Math.min(mlo, s.m); mhi = Math.max(mhi, s.m); } const mp = (mhi - mlo) * 0.1 || 0.02;
+  const bandTop = H * 0.55, YM = (v) => H - 6 - (v - mlo + mp) / (mhi - mlo + 2 * mp) * (H - 6 - bandTop);
+  let vlo = 0, vhi = 0; for (const s of pts) { vlo = Math.min(vlo, s.v); vhi = Math.max(vhi, s.v); } const vp = (vhi - vlo) * 0.08 || 0.1;
+  const y0 = YM(0), YV = (v) => (v >= 0 ? y0 - v / (vhi + vp || 1) * (y0 - 22) : y0 + v / (vlo - vp || -1) * (H - 6 - y0));
+  ctx.setLineDash([3, 3]); ctx.strokeStyle = css("--line"); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(6, y0); ctx.lineTo(R, y0); ctx.stroke(); ctx.setLineDash([]);
+  const cw = (R - 6) / cand.length;
+  for (const c of cand) {
+    const cx = X(Math.min(n - 1, c.i0 + per / 2)); ctx.strokeStyle = ctx.fillStyle = css(c.c >= c.o ? "--muted" : "--line");
+    ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(cx, YM(c.h)); ctx.lineTo(cx, YM(c.l)); ctx.stroke();
+    ctx.fillRect(cx - cw * 0.3, YM(Math.max(c.o, c.c)), cw * 0.6, Math.max(1, YM(Math.min(c.o, c.c)) - YM(Math.max(c.o, c.c))));
   }
-  ctx.font = `600 10px ${css("--font")}`; ctx.fillStyle = css("--muted"); ctx.textAlign = "left"; ctx.fillText("you bought", 6, H - 3); ctx.textAlign = "right"; ctx.fillText(melted ? "timer ran out" : "closed", R, H - 3);
+  const up = css("--up"), down = css("--down"), gray = css("--muted");
+  ctx.lineWidth = 3.2; ctx.lineCap = "round";
+  for (let i = 1; i < n; i++) {
+    const a = pts[i - 1], b = pts[i], base = (a.v + b.v) / 2 >= 0 ? up : down, fade = melted ? Math.round(100 - 85 * (i / (n - 1))) : 100;
+    ctx.strokeStyle = fade < 100 ? `color-mix(in srgb, ${base} ${fade}%, ${gray})` : base;
+    ctx.beginPath(); ctx.moveTo(X(i - 1), YV(a.v)); ctx.lineTo(X(i), YV(b.v)); ctx.stroke();
+  }
+  const end = pts.at(-1), endCol = melted ? gray : end.v >= 0 ? up : down;
+  ctx.font = `700 11px ${css("--font")}`; ctx.fillStyle = up; ctx.textAlign = "left"; ctx.fillText(`${p}× curve`, 14, Math.min(YV(pts[0].v), y0) - 12);
+  ctx.font = `700 12px ${css("--mono")}`;
+  ctx.fillStyle = endCol; ctx.beginPath(); ctx.arc(X(n - 1), YV(end.v), 4.5, 0, 7); ctx.fill();
+  const yv = YV(end.v), ym = YM(end.m), apart = Math.abs(ym - yv) < 14 ? (yv < ym ? -7 : 7) : 0;
+  ctx.fillText(pct(end.v, 0), R + 8, yv + 4 + apart);
+  ctx.fillStyle = css("--muted"); ctx.fillText(pct(end.m, 0), R + 8, ym + 4 - apart);
+  if (melted) {
+    const x = X(n - 1); ctx.strokeStyle = down; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(x, 6); ctx.lineTo(x, H - 6); ctx.stroke();
+    ctx.fillStyle = down; ctx.font = `800 11px ${css("--font")}`; ctx.textAlign = "right"; ctx.fillText("MELT DOWN", x - 6, 16);
+  }
 }
 function pointAtLive() {
   const b = document.querySelector('[data-mode="live"]').getBoundingClientRect(), h = $("hand");
@@ -167,18 +181,27 @@ function drawStake(cv, hist, cost) {
 function ff(on) { $("ff").hidden = !on; }
 function flip(on) { $("flip").classList.toggle("flipped", on); }
 
+// While a trade runs the price moves every frame (each candle walks open → wick → wick → close in ⅓ s).
+// The numbers show an eased value (about ¼ s behind) and are repainted ~8 times a second, so they're readable.
+let shown = null;
 function renderPosition() {
   if (mode === "demo") {
-    const q = demo.position; if (!q) return;
-    showCurve(q.p, chart.price() / q.entry - 1);
+    const q = demo.position; if (!q) { shown = null; return; }
+    const now = performance.now(), rawPx = chart.price();
+    if (!shown || shown.q !== q) shown = { q, v: q.value, px: rawPx, t: now, paint: 0 };
+    const k = 1 - Math.exp(-(now - shown.t) / 250); shown.t = now;
+    shown.v += (q.value - shown.v) * k; shown.px += (rawPx - shown.px) * k;
+    if (now - shown.paint < 120) return; shown.paint = now;
+    const v = shown.v, px = shown.px;
+    showCurve(q.p, px / q.entry - 1);
     const left = timeLeft(q.p, q.t);
-    $("posP").textContent = q.p + "×"; $("posValue").textContent = fmt(q.value); $("posPaid").textContent = fmt(q.stake);
-    $("posEntry").textContent = fmtP(q.entry); $("posNow").textContent = fmtP(chart.price()); $("px").textContent = fmtP(chart.price());
-    const pnl = q.value - q.stake; $("posPnl").textContent = `${pnl >= 0 ? "+" : "−"}${fmt(Math.abs(pnl))} · ×${(q.value / q.stake).toFixed(2)}`; $("posPnl").className = "num " + (pnl >= 0 ? "pos" : "neg");
+    $("posP").textContent = q.p + "×"; $("posValue").textContent = fmt(v); $("posPaid").textContent = fmt(q.stake);
+    $("posEntry").textContent = fmtP(q.entry); $("posNow").textContent = fmtP(px); $("px").textContent = fmtP(px);
+    const pnl = v - q.stake; $("posPnl").textContent = `${pnl >= 0 ? "+" : "−"}${fmt(Math.abs(pnl))} · ×${(v / q.stake).toFixed(2)}`; $("posPnl").className = "num " + (pnl >= 0 ? "pos" : "neg");
     $("meltBar").style.width = left * 100 + "%";
     $("meltNote").textContent = `Time left in the window: ${Math.round(left * 100)}%. The longer you hold, the more it melts.`;
-    $("chg").textContent = pct(chart.price() / q.entry - 1, 1) + " since you bought"; $("chg").className = "small num " + (chart.price() >= q.entry ? "pos" : "neg");
-    $("balance").textContent = fmt(demo.balance + q.value);
+    $("chg").textContent = pct(px / q.entry - 1, 1) + " since you bought"; $("chg").className = "small num " + (px >= q.entry ? "pos" : "neg");
+    $("balance").textContent = fmt(demo.balance + v);
   } else {
     const a = live?.state?.ledgerAcc; if (!a || BigInt(a.long_units) === 0n) return;
     const v = Number(a.long_value) / E6, c = Number(a.long_cost) / E6, m = live.state.market;
