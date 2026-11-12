@@ -38,6 +38,11 @@
   <h1>x¹⁰ celebration: pick one</h1>
   <p class="sub">Drag each slider to x¹⁰ (or press Replay). Every effect uses colorful $ signs in different sizes with spin, glow and glitter.</p>
   <section class="np">
+    <h1>The original, tuned · stronger and longer glow</h1>
+    <p class="sub">The gold supernova unchanged, with a background glow that is more opaque and stays longer: three white versions and three dark purple ones.</p>
+    <div class="grid" id="grid4"></div>
+  </section>
+  <section class="np" style="margin-top:18px;border-radius:26px">
     <h1>New palette · the supernova on design 15</h1>
     <p class="sub">Same shapes and motion as E · Supernova, re-thought so it pops on the rose page and lime cards.</p>
     <div class="grid" id="grid2"></div>
@@ -191,8 +196,48 @@ const FP = [
       fpBurst(st, x, y, [COB, "#1d1530", "#fff", ROSE], 70, 1, "#fff"); } },
 ];
 
+// ── the original gold supernova, with a stronger, longer-lasting glow behind it (white or dark purple) ──
+const GOLDS = ["#f5c542", "#ffd60a", "#ffb020", "#ffe58a"];
+function origV(st, x, y, o) {
+  let t = 0; const T = o.hold + o.fade;
+  st.effect({ draw(ctx, dt) {
+    t += dt; const grow = Math.min(1, t / 0.18), a = t < o.hold ? 1 : Math.max(0, 1 - (t - o.hold) / o.fade), R = o.R * (0.55 + 0.45 * grow);
+    const g = ctx.createRadialGradient(x, y, 0, x, y, R); o.stops.forEach(([k, c]) => g.addColorStop(k, c));
+    ctx.save(); ctx.globalAlpha = a * o.opacity; ctx.fillStyle = g; ctx.fillRect(x - R, y - R, 2 * R, 2 * R); ctx.restore();
+    if (t > T) this.done = true;
+  } });
+  if (o.flash) flash(st, x, y, 220);
+  let r = 0; st.effect({ draw(ctx, dt) { r += dt; const rr = r * 520, a = Math.max(0, 1 - r / 0.7); ctx.save(); ctx.strokeStyle = `rgba(245,197,66,${a})`; ctx.lineWidth = 6 * a + 1; ctx.shadowColor = "#f5c542"; ctx.shadowBlur = 30; ctx.beginPath(); ctx.arc(x, y, rr, 0, 7); ctx.stroke(); ctx.restore(); if (r > 0.7) this.done = true; } });
+  for (let i = 0; i < 60; i++) { const a = rnd(0, Math.PI * 2), v = rnd(200, 600); st.add({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, g: 240, drag: 0.97, color: pick(GOLDS), size: rnd(14, 34), glow: 26, flip: rnd(3, 8) }); }
+  for (let i = 0; i < 50; i++) { const a = rnd(0, Math.PI * 2), v = rnd(80, 420); st.add({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, g: 100, glyph: "✦", size: rnd(6, 16), color: "#fff", glow: 18, glitter: true, life: rnd(1, 1.8) }); }
+}
+const W = (a) => `rgba(255,255,255,${a})`, PU = (a, c = "40,12,82") => `rgba(${c},${a})`;
+const ORIG = [
+  { name: "O1 · WHITE GLOW", why: "Original gold supernova over a solid white glow (95% at the center) that holds 0.6 s and fades over 1 s.", o: { R: 240, opacity: 1, hold: 0.6, fade: 1.0, stops: [[0, W(0.95)], [0.55, W(0.75)], [1, W(0)]] } },
+  { name: "O2 · BIG WHITE, LONG", why: "A bigger white cloud (covers most of the card) that lingers 1 s and fades over 1.4 s. The gold reads like on white paper.", o: { R: 330, opacity: 1, hold: 1.0, fade: 1.4, stops: [[0, W(1)], [0.5, W(0.85)], [1, W(0)]] } },
+  { name: "O3 · WHITE + FLASH", why: "A quick bright flash first, then a softer white glow that stays 1.2 s. Two beats: pop, then glow.", o: { R: 280, opacity: 0.9, hold: 1.2, fade: 1.2, flash: true, stops: [[0, W(0.9)], [0.6, W(0.6)], [1, W(0)]] } },
+  { name: "O4 · DEEP PURPLE", why: "A dark purple glow opens behind the burst. Gold and white glow like at night, then it fades back to the card.", o: { R: 260, opacity: 1, hold: 0.8, fade: 1.1, stops: [[0, PU(0.97, "26,8,56")], [0.55, PU(0.85, "48,14,96")], [1, PU(0)]] } },
+  { name: "O5 · PURPLE NEBULA", why: "A larger purple-to-violet cloud with a violet edge, lingering 1.2 s. Space-like and rich, gold pops hard.", o: { R: 340, opacity: 1, hold: 1.2, fade: 1.4, stops: [[0, PU(1, "20,6,46")], [0.4, PU(0.92, "58,18,120")], [0.75, PU(0.55, "120,60,220")], [1, PU(0, "120,60,220")]] } },
+  { name: "O6 · PURPLE + WHITE CORE", why: "Dark purple cloud with a white-hot center and a flash: the brightest middle, the darkest edge. Maximum contrast for the gold.", o: { R: 300, opacity: 1, hold: 1.0, fade: 1.2, flash: true, stops: [[0, W(0.95)], [0.18, "rgba(200,170,255,.9)"], [0.4, PU(0.95, "40,12,90")], [1, PU(0, "40,12,90")]] } },
+];
+
 // ── build the cards ──
 const grid = document.getElementById("grid");
+// original-tuned section
+const og = document.getElementById("grid4");
+for (const e of ORIG) {
+  const el = document.createElement("div"); el.className = "opt";
+  el.innerHTML = `<p class="label">${e.name}</p><div class="demo d15"><canvas></canvas>
+    <div class="row"><span>Strength</span><b>${pw(5)}</b></div>
+    <input type="range" min="1" max="10" step="1" value="5" aria-label="Strength">
+    <div class="ticks"><span>${pw(1)}</span><span>${pw(5)}</span><span>${pw(10)}</span></div>
+    <button class="btn ghost small replay">Replay</button></div><p class="why">${e.why}</p>`;
+  og.append(el);
+  const cv = el.querySelector("canvas"), st = new Stage(cv), sl = el.querySelector("input"), lbl = el.querySelector(".row b");
+  const fire = () => { const c = cv.getBoundingClientRect(), s = sl.getBoundingClientRect(); origV(st, s.right - 8 - c.left, s.top + s.height / 2 - c.top, e.o); };
+  let was = 5; sl.addEventListener("input", () => { const v = +sl.value; lbl.textContent = pw(v); if (v === 10 && was !== 10) fire(); was = v; });
+  el.querySelector(".replay").onclick = () => { sl.value = 10; lbl.textContent = pw(10); was = 10; fire(); };
+}
 // first-principles section: the demo has a "mock" app layer the effects can dim, drain, invert or shake
 const fg = document.getElementById("grid3");
 for (const e of FP) {
