@@ -1,0 +1,26 @@
+{
+  "master": "uprise-ir12p.testnet",
+  "network": "testnet",
+  "rpc": "https://test.rpc.fastnear.com",
+  "power": 3,
+  "usdc": "usdc.uprise-ir12p.testnet",
+  "btc": "btc.uprise-ir12p.testnet",
+  "swap": "swap.uprise-ir12p.testnet",
+  "ledger": "ledger.uprise-ir12p.testnet",
+  "vault": "vault.uprise-ir12p.testnet",
+  "keeper": "keeper.uprise-ir12p.testnet",
+  "faucet": "faucet.uprise-ir12p.testnet",
+  "retail": [
+    "r1.uprise-ir12p.testnet",
+    "r2.uprise-ir12p.testnet",
+    "r3.uprise-ir12p.testnet",
+    "r4.uprise-ir12p.testnet",
+    "r5.uprise-ir12p.testnet",
+    "r6.uprise-ir12p.testnet"
+  ],
+  "hunters": [
+    "h1.uprise-ir12p.testnet",
+    "h2.uprise-ir12p.testnet",
+    "h3.uprise-ir12p.testnet"
+  ]
+}

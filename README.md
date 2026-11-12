@@ -1,34 +1,42 @@
-# Curve: a continuous-expiry power perpetual on NEAR
+# Uprise
 
-An oracle-priced, fully collateralized ledger with two sides:
+A continuous-expiry power perpetual on NEAR with two products in one pool:
 
-- **Curve** gets convex upside, a value of `NF × (P / P_ref)^p` (p = 2 by default). It pays
-  funding continuously by shrinking, and it is **never liquidated**.
-- **Flat/Earn** owns what's left of the pool and collects that funding. It does best in quiet markets.
+- **🐂 Bull: Curve Long.** Retail buys convex upside on BTC: the stake is worth `NF × (P / P_ref)^p`
+  (p = 3 on the testnet deployment, so BTC +10% ≈ +33%). It is **never liquidated**; it pays
+  funding by slowly shrinking.
+- **🦀 Crab: the hedged vault.** Yield hunters deposit USDC. The vault is the Curve Short side and
+  holds `p × long claims` of BTC so price moves mostly cancel out. What's left is the funding the
+  longs pay.
 
-Users deposit and withdraw from any chain through **NEAR Intents (1Click)**. A platform relayer
-pays all gas, so users never see NEAR.
+Funding is `p(p−1)/2 · σ² · m(u)`, where σ is the higher of a floor and the realized volatility of
+the oracle price, and the utilization multiplier `m(u)` never drops below 1× (default 1.25×).
 
 | Path | What |
 |---|---|
-| [`PLAN.md`](PLAN.md) | 2-day build plan, end-to-end path, reused components, security assumptions, contract interface |
-| [`contract/`](contract) | `curve-ledger`: Rust, near-sdk 5 |
-| [`intents/`](intents) | 1Click client, relayer for Telegram accounts, oracle/funding keeper |
-| [`sim/curve-simulator.html`](sim/curve-simulator.html) | Interactive simulator: Curve Long, Curve Short, both hedged variants, the exchange, and a Monte Carlo panel |
-| [`sim/MONTECARLO.md`](sim/MONTECARLO.md) | Monte Carlo findings on long vs short balance (`node sim/montecarlo.js`) |
-| [`sim/btc-replay.html`](sim/btc-replay.html) | Exchange mockup replayed on real BTC prices: daily Jul 2020 – Mar 2023 and 1-minute for the 16–23 May 2021 crash week (data: `sim/btc-*.json`, Binance) |
+| [`contract/`](contract) | `uprise-ledger`: the market (Rust, near-sdk 5), 34 tests |
+| [`vault/`](vault) | `uprise-vault`: hedged Curve Short vault with queued deposits/withdrawals and keeper-bounded rebalancing, 10 tests |
+| [`mock-ft/`](mock-ft), [`mock-swap/`](mock-swap) | Testnet-only: faucet tokens (USDC, BTC) and an oracle-priced USDC↔BTC swap |
+| [`ops/`](ops) | Testnet deployment, keeper (price feed + vault rebalancing), test players: see [`ops/README.md`](ops/README.md) |
+| [`app/`](app) | The Uprise web app and its small server (device wallet, Bull/Crab tabs, deposits) |
+| [`intents/`](intents) | NEAR Intents 1Click client and relayer (mainnet) |
+| [`sim/`](sim) | Simulators: payoff, BTC replay, two-sided vault model + parameter search, live game view |
+| [`PLAN.md`](PLAN.md) | Design notes, security assumptions, contract interface |
 
 ```bash
-cd contract && cargo test
+cargo test --workspace
 ```
 
 ```bash
-cd contract && RUSTC=$(rustup which rustc) RUSTFLAGS="-C link-arg=-s -C target-cpu=mvp" rustup run stable cargo build --target wasm32-unknown-unknown --release
+RUSTC=$(rustup which rustc) RUSTFLAGS="-C link-arg=-s -C target-cpu=mvp" rustup run stable cargo build --workspace --target wasm32-unknown-unknown --release
 ```
 
 ```bash
-cd intents && npm install && cp .env.example .env
+cd ops && npm install && node keeper.js
 ```
 
-The earlier order-book perpetual (PRISM v3–v5, liquidation bot, dashboard, business docs) is on the
-`perpetual` branch.
+```bash
+node app/server.js
+```
+
+The earlier order-book perpetual (PRISM v3–v5) is on the `perpetual` branch.

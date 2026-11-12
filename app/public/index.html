@@ -1,0 +1,539 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Uprise</title>
+<meta name="theme-color" content="#0b0e14">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap">
+<style>
+:root {
+  --bg: #0b0e14; --panel: #131824; --panel2: #1a2131; --ink: #eef1f6; --muted: #8b94a8; --line: #252e40;
+  --accent: #8b6cff; --up: #2fd08a; --down: #ff5d5d; --gold: #f5c542; --btc: #f7931a; --usdc: #3fa7ff; --crab: #ff7a59;
+  --font: "Inter Tight", system-ui, -apple-system, "Segoe UI", sans-serif; --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) { --bg: #f2f3f7; --panel: #fff; --panel2: #f5f6fa; --ink: #141a26; --muted: #5d6779; --line: #dfe3ea; --accent: #6a4be6; --up: #10945a; --down: #d63c3c; --gold: #b98a00; color-scheme: light; }
+}
+:root[data-theme="light"] { --bg: #f2f3f7; --panel: #fff; --panel2: #f5f6fa; --ink: #141a26; --muted: #5d6779; --line: #dfe3ea; --accent: #6a4be6; --up: #10945a; --down: #d63c3c; --gold: #b98a00; color-scheme: light; }
+* { box-sizing: border-box; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font); font-size: 15px; -webkit-font-smoothing: antialiased; }
+button, input, select { font: inherit; color: inherit; }
+.app { max-width: 520px; margin: 0 auto; min-height: 100dvh; padding: max(12px, env(safe-area-inset-top)) 16px calc(86px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 12px; }
+header { display: flex; align-items: center; gap: 10px; }
+.logo { font-weight: 800; font-size: 22px; letter-spacing: -0.03em; display: flex; align-items: center; gap: 6px; }
+.logo span { background: linear-gradient(90deg, var(--accent), var(--up)); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.pill { font-size: 11px; font-weight: 600; border: 1px solid var(--line); color: var(--muted); border-radius: 99px; padding: 2px 8px; }
+.pill.live { color: var(--up); border-color: color-mix(in srgb, var(--up) 50%, transparent); }
+.wallet-btn { margin-left: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 7px 12px; cursor: pointer; display: flex; flex-direction: column; align-items: flex-end; line-height: 1.15; }
+.wallet-btn small { color: var(--muted); font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; }
+.wallet-btn b { font-family: var(--mono); font-size: 15px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 14px; }
+.muted { color: var(--muted); } .small { font-size: 12.5px; } .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.pos { color: var(--up); } .neg { color: var(--down); }
+.price-row { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.price-row .big { font-family: var(--mono); font-size: 30px; font-weight: 700; letter-spacing: -0.02em; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { border: 1px solid var(--line); background: var(--panel2); border-radius: 99px; padding: 5px 11px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+canvas { width: 100%; display: block; }
+#chart { height: 210px; margin-top: 8px; touch-action: pan-y; }
+.field { display: flex; align-items: center; gap: 8px; background: var(--panel2); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+.field span { color: var(--muted); font-weight: 600; }
+.field input { flex: 1; min-width: 0; border: 0; background: transparent; outline: none; font-family: var(--mono); font-size: 22px; font-weight: 600; }
+.field:focus-within { border-color: var(--accent); }
+.btn { width: 100%; border: 0; border-radius: 14px; padding: 14px; font-weight: 800; font-size: 16px; cursor: pointer; background: var(--accent); color: #fff; }
+.btn.up { background: var(--up); color: #062014; } .btn.crab { background: var(--crab); color: #2a0e05; }
+.btn.ghost { background: var(--panel2); color: var(--ink); border: 1px solid var(--line); }
+.btn:disabled { opacity: .5; cursor: default; }
+.btn.small { padding: 8px 12px; font-size: 13.5px; width: auto; border-radius: 10px; }
+.rows { display: grid; gap: 6px; margin: 10px 0; }
+.kv { display: flex; justify-content: space-between; gap: 10px; font-size: 13.5px; }
+.kv span:first-child { color: var(--muted); }
+.kv span:last-child { font-family: var(--mono); }
+h2 { margin: 0 0 4px; font-size: 17px; letter-spacing: -0.01em; }
+h3 { margin: 0; font-size: 14px; }
+.pos-card { display: grid; gap: 4px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--panel2); }
+.pos-card .top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.stat { background: var(--panel2); border: 1px solid var(--line); border-radius: 12px; padding: 9px 11px; }
+.stat small { display: block; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .06em; }
+.stat b { font-family: var(--mono); font-size: 18px; }
+.bar { display: flex; height: 12px; border-radius: 6px; overflow: hidden; background: var(--panel2); margin: 8px 0 4px; }
+.bar i { display: block; height: 100%; }
+.legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+.legend em { display: inline-block; width: 9px; height: 9px; border-radius: 3px; margin-right: 5px; font-style: normal; }
+nav.tabs { position: fixed; left: 0; right: 0; bottom: 0; background: color-mix(in srgb, var(--panel) 92%, transparent); backdrop-filter: blur(10px); border-top: 1px solid var(--line); display: flex; justify-content: center; gap: 8px; padding: 8px 16px calc(8px + env(safe-area-inset-bottom)); z-index: 5; }
+nav.tabs button { flex: 0 1 220px; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px; border: 0; border-radius: 12px; background: transparent; cursor: pointer; color: var(--muted); font-weight: 700; font-size: 12px; }
+nav.tabs button .ico { font-size: 26px; line-height: 1; filter: grayscale(1) opacity(.6); transition: filter .15s; }
+nav.tabs button[aria-selected="true"] { color: var(--ink); background: var(--panel2); }
+nav.tabs button[aria-selected="true"] .ico { filter: none; }
+.sheet-bg { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: flex; align-items: flex-end; justify-content: center; z-index: 10; }
+.sheet-bg[hidden] { display: none; }
+.sheet { width: 100%; max-width: 520px; max-height: 90dvh; overflow: auto; background: var(--panel); border-radius: 20px 20px 0 0; padding: 16px 16px calc(20px + env(safe-area-inset-bottom)); display: grid; gap: 12px; border: 1px solid var(--line); }
+.sheet .head { display: flex; justify-content: space-between; align-items: center; }
+.x { border: 0; background: var(--panel2); border-radius: 99px; width: 32px; height: 32px; cursor: pointer; font-size: 16px; }
+.addr { font-family: var(--mono); font-size: 12px; word-break: break-all; background: var(--panel2); border: 1px solid var(--line); border-radius: 10px; padding: 10px; }
+.segment { display: flex; background: var(--panel2); border-radius: 10px; padding: 3px; gap: 3px; }
+.segment button { flex: 1; border: 0; border-radius: 8px; padding: 7px; background: transparent; cursor: pointer; font-weight: 700; font-size: 13px; color: var(--muted); }
+.segment button[aria-selected="true"] { background: var(--panel); color: var(--ink); box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+.toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(92px + env(safe-area-inset-bottom)); background: var(--ink); color: var(--bg); padding: 10px 14px; border-radius: 12px; font-weight: 600; font-size: 13.5px; z-index: 20; max-width: calc(100% - 32px); box-shadow: 0 6px 20px rgba(0,0,0,.3); }
+.toast[hidden] { display: none; } .toast.err { background: var(--down); color: #fff; }
+.welcome { text-align: center; padding: 26px 16px; }
+.welcome .big-ico { font-size: 52px; }
+.hint { font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+.err-text { color: var(--down); font-size: 13px; min-height: 1em; }
+.spin { display: inline-block; width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: s 0.7s linear infinite; vertical-align: -2px; }
+@keyframes s { to { transform: rotate(360deg); } }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="logo">⇡ <span>Uprise</span></div>
+    <span class="pill" id="modePill">testnet demo</span>
+    <button class="wallet-btn" id="walletBtn" aria-label="Open wallet"><small>Balance</small><b id="balance">—</b></button>
+  </header>
+
+  <section id="welcome" class="card welcome" hidden>
+    <div class="big-ico">⇡</div>
+    <h2>Welcome to Uprise</h2>
+    <p class="hint">Your wallet lives on this device. No extension, no seed phrase to start. In the demo you get test USDC to play with.</p>
+    <button class="btn" id="createBtn">Create my wallet</button>
+    <p class="err-text" id="welcomeErr"></p>
+  </section>
+
+  <!-- ── BULL: buy Curve Long ── -->
+  <main id="bull">
+    <section class="card">
+      <div class="price-row">
+        <span class="muted small">BTC / USD</span>
+        <span class="small num" id="chg"></span>
+      </div>
+      <div class="price-row"><span class="big" id="px">—</span></div>
+      <canvas id="chart" aria-label="BTC price chart"></canvas>
+      <div class="chips" style="margin-top:8px" id="ranges">
+        <button class="chip" data-r="1h" aria-pressed="false">1H</button>
+        <button class="chip" data-r="1d" aria-pressed="true">1D</button>
+        <button class="chip" data-r="1w" aria-pressed="false">1W</button>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top:12px">
+      <h2>Curve Long <span class="muted" id="powerLabel"></span></h2>
+      <p class="hint" style="margin:0 0 10px" id="buyHint">Your stake moves with BTC cubed: BTC +10% → about +33%. It can never be liquidated; it pays funding by slowly shrinking.</p>
+      <label class="field"><span>$</span><input id="amt" inputmode="decimal" placeholder="0" aria-label="Amount in USDC"></label>
+      <div class="chips" style="margin-top:8px">
+        <button class="chip" data-a="10">$10</button><button class="chip" data-a="50">$50</button><button class="chip" data-a="100">$100</button><button class="chip" data-a="max">Max</button>
+      </div>
+      <div class="rows" id="preview"></div>
+      <button class="btn up" id="buyBtn" disabled>Buy</button>
+      <p class="err-text" id="buyErr"></p>
+    </section>
+
+    <section class="card" style="margin-top:12px" id="myLong" hidden>
+      <h3 style="margin-bottom:8px">Your Curve Long</h3>
+      <div class="pos-card">
+        <div class="top"><b class="num" style="font-size:22px" id="lValue">—</b><span class="num" id="lPnl">—</span></div>
+        <div class="kv"><span>Paid</span><span id="lCost">—</span></div>
+        <div class="kv"><span>If BTC +10% / −10%</span><span id="lWhatIf">—</span></div>
+        <div class="kv"><span>Funding now</span><span id="lFund">—</span></div>
+        <button class="btn ghost" id="closeBtn" style="margin-top:6px">Close and cash out</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- ── CRAB: hedged vault ── -->
+  <main id="crab" hidden>
+    <section class="card">
+      <h2>🦀 Crab Vault</h2>
+      <p class="hint" style="margin:0 0 10px">Earn the funding that Curve Long pays. The vault is the other side of every long and holds BTC to cancel out price moves, so you earn whether BTC goes up or down, as long as funding beats volatility.</p>
+      <div class="stats">
+        <div class="stat"><small>Yield now</small><b id="vYield">—</b></div>
+        <div class="stat"><small>Vault size</small><b id="vTvl">—</b></div>
+        <div class="stat"><small>Share price</small><b id="vPps">—</b></div>
+        <div class="stat"><small>Used by longs</small><b id="vUtil">—</b></div>
+      </div>
+      <div class="bar" id="vBar"></div>
+      <div class="legend"><span><em style="background:var(--usdc)"></em>Cash</span><span><em style="background:var(--crab)"></em>Curve Short</span><span><em style="background:var(--btc)"></em>BTC hedge</span></div>
+      <p class="hint" id="vHedge" style="margin:8px 0 0"></p>
+      <canvas id="vChart" style="height:110px;margin-top:8px" aria-label="Vault share price"></canvas>
+    </section>
+
+    <section class="card" style="margin-top:12px">
+      <h3>Your stake</h3>
+      <div class="rows">
+        <div class="kv"><span>Value</span><span id="pValue">—</span></div>
+        <div class="kv"><span>Profit</span><span id="pPnl">—</span></div>
+        <div class="kv" id="pPendRow" hidden><span>Settling</span><span id="pPend">—</span></div>
+      </div>
+      <div class="segment" role="tablist" id="vSeg">
+        <button role="tab" aria-selected="true" data-v="dep">Deposit</button>
+        <button role="tab" aria-selected="false" data-v="wd">Withdraw</button>
+      </div>
+      <label class="field" style="margin-top:10px"><span>$</span><input id="vAmt" inputmode="decimal" placeholder="0" aria-label="Vault amount"></label>
+      <div class="chips" style="margin-top:8px"><button class="chip" data-v="100">$100</button><button class="chip" data-v="500">$500</button><button class="chip" data-v="max">Max</button></div>
+      <button class="btn crab" id="vBtn" style="margin-top:10px" disabled>Deposit</button>
+      <p class="hint" style="margin:6px 0 0">Deposits and withdrawals settle at the next vault update, usually within a minute, so nobody can trade on a stale price.</p>
+      <p class="err-text" id="vErr"></p>
+    </section>
+  </main>
+</div>
+
+<nav class="tabs" role="tablist">
+  <button role="tab" aria-selected="true" data-tab="bull"><span class="ico">🐂</span>Bull</button>
+  <button role="tab" aria-selected="false" data-tab="crab"><span class="ico">🦀</span>Crab</button>
+</nav>
+
+<!-- ── wallet sheet ── -->
+<div class="sheet-bg" id="sheet" hidden>
+  <div class="sheet" role="dialog" aria-label="Wallet">
+    <div class="head"><h2>Wallet</h2><button class="x" id="sheetX" aria-label="Close">✕</button></div>
+    <div class="rows">
+      <div class="kv"><span>USDC in wallet</span><span id="wUsdc">—</span></div>
+      <div class="kv"><span>Cash inside Uprise</span><span id="wFree">—</span></div>
+      <div class="kv"><span>Gas (NEAR)</span><span id="wNear">—</span></div>
+    </div>
+    <div class="segment" role="tablist" id="wSeg">
+      <button role="tab" aria-selected="true" data-w="in">Deposit</button>
+      <button role="tab" aria-selected="false" data-w="out">Send</button>
+      <button role="tab" aria-selected="false" data-w="key">Backup</button>
+    </div>
+
+    <div data-wpane="in">
+      <div id="demoDeposit">
+        <p class="hint">Demo mode runs on NEAR testnet with test USDC. It has no value.</p>
+        <button class="btn" id="faucetBtn">Get 1,000 test USDC</button>
+      </div>
+      <h3 style="margin-top:12px">Send USDC on NEAR to this address</h3>
+      <div class="addr" id="addr">—</div>
+      <button class="btn ghost small" id="copyBtn" style="margin-top:6px">Copy address</button>
+      <div id="xchain" style="margin-top:12px">
+        <h3>From another chain</h3>
+        <p class="hint" id="xchainHint">Pay with USDC, ETH, SOL or BTC from another chain. NEAR Intents swaps it and delivers USDC to this wallet.</p>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <select id="xAsset" class="field" style="padding:8px;font-size:14px;flex:1"></select>
+          <label class="field" style="flex:1;padding:6px 10px"><input id="xAmt" inputmode="decimal" placeholder="amount" style="font-size:15px"></label>
+        </div>
+        <button class="btn ghost" id="xBtn" style="margin-top:8px">Get deposit address</button>
+        <div class="addr" id="xOut" hidden></div>
+      </div>
+    </div>
+
+    <div data-wpane="out" hidden>
+      <p class="hint">Send USDC from this wallet to any NEAR account. Cash inside Uprise is moved to the wallet first.</p>
+      <label class="field"><input id="sTo" placeholder="receiver.near" style="font-size:15px"></label>
+      <label class="field"><span>$</span><input id="sAmt" inputmode="decimal" placeholder="0" style="font-size:18px"></label>
+      <button class="btn" id="sendBtn">Send</button>
+    </div>
+
+    <div data-wpane="key" hidden>
+      <p class="hint">Your wallet key is stored only on this device. Clearing the browser deletes it. Save it somewhere safe to use the wallet on another device.</p>
+      <button class="btn ghost" id="showKey">Show my key</button>
+      <div class="addr" id="keyOut" hidden></div>
+      <label class="field" style="margin-top:10px"><input id="importKey" placeholder="ed25519:… (restore a wallet)" style="font-size:13px"></label>
+      <button class="btn ghost" id="importBtn">Restore</button>
+    </div>
+    <p class="err-text" id="wErr"></p>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script type="module">
+import { Account, JsonRpcProvider, KeyPair, KeyPairSigner, keyToImplicitAddress, teraToGas } from "https://esm.sh/near-api-js@7.5.3";
+
+const $ = (id) => document.getElementById(id);
+const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const E6 = 1e6;
+const fmt = (v, d = 2) => "$" + Number(v).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
+const fmtRaw = (raw, d = 2) => fmt(Number(raw) / E6, d);
+const pct = (v, d = 1) => (v >= 0 ? "+" : "−") + Math.abs(v * 100).toFixed(d) + "%";
+const toRaw = (dollars) => String(Math.floor(Number(dollars) * E6));
+const KEY = "uprise.v1.key";
+
+let cfg, provider, me, acct, state = { market: null, ledgerAcc: null, usdc: 0n, near: 0n, vault: null, pos: null, params: null };
+
+// ── toast ──
+let tt;
+function toast(msg, err) { const t = $("toast"); t.textContent = msg; t.className = "toast" + (err ? " err" : ""); t.hidden = false; clearTimeout(tt); tt = setTimeout(() => (t.hidden = true), err ? 6000 : 3500); }
+const short = (e) => { const m = String(e?.message || e); const k = m.match(/Smart contract panicked: ([^"\\]+)/) || m.match(/"(?:ExecutionError|message)":"([^"]+)"/); return (k ? k[1] : m).slice(0, 160); };
+
+// ── device wallet ──
+function loadKey() {
+  let s = null; try { s = localStorage.getItem(KEY); } catch {}
+  return s;
+}
+function useKey(secret) {
+  const kp = KeyPair.fromString(secret);
+  me = keyToImplicitAddress(kp.getPublicKey());
+  acct = new Account(me, provider, new KeyPairSigner(kp));
+  $("addr").textContent = me;
+}
+async function exists(id) { try { await provider.viewAccount({ accountId: id }); return true; } catch { return false; } }
+const view = (contractId, method, args = {}) => provider.callFunction({ contractId, method, args });
+async function call(contractId, method, args, { deposit = 0n, tgas = 100 } = {}) {
+  // Demo: top up gas when the wallet runs low (a call reserves up to tgas × 0.001 NEAR up front).
+  if (cfg.mode === "demo" && state.near < 300_000_000_000_000_000_000_000n) {
+    await fetch("/api/gas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ account_id: me }) }).catch(() => {});
+    const s = await provider.viewAccount({ accountId: me }).catch(() => null); if (s) state.near = BigInt(s.amount);
+  }
+  return acct.callFunction({ contractId, methodName: method, args, deposit: BigInt(deposit), gas: teraToGas(tgas) });
+}
+
+// ── data refresh ──
+async function refresh() {
+  try {
+    const [market, ledgerAcc, usdc, vault, pos, accState] = await Promise.all([
+      view(cfg.ledger, "get_market"),
+      me ? view(cfg.ledger, "get_account", { account_id: me }) : null,
+      me ? view(cfg.usdc, "ft_balance_of", { account_id: me }) : "0",
+      view(cfg.vault, "get_vault"),
+      me ? view(cfg.vault, "get_position", { account_id: me }) : null,
+      me ? provider.viewAccount({ accountId: me }).catch(() => null) : null,
+    ]);
+    Object.assign(state, { market, ledgerAcc, usdc: BigInt(usdc || 0), vault, pos, near: accState ? BigInt(accState.amount) : 0n });
+    livePoint(Number(market.price) / E6);
+    render();
+  } catch (e) { console.warn("refresh", e); }
+}
+
+function cash() { return state.usdc + BigInt(state.ledgerAcc?.free || 0); }
+
+function render() {
+  const m = state.market; if (!m) return;
+  const price = Number(m.price) / E6, p = m.power;
+  $("px").textContent = fmt(price, 2);
+  $("powerLabel").textContent = `· BTC${["", "", "²", "³", "⁴", "⁵", "⁶", "⁷", "⁸", "⁹", "¹⁰"][p] || "^" + p}`;
+  $("buyHint").textContent = `Your stake moves with BTC to the power of ${p}: BTC +10% → about ${pct(1.1 ** p - 1, 0)}, BTC −10% → about ${pct(0.9 ** p - 1, 0)}. It can never be liquidated; it pays funding by slowly shrinking.`;
+  $("balance").textContent = me ? fmtRaw(cash()) : "—";
+  $("wUsdc").textContent = fmtRaw(state.usdc); $("wFree").textContent = fmtRaw(state.ledgerAcc?.free || 0);
+  $("wNear").textContent = (Number(state.near / 10n ** 20n) / 1e4).toFixed(3);
+  // long position
+  const L = state.ledgerAcc, holding = L && BigInt(L.long_units) > 0n;
+  $("myLong").hidden = !holding;
+  const fundYr = m.funding_rate_annual_bps / 1e4;
+  if (holding) {
+    const v = Number(L.long_value) / E6, c = Number(L.long_cost) / E6;
+    $("lValue").textContent = fmt(v); $("lCost").textContent = fmt(c);
+    $("lPnl").textContent = `${v >= c ? "+" : "−"}${fmt(Math.abs(v - c))} (${pct(v / c - 1)})`; $("lPnl").className = "num " + (v >= c ? "pos" : "neg");
+    $("lWhatIf").textContent = `${fmt(v * 1.1 ** p)} / ${fmt(v * 0.9 ** p)}`;
+    $("lFund").textContent = `${fmt(v * fundYr / 365, 2)}/day (${(fundYr * 100).toFixed(0)}%/yr)`;
+  }
+  updatePreview();
+  renderVault();
+}
+
+// ── buy ──
+let previewTimer;
+function amount() { const v = Number($("amt").value.replace(",", ".")); return isFinite(v) && v > 0 ? v : 0; }
+function updatePreview() {
+  const m = state.market; if (!m) return;
+  const a = amount(), p = m.power, fee = 0.003, net = a * (1 - fee), fundYr = m.funding_rate_annual_bps / 1e4;
+  const max = Number(m.max_long_open) / E6;
+  $("preview").innerHTML = a > 0 ? [
+    ["If BTC +10%", `${fmt(net * 1.1 ** p)} (${pct(1.1 ** p * (1 - fee) - 1, 0)})`],
+    ["If BTC +25%", `${fmt(net * 1.25 ** p)} (${pct(1.25 ** p * (1 - fee) - 1, 0)})`],
+    ["If BTC −10%", `${fmt(net * 0.9 ** p)} (${pct(0.9 ** p * (1 - fee) - 1, 0)})`],
+    ["Funding now", `${fmt(net * fundYr / 365)}/day · ${(fundYr * 100).toFixed(0)}%/yr`],
+    ["Fee", fmt(a * fee)],
+  ].map(([k, v]) => `<div class="kv"><span>${k}</span><span>${v}</span></div>`).join("") : `<div class="kv"><span>Largest buy right now</span><span>${fmt(max)}</span></div>`;
+  let err = "";
+  if (!me) err = "";
+  else if (a > Number(cash()) / E6) err = "Not enough balance. Tap your balance to deposit.";
+  else if (a > max) err = `Largest buy right now is ${fmt(max)} (20% of the pool).`;
+  else if (a > 0 && a < 1) err = "Minimum is $1.";
+  $("buyErr").textContent = err;
+  $("buyBtn").disabled = !me || !a || !!err || busy;
+  $("buyBtn").textContent = a ? `Buy ${fmt(a)} of Curve Long` : "Buy";
+}
+let busy = false;
+async function withBusy(btn, label, fn) {
+  if (busy) return; busy = true; const old = btn.innerHTML; btn.disabled = true; btn.innerHTML = `<span class="spin"></span> ${label}`;
+  try { await fn(); } catch (e) { toast(short(e), true); } finally { busy = false; btn.innerHTML = old; await refresh(); }
+}
+$("buyBtn").onclick = () => withBusy($("buyBtn"), "Buying…", async () => {
+  const a = amount(), raw = BigInt(toRaw(a)), free = BigInt(state.ledgerAcc?.free || 0);
+  if (free >= raw) await call(cfg.ledger, "open_long", { amount: String(raw) }, { tgas: 100 });
+  else {
+    if (free > 0n) await call(cfg.ledger, "open_long", { amount: String(free) }, { tgas: 100 });
+    await call(cfg.usdc, "ft_transfer_call", { receiver_id: cfg.ledger, amount: String(raw - free), msg: JSON.stringify({ action: "open_long" }) }, { deposit: 1n, tgas: 120 });
+  }
+  $("amt").value = ""; toast(`Bought ${fmt(a)} of Curve Long`);
+});
+$("closeBtn").onclick = () => withBusy($("closeBtn"), "Closing…", async () => {
+  const out = await call(cfg.ledger, "close_long", {}, { tgas: 100 });
+  const a = await view(cfg.ledger, "get_account", { account_id: me });
+  if (a && BigInt(a.free) > 0n) await call(cfg.ledger, "withdraw", { amount: a.free }, { deposit: 1n, tgas: 100 });
+  toast(`Cashed out ${fmtRaw(out)}`);
+});
+$("amt").addEventListener("input", updatePreview);
+document.querySelectorAll("[data-a]").forEach((b) => (b.onclick = () => { const v = b.dataset.a; $("amt").value = v === "max" ? Math.floor(Math.min(Number(cash()) / E6, Number(state.market?.max_long_open || 0) / E6) * 100) / 100 : v; updatePreview(); }));
+
+// ── chart ──
+let range = "1d", hist = [], live = [];
+async function loadHistory() { try { hist = await fetch(`/api/history?range=${range}`).then((r) => r.json()); } catch { hist = []; } drawChart(); }
+function livePoint(p) { const t = Date.now() / 1000; if (!live.length || t - live[live.length - 1][0] > 4) live.push([t, p]); if (live.length > 2000) live.shift(); drawChart(); }
+function drawChart() {
+  const cv = $("chart"), r = cv.getBoundingClientRect(), dpr = devicePixelRatio || 1;
+  cv.width = r.width * dpr; cv.height = r.height * dpr; const ctx = cv.getContext("2d"); ctx.scale(dpr, dpr);
+  const span = { "1h": 3600, "1d": 86400, "1w": 7 * 86400 }[range], now = Date.now() / 1000;
+  const pts = [...hist.filter(([t]) => t > now - span), ...live.filter(([t]) => t > now - span && (!hist.length || t > hist[hist.length - 1][0]))];
+  if (pts.length < 2) return;
+  let lo = Infinity, hi = -Infinity; for (const [, v] of pts) { lo = Math.min(lo, v); hi = Math.max(hi, v); }
+  const pad = (hi - lo) * 0.1 || hi * 0.001; lo -= pad; hi += pad;
+  const t0 = pts[0][0], X = (t) => (t - t0) / Math.max(1, now - t0) * (r.width - 6), Y = (v) => (1 - (v - lo) / (hi - lo)) * r.height;
+  const first = pts[0][1], lastV = pts[pts.length - 1][1], col = lastV >= first ? css("--up") : css("--down");
+  $("chg").textContent = `${pct(lastV / first - 1, 2)} · ${range.toUpperCase()}`; $("chg").className = "small num " + (lastV >= first ? "pos" : "neg");
+  const g = ctx.createLinearGradient(0, 0, 0, r.height); g.addColorStop(0, col + "55"); g.addColorStop(1, col + "00");
+  ctx.beginPath(); pts.forEach(([t, v], i) => (i ? ctx.lineTo(X(t), Y(v)) : ctx.moveTo(X(t), Y(v))));
+  ctx.lineTo(X(pts[pts.length - 1][0]), r.height); ctx.lineTo(X(t0), r.height); ctx.closePath(); ctx.fillStyle = g; ctx.fill();
+  ctx.beginPath(); pts.forEach(([t, v], i) => (i ? ctx.lineTo(X(t), Y(v)) : ctx.moveTo(X(t), Y(v)))); ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.stroke();
+  const lx = X(pts[pts.length - 1][0]), ly = Y(lastV);
+  ctx.beginPath(); ctx.arc(lx, ly, 4, 0, 7); ctx.fillStyle = col; ctx.fill();
+  ctx.fillStyle = css("--muted"); ctx.font = `11px ${css("--mono")}`; ctx.textAlign = "left";
+  ctx.fillText(fmt(hi - pad, 0), 2, 12); ctx.fillText(fmt(lo + pad, 0), 2, r.height - 4);
+}
+document.querySelectorAll("#ranges .chip").forEach((b) => (b.onclick = () => { range = b.dataset.r; document.querySelectorAll("#ranges .chip").forEach((x) => x.setAttribute("aria-pressed", x === b)); loadHistory(); }));
+
+// ── crab: vault ──
+let vMode = "dep", vHist = [];
+function renderVault() {
+  const v = state.vault, m = state.market; if (!v || !m) return;
+  const s = v.snapshot, nav = Number(s.nav) / E6, pps = Number(v.share_price_e6) / E6;
+  const cashV = Number(s.usdc) / E6, shortV = (Number(s.short_value) + Number(s.ledger_free)) / E6, btcV = Number(v.hedge_btc_value) / E6;
+  // Yield now: funding the longs pay, our share of it, after the exchange's cut, over vault size.
+  const claims = Number(m.long_claims) / E6, ourShare = Number(m.short_shares) > 0 ? Number(s.short_shares) / Number(m.short_shares) : 0;
+  const cut = (state.params?.funding_fee_bps ?? 1000) / 1e4;
+  const yieldNow = nav > 0 ? m.funding_rate_annual_bps / 1e4 * claims * ourShare * (1 - cut) / nav : 0;
+  $("vYield").textContent = pct(yieldNow, 1); $("vYield").className = yieldNow > 0 ? "pos" : "";
+  $("vTvl").textContent = fmt(nav, 0); $("vPps").textContent = pps.toFixed(4); $("vUtil").textContent = (m.utilization_bps / 100).toFixed(1) + "%";
+  const tot = Math.max(1e-9, cashV + shortV + btcV);
+  $("vBar").innerHTML = [[cashV, "--usdc"], [shortV, "--crab"], [btcV, "--btc"]].map(([x, c]) => `<i style="width:${x / tot * 100}%;background:var(${c})"></i>`).join("");
+  $("vHedge").textContent = `BTC hedge ${fmt(btcV, 0)} of ${fmt(Number(s.hedge_target_usd) / E6, 0)} target (${m.power} × long claims). Rebalanced by the keeper; updated ${v.snapshot_age_secs}s ago.`;
+  // your stake
+  const P = state.pos;
+  if (P) {
+    const val = Number(P.value) / E6, dep = Number(localStorage.getItem("uprise.v1.vaultIn") || 0);
+    $("pValue").textContent = fmt(val);
+    const pnl = Math.abs(val - dep) < 0.005 ? 0 : val - dep;
+    $("pPnl").textContent = dep > 0 ? `${pnl > 0 ? "+" : pnl < 0 ? "−" : ""}${fmt(Math.abs(pnl))}` : "—";
+    $("pPnl").className = pnl > 0 ? "pos" : pnl < 0 ? "neg" : "";
+    const pend = Number(P.pending_deposit) / E6, pw = Number(P.pending_withdraw_shares) * pps / E6;
+    $("pPendRow").hidden = !(pend || pw);
+    $("pPend").textContent = [pend ? `+${fmt(pend)} deposit` : "", pw ? `−${fmt(pw)} withdrawal` : ""].filter(Boolean).join(" · ");
+  }
+  vCheck();
+  drawVaultChart();
+}
+function vAmount() { const v = Number($("vAmt").value.replace(",", ".")); return isFinite(v) && v > 0 ? v : 0; }
+function vCheck() {
+  const a = vAmount(); let err = "";
+  if (vMode === "dep" && a > Number(state.usdc) / E6) err = "Not enough USDC in your wallet.";
+  if (vMode === "wd" && state.pos && a > Number(state.pos.value) / E6 + 0.01) err = "More than your stake.";
+  $("vErr").textContent = err;
+  $("vBtn").disabled = !me || !a || !!err || busy;
+  $("vBtn").textContent = (vMode === "dep" ? "Deposit" : "Withdraw") + (a ? " " + fmt(a) : "");
+}
+$("vAmt").addEventListener("input", vCheck);
+document.querySelectorAll("#vSeg button").forEach((b) => (b.onclick = () => { vMode = b.dataset.v; document.querySelectorAll("#vSeg button").forEach((x) => x.setAttribute("aria-selected", x === b)); vCheck(); }));
+document.querySelectorAll("[data-v]").forEach((b) => { if (!b.closest("#vSeg")) b.onclick = () => { const x = b.dataset.v; $("vAmt").value = x === "max" ? Math.floor((vMode === "dep" ? Number(state.usdc) : Number(state.pos?.value || 0)) / E6 * 100) / 100 : x; vCheck(); }; });
+$("vBtn").onclick = () => withBusy($("vBtn"), vMode === "dep" ? "Depositing…" : "Withdrawing…", async () => {
+  const a = vAmount();
+  if (vMode === "dep") {
+    await call(cfg.usdc, "ft_transfer_call", { receiver_id: cfg.vault, amount: toRaw(a), msg: "deposit" }, { deposit: 1n, tgas: 100 });
+    localStorage.setItem("uprise.v1.vaultIn", String(Number(localStorage.getItem("uprise.v1.vaultIn") || 0) + a));
+    toast(`Deposit of ${fmt(a)} queued: it settles at the next vault update`);
+  } else {
+    const pps = Number(state.vault.share_price_e6) / E6, all = a >= Number(state.pos.value) / E6 - 0.01;
+    const shares = all ? null : String(Math.floor(a / pps * E6));
+    await call(cfg.vault, "request_withdraw", shares ? { shares } : {}, { tgas: 30 });
+    const dep = Number(localStorage.getItem("uprise.v1.vaultIn") || 0);
+    localStorage.setItem("uprise.v1.vaultIn", String(all ? 0 : Math.max(0, dep - a)));
+    toast(`Withdrawal of ${fmt(a)} queued: USDC arrives at the next vault update`);
+  }
+  $("vAmt").value = "";
+});
+async function loadVaultHistory() { try { vHist = await fetch("/api/vault-history").then((r) => r.json()); } catch {} drawVaultChart(); }
+function drawVaultChart() {
+  const cv = $("vChart"), r = cv.getBoundingClientRect(); if (!r.width) return;
+  const dpr = devicePixelRatio || 1; cv.width = r.width * dpr; cv.height = r.height * dpr; const ctx = cv.getContext("2d"); ctx.scale(dpr, dpr);
+  ctx.fillStyle = css("--muted"); ctx.font = `11px ${css("--font")}`;
+  if (vHist.length < 2) { ctx.fillText("Share price history appears after a few minutes.", 2, 14); return; }
+  let lo = Infinity, hi = -Infinity; for (const [, p] of vHist) { lo = Math.min(lo, p); hi = Math.max(hi, p); }
+  const pad = (hi - lo) * 0.15 || 0.0005; lo -= pad; hi += pad;
+  const t0 = vHist[0][0], t1 = vHist[vHist.length - 1][0], X = (t) => (t - t0) / Math.max(1, t1 - t0) * r.width, Y = (v) => (1 - (v - lo) / (hi - lo)) * (r.height - 14) + 12;
+  ctx.beginPath(); vHist.forEach(([t, p], i) => (i ? ctx.lineTo(X(t), Y(p)) : ctx.moveTo(X(t), Y(p)))); ctx.strokeStyle = css("--crab"); ctx.lineWidth = 2; ctx.stroke();
+  const days = (t1 - t0) / 86400, ret = vHist[vHist.length - 1][1] / vHist[0][1] - 1;
+  ctx.fillText(`Share price · ${days < 1 ? Math.round(days * 24 * 60) + " min" : days.toFixed(1) + " days"} · ${pct(ret, 3)}`, 2, 10);
+}
+
+// ── wallet sheet ──
+$("walletBtn").onclick = () => { if (me) $("sheet").hidden = false; };
+$("sheetX").onclick = () => ($("sheet").hidden = true);
+$("sheet").onclick = (e) => { if (e.target === $("sheet")) $("sheet").hidden = true; };
+document.querySelectorAll("#wSeg button").forEach((b) => (b.onclick = () => { document.querySelectorAll("#wSeg button").forEach((x) => x.setAttribute("aria-selected", x === b)); document.querySelectorAll("[data-wpane]").forEach((p) => (p.hidden = p.dataset.wpane !== b.dataset.w)); }));
+$("copyBtn").onclick = async () => { try { await navigator.clipboard.writeText(me); toast("Address copied"); } catch { toast("Copy failed: select the address and copy it", true); } };
+$("faucetBtn").onclick = () => withBusy($("faucetBtn"), "Minting…", async () => {
+  const r = await fetch("/api/faucet", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ account_id: me }) }).then((r) => r.json());
+  if (r.error) throw new Error(r.error); toast("1,000 test USDC added");
+});
+$("sendBtn").onclick = () => withBusy($("sendBtn"), "Sending…", async () => {
+  const to = $("sTo").value.trim(), a = Number($("sAmt").value); if (!to || !(a > 0)) throw new Error("Enter a receiver and an amount");
+  const raw = BigInt(toRaw(a));
+  if (raw > state.usdc) { const need = raw - state.usdc, free = BigInt(state.ledgerAcc?.free || 0); if (need > free) throw new Error("Not enough balance"); await call(cfg.ledger, "withdraw", { amount: String(need) }, { deposit: 1n }); }
+  await call(cfg.usdc, "ft_transfer", { receiver_id: to, amount: String(raw) }, { deposit: 1n, tgas: 30 });
+  toast(`Sent ${fmt(a)} to ${to}`);
+});
+$("showKey").onclick = () => { $("keyOut").hidden = false; $("keyOut").textContent = loadKey(); };
+$("importBtn").onclick = () => { const s = $("importKey").value.trim(); try { KeyPair.fromString(s); localStorage.setItem(KEY, s); location.reload(); } catch { $("wErr").textContent = "That isn't a valid key (ed25519:…)."; } };
+const ASSETS = [["USDC on Ethereum", "nep141:eth-0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48.omft.near", 6], ["USDC on Solana", "nep141:sol-5ce3bf3a31af18be40ba30f721101b4341690186.omft.near", 6], ["USDC on Base", "nep141:base-0x833589fcd6edb6e08f4c7c32d4f71b54bda02913.omft.near", 6], ["USDC on Arbitrum", "nep141:arb-0xaf88d065e77c8cc2239327c5edb3a432268e5831.omft.near", 6], ["ETH on Ethereum", "nep141:eth.omft.near", 18], ["SOL", "nep141:sol.omft.near", 9], ["BTC", "nep141:btc.omft.near", 8]]; // ids from 1click /v0/tokens
+$("xAsset").innerHTML = ASSETS.map(([n], i) => `<option value="${i}">${n}</option>`).join("");
+$("xBtn").onclick = () => withBusy($("xBtn"), "Asking NEAR Intents…", async () => {
+  const [name, asset, dec] = ASSETS[+$("xAsset").value], a = Number($("xAmt").value); if (!(a > 0)) throw new Error("Enter an amount");
+  const r = await fetch("/api/deposit-address", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ account_id: me, asset, amount: String(BigInt(Math.round(a * 10 ** Math.min(dec, 9))) * 10n ** BigInt(Math.max(0, dec - 9))) }) }).then((r) => r.json());
+  if (r.error) throw new Error(r.error);
+  $("xOut").hidden = false; $("xOut").textContent = `Send ${a} ${name} to ${r.quote?.depositAddress || r.depositAddress}. USDC arrives in this wallet in a few minutes.`;
+});
+
+// ── tabs ──
+document.querySelectorAll("nav.tabs button").forEach((b) => (b.onclick = () => {
+  document.querySelectorAll("nav.tabs button").forEach((x) => x.setAttribute("aria-selected", x === b));
+  $("bull").hidden = b.dataset.tab !== "bull"; $("crab").hidden = b.dataset.tab !== "crab";
+  if (b.dataset.tab === "crab") { loadVaultHistory(); renderVault(); } else drawChart();
+}));
+
+// ── start ──
+async function start() {
+  cfg = await fetch("/api/config").then((r) => r.json());
+  provider = new JsonRpcProvider({ url: cfg.rpc });
+  $("modePill").textContent = cfg.mode === "live" ? "live" : "testnet demo"; $("modePill").classList.toggle("live", cfg.mode === "live");
+  $("demoDeposit").hidden = cfg.mode !== "demo";
+  if (cfg.mode !== "live") { $("xchainHint").textContent = "Cross-chain deposits through NEAR Intents (1Click) run on mainnet, so they are available in live mode."; $("xBtn").disabled = true; }
+  view(cfg.ledger, "get_config").then((c) => (state.params = c.params)).catch(() => {});
+  const secret = loadKey();
+  if (secret) {
+    useKey(secret);
+    if (!(await exists(me)) && cfg.mode === "demo") { $("welcome").hidden = false; $("bull").hidden = true; }
+  } else { $("welcome").hidden = false; $("bull").hidden = true; }
+  loadHistory(); refresh(); setInterval(refresh, 5000); setInterval(loadHistory, 60_000); setInterval(loadVaultHistory, 60_000);
+}
+$("createBtn").onclick = () => withBusy($("createBtn"), "Creating your wallet…", async () => {
+  let secret = loadKey();
+  if (!secret) { secret = KeyPair.fromRandom("ed25519").toString(); localStorage.setItem(KEY, secret); }
+  useKey(secret);
+  if (cfg.mode === "demo") {
+    const r = await fetch("/api/onboard", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ account_id: me }) }).then((r) => r.json());
+    if (r.error) { $("welcomeErr").textContent = r.error; throw new Error(r.error); }
+    for (let i = 0; i < 20 && !(await exists(me)); i++) await new Promise((r) => setTimeout(r, 1000));
+  }
+  $("welcome").hidden = true; $("bull").hidden = false; toast(cfg.mode === "demo" ? "Wallet ready: 1,000 test USDC added" : "Wallet ready: deposit USDC to start");
+});
+window.addEventListener("resize", () => { drawChart(); drawVaultChart(); });
+start();
+</script>
+</body>
+</html>

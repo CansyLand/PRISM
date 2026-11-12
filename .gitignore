@@ -17,3 +17,5 @@ hackathon-x-post.md
 
 # personal data (legacy perpetual demo)
 demo/
+.keys.json
+app/.server-state.json
