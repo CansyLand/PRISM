@@ -39,7 +39,7 @@
         <div><span class="muted small" id="mkt">NEAR / USD</span> <span class="small num" id="chg"></span></div>
         <span class="tag" id="mktNote">Demo replay</span>
       </div>
-      <div class="price-big num" id="px">—</div>
+      <div class="px-row"><div class="price-big num" id="px">—</div><div class="fund-pill" id="fund" title="What holding a Curve Long costs: it melts by this much of its value per day"><small id="fundLbl">Funding</small><b class="num" id="fundRate">—</b></div></div>
       <canvas id="candles" aria-label="Price chart"></canvas>
       <div class="chips" id="ranges" hidden>
         <button class="chip" data-r="1h" aria-pressed="false">1H</button><button class="chip" data-r="1d" aria-pressed="true">1D</button><button class="chip" data-r="1w" aria-pressed="false">1W</button>
@@ -68,6 +68,8 @@
         <p class="hint" id="meltNote"></p>
         <div class="rows">
           <div class="kv"><span>Paid</span><span id="posPaid">—</span></div>
+          <div class="kv" id="posCurveRow"><span>Curve value (before funding)</span><span id="posCurve">—</span></div>
+          <div class="kv" id="posFundRow"><span>Funding paid so far</span><span class="neg" id="posFund">—</span></div>
           <div class="kv"><span>Entry price</span><span id="posEntry">—</span></div>
           <div class="kv"><span>Price now</span><span id="posNow">—</span></div>
         </div>

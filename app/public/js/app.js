@@ -1,5 +1,6 @@
 import { CandleChart, fmtP } from "./candles.js";
-import { Demo, CANDLE_MS, timeLeft } from "./demo.js";
+import { Demo, CANDLE_MS, timeLeft, meltSeconds } from "./demo.js";
+import { supernova } from "./celebrate.js";
 import { showOnboarding } from "./onboarding.js";
 import { Arena } from "./analytics.js";
 import { CurveCard } from "./curvecard.js";
@@ -38,14 +39,30 @@ function renderStrength() {
   const mismatch = mode === "live" && live?.cfg && p !== live.cfg.power;
   $("pNote").textContent = mismatch ? `The live market offers ${pw(live.cfg.power)} right now. More strengths are coming.` : "";
   $("pNote").hidden = !mismatch;
-  showCurve(p);
+  showCurve(p); renderFunding();
 }
 // the slim card follows the slider, or the open position (with a dot at today's price move)
 function showCurve(p, at = null) {
   curve.set(p, at);
   $("ccP").textContent = pw(p);
 }
-$("p").addEventListener("input", () => { renderStrength(); renderPreview(); });
+let lastP = +$("p").value;
+$("p").addEventListener("input", () => {
+  const p = P();
+  if (p === 10 && lastP < 10) { const r = $("p").getBoundingClientRect(); supernova(r.left + r.width - 10, r.top + r.height / 2); }
+  lastP = p; renderStrength(); renderPreview();
+});
+// Funding at the top: what a Curve Long at this strength melts per day. Demo: the straight timer means it
+// loses 1/(days in the window) of its curve value every day. Live: the market's current funding rate.
+function renderFunding() {
+  if (mode === "demo") {
+    const p = demo?.position?.p ?? P(), days = meltSeconds(p) / (CANDLE_MS / 1000);
+    $("fundLbl").textContent = `Funding ${pw(p)}`; $("fundRate").textContent = `−${(100 / days).toFixed(1)}%/day`;
+  } else {
+    const m = live?.state?.market; $("fundLbl").textContent = "Funding";
+    $("fundRate").textContent = m ? `−${(m.funding_rate_annual_bps / 1e4 / 365 * 100).toFixed(2)}%/day` : "—";
+  }
+}
 
 // ── amount + preview ──
 const amount = () => { const v = Number(String($("amt").value).replace(",", ".")); return isFinite(v) && v > 0 ? v : 0; };
@@ -230,6 +247,8 @@ function renderPosition() {
     const left = timeLeft(q.p, q.t);
     $("posP").textContent = pw(q.p); $("posValue").textContent = fmt(v); $("posPaid").textContent = fmt(q.stake);
     $("posEntry").textContent = fmtP(q.entry); $("posNow").textContent = fmtP(px); $("px").textContent = fmtP(px);
+    const curveV = q.net * Math.pow(px / q.entry, q.p); $("posCurveRow").hidden = $("posFundRow").hidden = false;
+    $("posCurve").textContent = fmt(curveV); $("posFund").textContent = "−" + fmt(Math.max(0, curveV - v));
     const pnl = v - q.stake; $("posPnl").textContent = `${pnl >= 0 ? "+" : "−"}${fmt(Math.abs(pnl))} · ×${(v / q.stake).toFixed(2)}`; $("posPnl").className = "num " + (pnl >= 0 ? "pos" : "neg");
     $("meltBar").style.width = left * 100 + "%";
     $("meltNote").textContent = `Time left in the window: ${Math.round(left * 100)}%. The longer you hold, the more it melts.`;
@@ -238,7 +257,7 @@ function renderPosition() {
   } else {
     const a = live?.state?.ledgerAcc; if (!a || BigInt(a.long_units) === 0n) return;
     const v = Number(a.long_value) / E6, c = Number(a.long_cost) / E6, m = live.state.market;
-    showCurve(m.power);
+    showCurve(m.power); $("posCurveRow").hidden = $("posFundRow").hidden = true; renderFunding();
     $("posP").textContent = pw(m.power); $("posValue").textContent = fmt(v); $("posPaid").textContent = fmt(c);
     $("posEntry").textContent = "—"; $("posNow").textContent = fmtP(Number(m.price) / E6);
     $("posPnl").textContent = `${v >= c ? "+" : "−"}${fmt(Math.abs(v - c))} · ×${(v / c).toFixed(2)}`; $("posPnl").className = "num " + (v >= c ? "pos" : "neg");
@@ -427,7 +446,7 @@ function render() {
   $("balLabel").textContent = mode === "demo" ? "Play money" : live?.connected ? "Balance" : "Not signed in";
   if (mode === "demo") $("balance").textContent = fmt(demo.balance + (demo.position?.value || 0));
   else $("balance").textContent = live?.connected ? fmt(Number(live.cash()) / E6) : "—";
-  renderPreview(); renderPosition();
+  renderPreview(); renderPosition(); renderFunding();
   if (tab === "crab") renderCrab();
 }
 

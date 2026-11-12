@@ -100,6 +100,11 @@ input[type=range] { width: 100%; accent-color: var(--up); margin: 6px 0 0; }
 .r-actions { display: grid; grid-template-columns: 1fr 1.4fr; gap: 8px; }
 #rShare { display: flex; align-items: center; justify-content: center; gap: 8px; }
 #pLabel, #ccP, #posP { font-family: var(--font); font-weight: 800; }
+.px-row { display: flex; align-items: center; gap: 12px; }
+.fund-pill { text-align: left; background: color-mix(in srgb, var(--down) 12%, transparent); border: 1px solid color-mix(in srgb, var(--down) 35%, transparent); border-radius: 12px; padding: 5px 10px; line-height: 1.15; }
+.fund-pill small { display: block; color: var(--muted); font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; }
+.fund-pill b { color: var(--down); font-size: 15px; }
+canvas.celebrate { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 70; }
 /* flip card */
 .flip { display: grid; perspective: 1400px; }
 .flip .face { grid-area: 1 / 1; backface-visibility: hidden; -webkit-backface-visibility: hidden; transition: transform .6s cubic-bezier(.2,.8,.2,1); }

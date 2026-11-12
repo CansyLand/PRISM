@@ -41,6 +41,23 @@
   .flow .pill small { display: block; color: var(--muted); font-size: 11.5px; } .flow .pill b { font-family: var(--mono); font-size: 20px; }
   .arrow { color: var(--muted); font-size: 18px; }
   svg text { font-family: var(--mono); font-weight: 700; }
+  /* round 3 */
+  .r3row { margin-bottom: 26px; } .r3row > .label { font-weight: 800; font-size: 13px; color: var(--accent); margin: 0 0 4px; letter-spacing: .04em; } .r3row > .why { color: var(--muted); font-size: 12.5px; margin: 0 0 10px; }
+  .pair { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 340px)); gap: 16px; }
+  .rc3 { position: relative; overflow: hidden; background: var(--panel); border: 1px solid var(--line); border-radius: 22px; padding: 16px 16px 14px; }
+  .rc3.win { background: radial-gradient(120% 120% at 50% 0%, color-mix(in srgb, var(--up) 14%, var(--panel)), var(--panel) 65%); }
+  .rc3.loss { background: radial-gradient(120% 120% at 50% 0%, color-mix(in srgb, var(--down) 12%, var(--panel)), var(--panel) 65%); }
+  .hd { display: flex; justify-content: space-between; align-items: center; } .hd .lg3 { font-weight: 800; color: var(--accent); font-size: 14px; } .hd .as { font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--muted); border: 1px solid var(--line); border-radius: 7px; padding: 2px 6px; }
+  .big3 { font-family: var(--font); font-weight: 900; letter-spacing: -.045em; line-height: .95; }
+  .pos3 { color: var(--up); } .neg3 { color: var(--down); }
+  .cap { color: var(--muted); font-size: 13px; } .cap b { color: var(--ink); font-family: var(--mono); }
+  .btns { display: grid; grid-template-columns: 1fr 1.4fr; gap: 8px; margin-top: 12px; } .btns .btn { margin: 0; padding: 12px; font-size: 15px; }
+  .A .big3 { font-size: 64px; margin: 14px 0 2px; text-align: center; } .A .cap { text-align: center; margin-bottom: 6px; }
+  .B .hero { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 12px 0 4px; } .B .hero span { font-size: 40px; } .B .big3 { font-size: 58px; } .B .cap { text-align: center; }
+  .C .cw { position: relative; margin-top: 10px; } .C .big3 { position: absolute; left: 4px; top: 2px; font-size: 52px; } .C .cw .cap { position: absolute; left: 6px; top: 56px; }
+  .D .strip { display: grid; grid-template-columns: 1fr 1.3fr 1fr; gap: 6px; margin-top: 8px; } .D .strip div { background: var(--panel2); border-radius: 12px; padding: 8px 6px; text-align: center; } .D .strip small { display: block; color: var(--muted); font-size: 11px; } .D .strip b { font-family: var(--mono); font-size: 14px; } .D .strip .main b { font-family: var(--font); font-weight: 900; font-size: 26px; letter-spacing: -.03em; }
+  .E { padding: 0; } .E .band { padding: 14px 16px 16px; text-align: center; } .E.win .band { background: linear-gradient(160deg, color-mix(in srgb, var(--up) 70%, #000), color-mix(in srgb, var(--up) 35%, #000)); } .E.loss .band { background: linear-gradient(160deg, color-mix(in srgb, var(--down) 70%, #000), color-mix(in srgb, var(--down) 35%, #000)); }
+  .E .band .hd .lg3, .E .band .hd .as { color: #fff; border-color: rgba(255,255,255,.35); } .E .big3 { color: #fff; font-size: 66px; margin-top: 8px; } .E .band .cap { color: rgba(255,255,255,.8); } .E .body { padding: 10px 16px 14px; }
   .opt.wide { grid-column: span 2; } @media (max-width: 700px) { .opt.wide { grid-column: auto; } }
   .lg { margin: 4px 0 0; font-size: 12.5px; color: var(--muted); } .lg i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: 3px; margin: 0 5px 0 10px; } .lg i.m { background: var(--muted); } .lg i.c { background: var(--up); }
   .two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; } .two .btn { margin-top: 12px; }
@@ -58,7 +75,11 @@
 </head>
 <body>
 <div class="wrap">
-  <h1>Round 2 · C, made to share</h1>
+  <h1>Round 3 · where the big % goes</h1>
+  <p class="sub">Same chart as the app (market candles and the curve on one scale). Each option shows a win and a loss. Goal: the % stays the loudest thing, but it reads first and doesn't fight the chart.</p>
+  <div id="r3"></div>
+
+  <h1 style="margin-top:36px">Round 2 · C, made to share</h1>
   <p class="sub">The two-lines chart, with "market" and "6× curve". Each card can be shared on X: the app draws it as an image, then opens the share sheet (phone) or downloads the image and opens a prepared post (desktop).</p>
   <div class="grid r2">
 
@@ -237,6 +258,33 @@
   </div>
 </div>
 <script>
+  // ── round 3 ──
+  const D3 = {
+    win: { pct: "+582%", em: "🚀", p: "x⁸", mkt: "+32%", money: "$100 → $682", m: 0.32, v: 5.82 },
+    loss: { pct: "−64%", em: "☠️", p: "x⁸", mkt: "−8%", money: "$100 → $36", m: -0.08, v: -0.64 },
+  };
+  function chart3(kind, W, H) {
+    const d = D3[kind], N = 70, m = [], v = [];
+    for (let i = 0; i < N; i++) { const u = i / (N - 1), mk = d.m * Math.pow(u, 1.3) + 0.025 * Math.sin(u * 15) * Math.sin(Math.PI * u) + 0.01 * Math.sin(u * 47); m.push(mk); v.push(Math.pow(1 + mk, 8) * (1 - 0.45 * u) - 1); }
+    m[N - 1] = d.m; v[N - 1] = d.v;
+    const lo = Math.min(0, ...v, ...m) - 0.15, hi = Math.max(0, ...v, ...m) + 0.15, R = W - 46, X = (i) => 4 + i / (N - 1) * (R - 4), Y = (y) => 6 + (hi - y) / (hi - lo) * (H - 12);
+    let cands = ""; const per = 3, cw = (R - 4) / (N / per);
+    for (let k = 0; k < N; k += per) { const g = m.slice(k, k + per + 1), o = g[0], c = g.at(-1), h = Math.max(...g), l = Math.min(...g), cx = X(Math.min(N - 1, k + 1)); const col = c >= o ? "var(--muted)" : "var(--line)"; cands += `<line x1="${cx}" x2="${cx}" y1="${Y(h)}" y2="${Y(l)}" stroke="${col}"/><rect x="${cx - cw * 0.3}" y="${Y(Math.max(o, c))}" width="${cw * 0.6}" height="${Math.max(1, Y(Math.min(o, c)) - Y(Math.max(o, c)))}" fill="${col}"/>`; }
+    let seg = ""; for (let i = 1; i < N; i++) seg += `<line x1="${X(i - 1)}" y1="${Y(v[i - 1])}" x2="${X(i)}" y2="${Y(v[i])}" stroke="${(v[i] + v[i - 1]) / 2 >= 0 ? "var(--up)" : "var(--down)"}" stroke-width="3" stroke-linecap="round"/>`;
+    const ec = v[N - 1] >= 0 ? "var(--up)" : "var(--down)";
+    return `<svg viewBox="0 0 ${W} ${H}" width="100%" aria-hidden="true"><line x1="4" x2="${R}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--line)" stroke-dasharray="3 3"/>${cands}${seg}<circle cx="${X(N - 1)}" cy="${Y(v[N - 1])}" r="4.5" fill="${ec}"/><text x="${R + 6}" y="${Y(v[N - 1]) + 4}" font-size="11" fill="${ec}">${d.pct}</text><text x="${R + 6}" y="${Y(m[N - 1]) + 4}" font-size="10" fill="var(--muted)">${d.mkt}</text></svg>`;
+  }
+  const head = `<div class="hd"><span class="lg3">⇡ Uprise</span><span class="as">USDC/NEAR</span></div>`;
+  const btns = `<div class="btns"><button class="btn ghost">𝕏 Share</button><button class="btn">Next trade</button></div>`;
+  const V3 = [
+    ["A · HEADLINE", "The % is the headline, centered, nothing behind it. Chart below as proof. Cleanest hierarchy.", (k, d) => `${head}<div class="big3 ${k === "win" ? "pos3" : "neg3"}">${d.pct}</div><div class="cap">${d.p} curve · market <b>${d.mkt}</b></div>${chart3(k, 300, 130)}${btns}`],
+    ["B · EMOJI + NUMBER", "Emoji and % on one line like a reaction. Fun, still clear.", (k, d) => `${head}<div class="hero"><span>${d.em}</span><div class="big3 ${k === "win" ? "pos3" : "neg3"}">${d.pct}</div></div><div class="cap">${d.money} · market <b>${d.mkt}</b></div>${chart3(k, 300, 130)}${btns}`],
+    ["C · NUMBER IN THE CHART", "The % sits in the chart's empty corner, so it belongs to the chart without covering the line.", (k, d) => `${head}<div class="cw">${chart3(k, 300, 180)}<div class="big3 ${k === "win" ? "pos3" : "neg3"}" style="${k === "loss" ? "top:auto;bottom:6px" : ""}">${d.pct}</div><div class="cap" style="${k === "loss" ? "top:auto;bottom:-14px;display:none" : ""}">${d.p} curve</div></div>${btns}`],
+    ["D · STAT STRIP", "Chart first, then three numbers: market, your curve (biggest), money. Most informative.", (k, d) => `${head}${chart3(k, 300, 140)}<div class="strip"><div><small>market</small><b>${d.mkt}</b></div><div class="main"><small>${d.p} curve</small><b class="${k === "win" ? "pos3" : "neg3"}">${d.pct}</b></div><div><small>money</small><b>${d.money.split(" → ")[1]}</b></div></div>${btns}`],
+    ["E · TICKET", "A colored band carries the % in white, like a winning ticket. Strongest impact; color does the talking.", (k, d) => `<div class="band">${head}<div class="big3">${d.pct}</div><div class="cap">${d.p} curve · market ${d.mkt}</div></div><div class="body">${chart3(k, 300, 120)}${btns}</div>`],
+  ];
+  document.getElementById("r3").innerHTML = V3.map(([name, why, f]) => `<div class="r3row"><p class="label">${name}</p><p class="why">${why}</p><div class="pair">${["win", "loss"].map((k) => `<div class="rc3 ${name[0]} ${k}">${f(k, D3[k])}</div>`).join("")}</div></div>`).join("");
+
   // one sample trade: market up 44.5%, a 6× curve with a linear melt timer (×4.88 at the close)
   const N = 90, m = [], v = [];
   for (let i = 0; i < N; i++) {
