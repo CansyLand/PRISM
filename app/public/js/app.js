@@ -453,6 +453,7 @@ async function setMode(m) {
 function render() {
   const liveNoWallet = mode === "live" && !live?.connected;
   $("liveStart").hidden = !liveNoWallet;
+  $("tab-bull").classList.toggle("start-only", liveNoWallet); // Live without a wallet: just the start card
   $("balLabel").textContent = mode === "demo" ? "Play money" : live?.connected ? "Balance" : "Not signed in";
   if (mode === "demo") $("balance").textContent = fmt(demo.balance + (demo.position?.value || 0));
   else $("balance").textContent = live?.connected ? fmt(Number(live.cash()) / E6) : "—";

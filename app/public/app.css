@@ -248,3 +248,6 @@ nav.tabs button[aria-selected="true"] { background: var(--accent); color: #fff; 
 /* tab bar: three equal buttons (same width, padding, label and icon size) */
 nav.tabs button, nav.tabs button.side, nav.tabs button.main { flex: 1 1 0; min-width: 0; padding: 8px 6px; font-size: 12px; }
 nav.tabs .ico svg, nav.tabs button.main .ico svg { width: 24px; height: 24px; }
+/* Live without a wallet: only the start card, with room around it */
+#tab-bull.start-only > :not(#liveStart) { display: none !important; }
+#tab-bull.start-only #liveStart { margin: 28px 0; padding: 24px 18px; }
