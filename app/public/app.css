@@ -245,3 +245,6 @@ nav.tabs button[aria-selected="true"] { background: var(--accent); color: #fff; 
 .ob-kicker { color: var(--ink); opacity: .7; } .ob-text { color: var(--ink); opacity: .8; }
 /* amount fields: numbers centered */
 .field input { text-align: center; } .field { position: relative; } .field > span { position: absolute; left: 16px; }
+/* tab bar: three equal buttons (same width, padding, label and icon size) */
+nav.tabs button, nav.tabs button.side, nav.tabs button.main { flex: 1 1 0; min-width: 0; padding: 8px 6px; font-size: 12px; }
+nav.tabs .ico svg, nav.tabs button.main .ico svg { width: 24px; height: 24px; }
