@@ -91,7 +91,7 @@ function drawCurves(ctx, W, H, t) {
   ctx.fillStyle = css("--muted"); ctx.font = `600 12px ${css("--font")}`;
   ctx.fillText(`price ${(pricePath(x) - 1 >= 0 ? "+" : "")}${((pricePath(x) - 1) * 100).toFixed(1)}%`, pad, pad + 4);
 }
-// Two positions on the same price: a 5× perpetual (linear, liquidated at 25% left) and an 8× power
+// Two positions on the same price: an 8× perpetual (linear, liquidated at 10% left) and an 8× power
 // perpetual (price^8, slowly melting). Uprise rises faster; the perp is liquidated halfway down a deep
 // wick, while Uprise rides it out and recovers far above the start.
 const KEYS = [[0, 1], [0.25, 1.06], [0.5, 0.7], [1, 1.2]];
@@ -100,9 +100,9 @@ function crashPath(x) {
   const [x0, y0] = KEYS[k], [x1, y1] = KEYS[k + 1], u = Math.min(1, Math.max(0, (x - x0) / (x1 - x0))), e = (1 - Math.cos(Math.PI * u)) / 2;
   return y0 + (y1 - y0) * e + 0.004 * Math.sin(x * 37) * Math.sin(Math.PI * u);
 }
-let LIQ_X = 0.5; const perpV = (x) => 1 + 5 * (crashPath(x) - 1), powerV = (x) => Math.pow(crashPath(x), 8) * Math.exp(-0.173 * x);
-// the perp is liquidated (25% of margin left) halfway down the drop
-for (let x = 0.25; x < 0.5; x += 0.001) if (1 + 5 * (crashPath(x) - 1) <= 0.25) { LIQ_X = x; break; }
+let LIQ_X = 0.5; const perpV = (x) => 1 + 8 * (crashPath(x) - 1), powerV = (x) => Math.pow(crashPath(x), 8) * Math.exp(-0.173 * x);
+// the 8× perp is liquidated (10% of margin left) about halfway down the drop
+for (let x = 0.25; x < 0.5; x += 0.001) if (perpV(x) <= 0.1) { LIQ_X = x; break; }
 function drawWick(ctx, W, H, t) {
   const T = 6, x = Math.min(1, (t % (T + 1.8)) / T), pad = 14, liq = x >= LIQ_X;
   let hi = 1.25; for (let k = 0; k <= 40; k++) hi = Math.max(hi, powerV((k / 40) * x) * 1.12);
@@ -114,9 +114,10 @@ function drawWick(ctx, W, H, t) {
   ctx.font = `700 13px ${css("--mono")}`; ctx.textAlign = "left";
   const ex = Math.min(x, LIQ_X), pv = perpV(ex), uv = powerV(x);
   if (liq) {
-    ctx.font = "20px sans-serif"; ctx.fillText("💥", X(LIQ_X) - 10, Y(pv) + 22);
-    ctx.font = `700 12px ${css("--font")}`; ctx.fillStyle = css("--down"); ctx.fillText("Perp 5×: liquidated", X(LIQ_X) + 14, Y(pv) + 28);
-  } else { ctx.fillStyle = css("--down"); ctx.fillText(`Perp 5×  ${pnl(pv)}`, X(ex) + 8, Y(pv) + (pv > uv ? -6 : 14)); }
+    ctx.beginPath(); ctx.moveTo(X(LIQ_X), Y(pv)); ctx.lineTo(X(LIQ_X), Y(0)); ctx.strokeStyle = css("--down"); ctx.lineWidth = 3; ctx.stroke();
+    ctx.font = "20px sans-serif"; ctx.textAlign = "center"; ctx.fillText("💥", X(LIQ_X), Y(0) - 2); ctx.textAlign = "left";
+    ctx.font = `700 12px ${css("--font")}`; ctx.fillStyle = css("--down"); ctx.fillText("Perp 8×: liquidated", Math.max(pad, X(LIQ_X) - 60), Y(0) + 11);
+  } else { ctx.fillStyle = css("--down"); ctx.fillText(`Perp 8×  ${pnl(pv)}`, X(ex) + 8, Y(pv) + (pv > uv ? -6 : 14)); }
   ctx.font = `700 13px ${css("--mono")}`; ctx.fillStyle = css("--up");
   ctx.fillText(`Uprise 8×  ${pnl(uv)}`, X(x) + 8, Y(uv) + (liq || uv >= pv ? 4 : -8));
   ctx.fillStyle = css("--muted"); ctx.font = `600 12px ${css("--font")}`;

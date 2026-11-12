@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Result card options</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="app.css">
+<style>
+  body { padding: 20px 16px 60px; }
+  .wrap { max-width: 1400px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; } .sub { color: var(--muted); margin: 0 0 20px; font-size: 14px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 18px; align-items: start; }
+  .opt > .label { font-weight: 800; font-size: 13px; color: var(--accent); margin: 0 0 8px; letter-spacing: .04em; }
+  .opt > .why { color: var(--muted); font-size: 12.5px; margin: 8px 2px 0; line-height: 1.4; }
+  .card-r { background: var(--panel); border: 1px solid var(--line); border-radius: 22px; padding: 20px 18px; text-align: center; }
+  .mono { font-family: var(--mono); }
+  .big { font-size: 40px; font-weight: 800; letter-spacing: -.03em; font-family: var(--mono); }
+  .muted { color: var(--muted); }
+  /* A: equation */
+  .eq { text-align: left; margin: 14px 0 4px; font-size: 15px; }
+  .eq div { display: flex; justify-content: space-between; padding: 7px 2px; border-top: 1px dashed var(--line); }
+  .eq div:first-child { border-top: 0; } .eq b { font-family: var(--mono); }
+  .eq .tot { border-top: 2px solid var(--ink); font-weight: 800; font-size: 17px; }
+  /* B: bars */
+  .bars { text-align: left; margin: 16px 0 6px; display: grid; gap: 10px; }
+  .bars .row small { display: flex; justify-content: space-between; color: var(--muted); font-size: 12.5px; margin-bottom: 4px; }
+  .bars .row small b { font-family: var(--mono); color: var(--ink); }
+  .bars .track { height: 14px; border-radius: 7px; background: var(--panel2); overflow: hidden; }
+  .bars .fill { height: 100%; border-radius: 7px; }
+  /* D: hero */
+  .hero-from { font-family: var(--mono); color: var(--muted); font-size: 18px; text-decoration: line-through; }
+  .twin { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 0 4px; }
+  .twin div { background: var(--panel2); border-radius: 14px; padding: 12px 8px; }
+  .twin small { display: block; color: var(--muted); font-size: 12px; } .twin b { font-family: var(--mono); font-size: 26px; }
+  /* E: badge */
+  .badge { display: inline-block; margin: 12px 0 4px; padding: 8px 14px; border-radius: 99px; background: color-mix(in srgb, var(--up) 18%, transparent); color: var(--up); font-weight: 800; }
+  .flow { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 12px; }
+  .flow .pill { background: var(--panel2); border: 1px solid var(--line); border-radius: 14px; padding: 10px 12px; }
+  .flow .pill small { display: block; color: var(--muted); font-size: 11.5px; } .flow .pill b { font-family: var(--mono); font-size: 20px; }
+  .arrow { color: var(--muted); font-size: 18px; }
+  svg text { font-family: var(--mono); font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Result card: pick a direction</h1>
+  <p class="sub">Same trade in every option: $250 at 6×, price +44.5%, the 6× curve makes ×9.10, melting leaves ×4.88, so $250 → $1,219.</p>
+  <div class="grid">
+
+    <!-- A -->
+    <div class="opt">
+      <p class="label">A · THE RECEIPT</p>
+      <div class="card-r">
+        <div class="big-ico">🚀</div>
+        <div class="big pos">+$969</div>
+        <div class="eq">
+          <div><span>Price went up</span><b class="pos">+44%</b></div>
+          <div><span>Your 6× curve made it</span><b class="pos">×9.10</b></div>
+          <div><span>Melt over 13 s of time</span><b class="neg">−46%</b></div>
+          <div class="tot"><span>You got</span><b class="pos">×4.88</b></div>
+        </div>
+        <p class="muted mono" style="margin:6px 0 0">$250 → $1,219</p>
+        <button class="btn">Next trade</button>
+      </div>
+      <p class="why">Shows each step as a line of a receipt. Very clear about why it's ×4.88 and not ×9.10.</p>
+    </div>
+
+    <!-- B -->
+    <div class="opt">
+      <p class="label">B · VERSUS NORMAL LEVERAGE</p>
+      <div class="card-r">
+        <div class="big-ico">🚀</div>
+        <div class="big pos">+388%</div>
+        <p class="muted" style="margin:2px 0 0">$250 → <b class="mono" style="color:var(--ink)">$1,219</b></p>
+        <div class="bars">
+          <div class="row"><small><span>Just holding NEAR</span><b>+44%</b></small><div class="track"><div class="fill" style="width:11%;background:var(--muted)"></div></div></div>
+          <div class="row"><small><span>Normal 6× leverage</span><b>+267%</b></small><div class="track"><div class="fill" style="width:69%;background:var(--accent)"></div></div></div>
+          <div class="row"><small><span>Uprise 6× (after melt)</span><b class="pos">+388%</b></small><div class="track"><div class="fill" style="width:100%;background:var(--up)"></div></div></div>
+        </div>
+        <button class="btn">Next trade</button>
+      </div>
+      <p class="why">Puts the win next to what you'd have made otherwise. Sells the product in one glance.</p>
+    </div>
+
+    <!-- C -->
+    <div class="opt">
+      <p class="label">C · TWO LINES, ONE CHART</p>
+      <div class="card-r">
+        <div class="big-ico">🚀</div>
+        <div class="big pos">+$969</div>
+        <svg viewBox="0 0 300 150" width="100%" style="margin-top:10px" aria-label="Price and your position over the trade">
+          <line x1="8" x2="232" y1="128" y2="128" stroke="var(--line)" stroke-dasharray="3 3"/>
+          <path d="M8 128 C40 132, 60 120, 80 122 S120 112, 140 114 S180 104, 200 106 S220 100, 232 100" fill="none" stroke="var(--muted)" stroke-width="2.2"/>
+          <path d="M8 128 C40 134, 60 118, 80 114 S120 92, 140 86 S180 52, 200 40 S220 24, 232 18" fill="none" stroke="var(--up)" stroke-width="3.2" stroke-linecap="round"/>
+          <circle cx="232" cy="100" r="4" fill="var(--muted)"/><circle cx="232" cy="18" r="5" fill="var(--up)"/>
+          <text x="240" y="104" font-size="12" fill="var(--muted)">+44%</text>
+          <text x="240" y="22" font-size="13" fill="var(--up)">+388%</text>
+          <text x="8" y="145" font-size="10" fill="var(--muted)">you bought</text>
+          <text x="232" y="145" font-size="10" fill="var(--muted)" text-anchor="end">closed</text>
+        </svg>
+        <p class="muted" style="margin:4px 0 0;font-size:13px"><span style="color:var(--muted)">━</span> price &nbsp; <span class="pos">━</span> your 6× curve</p>
+        <button class="btn">Next trade</button>
+      </div>
+      <p class="why">One picture: the price crawls, your position runs away from it. Closest to how it felt watching.</p>
+    </div>
+
+    <!-- D -->
+    <div class="opt">
+      <p class="label">D · PRICE VS YOU</p>
+      <div class="card-r">
+        <div class="big-ico">🚀</div>
+        <div class="twin">
+          <div><small>NEAR price</small><b>+44%</b></div>
+          <div style="background:color-mix(in srgb,var(--up) 16%,transparent)"><small>You, at 6×</small><b class="pos">+388%</b></div>
+        </div>
+        <p style="margin:12px 0 0;font-size:15px"><span class="hero-from">$250</span> &nbsp;<b class="mono" style="font-size:26px">$1,219</b></p>
+        <button class="btn">Next trade</button>
+      </div>
+      <p class="why">The simplest: two numbers side by side, then the money. No math on screen.</p>
+    </div>
+
+    <!-- E -->
+    <div class="opt">
+      <p class="label">E · THE MULTIPLIER</p>
+      <div class="card-r">
+        <div class="big-ico">🚀</div>
+        <div class="big pos">$1,219</div>
+        <p class="muted" style="margin:2px 0 0">from $250</p>
+        <div class="badge">8.7× the price move</div>
+        <div class="flow">
+          <div class="pill"><small>price</small><b>+44%</b></div><span class="arrow">→</span>
+          <div class="pill"><small>6× curve</small><b>⤴</b></div><span class="arrow">→</span>
+          <div class="pill" style="border-color:var(--up)"><small>you</small><b class="pos">+388%</b></div>
+        </div>
+        <button class="btn">Next trade</button>
+      </div>
+      <p class="why">Leads with the money, then one bold claim ("8.7× the price move") and a three-step flow.</p>
+    </div>
+
+    <!-- F: loss version of B for reference -->
+    <div class="opt">
+      <p class="label">B FOR A LOSS (REFERENCE)</p>
+      <div class="card-r">
+        <div class="big-ico">🫠</div>
+        <div class="big">Melt Down</div>
+        <p class="muted" style="margin:2px 0 0">$100 → <b class="mono" style="color:var(--ink)">$0</b></p>
+        <div class="bars">
+          <div class="row"><small><span>Just holding NEAR</span><b>+3%</b></small><div class="track"><div class="fill" style="width:30%;background:var(--muted)"></div></div></div>
+          <div class="row"><small><span>Time window used</span><b class="neg">100%</b></small><div class="track"><div class="fill" style="width:100%;background:var(--down)"></div></div></div>
+        </div>
+        <p class="muted" style="font-size:13px;margin:10px 0 0">The price didn't rise fast enough before the 10× timer ran out (20 s).</p>
+        <button class="btn">Next trade</button>
+      </div>
+      <p class="why">How a losing trade could look in the same style.</p>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>

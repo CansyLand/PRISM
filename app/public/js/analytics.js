@@ -133,7 +133,7 @@ export class Arena {
     const C = (n) => css(n), F = (s, w = 600, mono) => `${w} ${s}px ${mono ? css("--mono") : css("--font")}`;
     ctx.lineWidth = 1; ctx.strokeStyle = C("--line");
     for (const g of this.rings || []) { ctx.beginPath(); ctx.arc(this.vault.x, this.vault.y, g.R, g.a0 - 0.12, g.a1 + 0.12); ctx.stroke(); }
-    ctx.font = F(10.5, 700); ctx.fillStyle = C("--up"); ctx.textAlign = "left"; ctx.fillText("🐂 TRADERS", 8, 20);
+    ctx.font = F(10.5, 700); ctx.fillStyle = C("--up"); ctx.textAlign = "left"; ctx.fillText("🐮 TRADERS", 8, 20);
     ctx.fillStyle = C("--crab"); ctx.textAlign = "right"; ctx.fillText("LIQUIDITY PROVIDERS 🦀", this.W - 8, 20);
     // coins first, so the vault, yield and people stay readable on top
     const col = { coin: C("--gold"), win: C("--gold"), fund: C("--accent"), bar: C("--crab"), asset: C("--near"), yield: C("--up") };

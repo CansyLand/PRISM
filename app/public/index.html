@@ -23,7 +23,7 @@
     <button class="wallet-btn" id="walletBtn" aria-label="Open wallet"><small id="balLabel">Play money</small><b id="balance">$1,000</b></button>
   </header>
 
-  <!-- 🐂 BULL -->
+  <!-- 🐮 BULL -->
   <main id="tab-bull">
     <section class="card" id="liveStart" hidden>
       <h2>Start in seconds</h2>
@@ -89,10 +89,9 @@
         <div class="stat"><small>Yield now</small><b id="vYield">—</b></div>
         <div class="stat"><small>Vault size</small><b id="vTvl">—</b></div>
         <div class="stat"><small>Paid by bulls</small><b id="vFund">—</b></div>
-        <div class="stat"><small>Used by bulls</small><b id="vUtil">—</b></div>
       </div>
       <div class="bar" id="vBar"></div>
-      <div class="legend"><span><em style="background:var(--usdc)"></em>USDC</span><span><em style="background:var(--near)"></em>NEAR (the balance)</span></div>
+      <div class="legend"><span><em style="background:var(--usdc)"></em>USDC</span><span><em style="background:var(--near)"></em>NEAR (auto rebalanced)</span></div>
       <p class="hint" id="vHedge"></p>
     </section>
     <section class="card">
@@ -117,16 +116,25 @@
     <section class="card">
       <div class="row-between"><h2>📊 The market, live</h2><span class="tag" id="arenaTag">demo</span></div>
       <canvas id="arena" aria-label="Animation of money moving between traders, the vault and liquidity providers"></canvas>
-      <div class="legend"><span><em style="background:var(--gold)"></em>$10 traded</span><span><em style="background:var(--accent)"></em>premium (funding)</span><span><em style="background:var(--crab)"></em>$1,000 deposited</span><span><em style="background:var(--near)"></em>NEAR balancing</span><span><em style="background:var(--up)"></em>yield to providers</span></div>
-      <p class="hint" id="arenaNote"></p>
+      <p class="arena-live" id="arenaNote" hidden></p>
+    </section>
+    <section class="card">
+      <h3>What's moving</h3>
+      <ul class="flows">
+        <li><i class="tok coin"></i><span class="path">🐮 <b>→</b> <u>vault</u></span><span><b>Bulls buy curves</b><small>each coin is $10</small></span></li>
+        <li><i class="tok fund"></i><span class="path">🐮 <b>→</b> <u>vault</u></span><span><b>Premium</b><small>bulls pay every second they hold</small></span></li>
+        <li><i class="tok yield"></i><span class="path"><u>vault</u> <b>→</b> 🦀</span><span><b>Yield</b><small>paid out to liquidity providers</small></span></li>
+        <li><i class="tok bar"></i><span class="path">🦀 <b>→</b> <u>vault</u></span><span><b>Deposits</b><small>each bar is $1,000</small></span></li>
+        <li><i class="tok ring"></i><span class="path"><u>vault</u></span><span><b>Vault ring</b><small><em class="sw usdc"></em>USDC · <em class="sw near"></em>NEAR, auto rebalanced</small></span></li>
+      </ul>
     </section>
   </main>
 </div>
 
 <nav class="tabs" role="tablist">
-  <button role="tab" aria-selected="true" data-tab="bull"><span class="ico">🐂</span>Bull</button>
-  <button role="tab" aria-selected="false" data-tab="crab"><span class="ico">🦀</span>Crab</button>
-  <button role="tab" aria-selected="false" data-tab="stats"><span class="ico">📊</span>Analytics</button>
+  <button role="tab" aria-selected="false" data-tab="stats" class="side"><span class="ico">📊</span>Analytics</button>
+  <button role="tab" aria-selected="true" data-tab="bull" class="main"><span class="ico">🐮</span>Trade</button>
+  <button role="tab" aria-selected="false" data-tab="crab" class="side"><span class="ico">🦀</span>Crab</button>
 </nav>
 
 <div class="ff" id="ff" hidden aria-label="Fast-forward">⏱️ <b>100x &gt;&gt;</b></div>

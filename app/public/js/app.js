@@ -1,5 +1,5 @@
 import { CandleChart, fmtP } from "./candles.js";
-import { Demo, CANDLE_MS, meltSeconds } from "./demo.js";
+import { Demo, CANDLE_MS, timeLeft } from "./demo.js";
 import { showOnboarding } from "./onboarding.js";
 import { Arena } from "./analytics.js";
 import { CurveCard } from "./curvecard.js";
@@ -102,7 +102,7 @@ function demoClose(why) {
   flip(false); ff(false); chart.mark(null); renderStrength();
   const m = r.out / r.stake;
   $("rIco").textContent = r.pnl > 0 ? (m >= 3 ? "🚀" : "🎉") : why === "melted" ? "🫠" : "📉";
-  $("rTitle").textContent = r.pnl > 0 ? `+${fmt(r.pnl)}` : r.out > 0 ? `${fmt(r.pnl)}` : `Melted away`;
+  $("rTitle").textContent = r.pnl > 0 ? `+${fmt(r.pnl)}` : r.out > 0 ? `${fmt(r.pnl)}` : `Melt Down`;
   const move = exitPx / r.entry - 1, pure = (1 + move) ** r.p;
   $("rPx").textContent = pct(move, 1); $("rPx").className = "num " + (move >= 0 ? "pos" : "neg");
   $("rP").textContent = r.p + "×"; $("rMul").textContent = "×" + m.toFixed(2); $("rMul").className = "num " + (m >= 1 ? "pos" : "neg");
@@ -153,7 +153,7 @@ function renderPosition() {
   if (mode === "demo") {
     const q = demo.position; if (!q) return;
     showCurve(q.p, chart.price() / q.entry - 1);
-    const left = Math.max(0, Math.exp(-Math.log(100) / meltSeconds(q.p) * q.t));
+    const left = timeLeft(q.p, q.t);
     $("posP").textContent = q.p + "×"; $("posValue").textContent = fmt(q.value); $("posPaid").textContent = fmt(q.stake);
     $("posEntry").textContent = fmtP(q.entry); $("posNow").textContent = fmtP(chart.price()); $("px").textContent = fmtP(chart.price());
     const pnl = q.value - q.stake; $("posPnl").textContent = `${pnl >= 0 ? "+" : "−"}${fmt(Math.abs(pnl))} · ×${(q.value / q.stake).toFixed(2)}`; $("posPnl").className = "num " + (pnl >= 0 ? "pos" : "neg");
@@ -227,11 +227,11 @@ function renderCrab() {
   $("crabTag").textContent = mode === "demo" ? "demo" : live?.cfg?.testnet ? "live · testnet" : "live";
   if (mode === "demo") {
     const tvl = 250_000 + demo.vault.stake;
-    $("vYield").textContent = "+18%"; $("vTvl").textContent = fmt(tvl, 0); $("vFund").textContent = "$124/day"; $("vUtil").textContent = "31%";
+    $("vYield").textContent = "+18%"; $("vTvl").textContent = fmt(tvl, 0); $("vFund").textContent = "$124/day";
     $("vBar").innerHTML = `<i style="width:62%;background:var(--usdc)"></i><i style="width:38%;background:var(--near)"></i>`;
     $("stakeCv").parentElement.hidden = false; drawStake($("stakeCv"), demo.vault.hist, demo.vault.cost);
     const mo = demo.vault.days / 30.44; $("sSince").textContent = mo >= 1 ? `${mo.toFixed(mo < 10 ? 1 : 0)} months in` : "";
-    $("vHedge").textContent = "Demo vault. Your stake grows a day every second while you watch.";
+    $("vHedge").textContent = "";
     $("sValue").textContent = fmt(demo.vault.stake); const e = demo.vault.stake - demo.vault.cost; $("sEarned").textContent = (e >= 0 ? "+" : "") + fmt(e); $("sEarned").className = e > 0 ? "pos" : "";
     $("sPendRow").hidden = true; $("vNote").textContent = "";
   } else {
@@ -241,7 +241,7 @@ function renderCrab() {
     const s = v.snapshot, nav = Number(s.nav) / E6, assetV = Number(v.hedge_value) / E6, usdcV = Math.max(0, nav - assetV);
     const claims = Number(m.long_claims) / E6, share = Number(m.short_shares) > 0 ? Number(s.short_shares) / Number(m.short_shares) : 0;
     const perYear = m.funding_rate_annual_bps / 1e4 * claims * share * 0.9;
-    $("vYield").textContent = nav > 0 ? pct(perYear / nav, 1) : "—"; $("vTvl").textContent = fmt(nav, 0); $("vFund").textContent = fmt(perYear / 365) + "/day"; $("vUtil").textContent = (m.utilization_bps / 100).toFixed(0) + "%";
+    $("vYield").textContent = nav > 0 ? pct(perYear / nav, 1) : "—"; $("vTvl").textContent = fmt(nav, 0); $("vFund").textContent = fmt(perYear / 365) + "/day";
     const tot = Math.max(1e-9, usdcV + assetV);
     $("vBar").innerHTML = `<i style="width:${usdcV / tot * 100}%;background:var(--usdc)"></i><i style="width:${assetV / tot * 100}%;background:var(--near)"></i>`;
     $("vHedge").textContent = `${live.cfg.asset} balance ${fmt(assetV, 0)} of ${fmt(Number(s.hedge_target_usd) / E6, 0)} target. Rebalanced by the keeper, updated ${v.snapshot_age_secs}s ago.`;
@@ -319,7 +319,7 @@ function setTab(t) {
   document.querySelectorAll("nav.tabs button").forEach((x) => x.setAttribute("aria-selected", x.dataset.tab === t));
   for (const k of ["bull", "crab", "stats"]) $("tab-" + k).hidden = k !== t;
   if (t === "crab" && !ls.get("uprise.v1.crabSeen")) { modal("crabIntro"); ls.set("uprise.v1.crabSeen", "1"); }
-  if (t === "stats") { arena.start(mode, live); $("arenaTag").textContent = mode; $("arenaNote").textContent = mode === "demo" ? "A simulated crowd: bulls buy curves (gold), pay premium (purple) into the vault, and liquidity providers deposit (orange bars). The green circle is the yield they earn." : "Real accounts from the ledger. Coins show the changes between updates every 8 seconds, so they're an approximation of the on-chain flows."; }
+  if (t === "stats") { arena.start(mode, live); $("arenaTag").textContent = mode; $("arenaNote").hidden = mode === "demo"; $("arenaNote").textContent = "Real accounts from the ledger, refreshed every 8 seconds. Coins show what changed between updates."; }
   else arena.stop();
   if (t !== "crab" && !demo.position) ff(false);
   render(); chart.draw();

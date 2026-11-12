@@ -1,9 +1,11 @@
 // Demo market: pure mockup, no blockchain. Replays real price history in fast-forward.
-// One position at a time. Value = stake × (price / entry)^p × melt(t), where melt is the
-// funding sped up so a flat market melts 10× to 1% in 30 s and 1× in 2 minutes.
+// One position at a time. Value = stake × (price / entry)^p × time left (see meltSeconds).
 const KEY = "uprise.demo.v2";
 export const CANDLE_MS = 333; // one day of history per third of a second
-export const meltSeconds = (p) => 120 * Math.pow(30 / 120, (p - 1) / 9);
+// A straight timer: 1× melts to zero in 40 s, 10× in 20 s, linear in between. The value shrinks
+// linearly with time left, so the melt speed is the same from start to end.
+export const meltSeconds = (p) => 40 - (20 * (p - 1)) / 9;
+export const timeLeft = (p, t) => Math.max(0, 1 - t / meltSeconds(p));
 const FEE = 0.003, POOL_CAP = 250_000;
 
 export class Demo {
@@ -39,14 +41,12 @@ export class Demo {
   update(price, dt) {
     const q = this.position; if (!q) return null;
     q.t += dt;
-    const k = Math.log(100) / meltSeconds(q.p);
-    q.value = Math.min(POOL_CAP, q.net * Math.pow(price / q.entry, q.p) * Math.exp(-k * q.t));
+    q.value = Math.min(POOL_CAP, q.net * Math.pow(price / q.entry, q.p) * timeLeft(q.p, q.t));
     q.peak = Math.max(q.peak, q.value);
-    q.melted = q.value < 0.01 * q.stake;
+    q.melted = timeLeft(q.p, q.t) <= 0;
     return q;
   }
   /** Per-minute melt rate shown in the UI. */
-  meltPerMinute(p) { return 1 - Math.exp(-Math.log(100) / meltSeconds(p) * 60); }
   close() {
     const q = this.position; if (!q) return null;
     const out = q.melted ? 0 : q.value * (1 - FEE);

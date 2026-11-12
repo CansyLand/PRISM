@@ -19,7 +19,7 @@ function drawPremium(cv, t) {
   const f = fit(cv); if (!f) return; const { ctx, W, H } = f;
   const bulls = [H * 0.2, H * 0.5, H * 0.8], cx = W - 26, cy = H / 2;
   ctx.font = "18px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-  bulls.forEach((y) => ctx.fillText("🐂", 16, y));
+  bulls.forEach((y) => ctx.fillText("🐮", 16, y));
   ctx.font = "28px sans-serif"; ctx.fillText("🦀", cx, cy + Math.sin(t * 3) * 1.5);
   ctx.fillStyle = css("--accent");
   for (let b = 0; b < 3; b++) for (let k = 0; k < 4; k++) {
@@ -37,16 +37,16 @@ function drawBalance(cv, t) {
   const T = 6, x = Math.min(1, (t % (T + 1.2)) / T), L = 6, R = W - 64, mid = H * 0.45, amp = H * 0.27;
   const swing = (u) => Math.sin(u * 9) * 0.7 + Math.sin(u * 23 + 1) * 0.3, X = (u) => L + u * (R - L);
   const lines = [
-    ["NEAR", "--near", (u) => mid - amp * swing(u), 2],
-    ["short", "--usdc", (u) => mid + amp * swing(u), 2],
-    ["you", "--up", (u) => mid - u * H * 0.16 - Math.sin(u * 40) * 1.2, 3],
+    ["NEAR", "--near", (u) => mid - amp * swing(u), 1.2],
+    ["short", "--down", (u) => mid + amp * swing(u), 1.2],
+    ["you", "--usdc", (u) => mid - u * H * 0.16 - Math.sin(u * 40) * 1.2, 3.2],
   ];
   for (const [label, col, fy, w] of lines) {
     ctx.beginPath(); for (let k = 0; k <= 90; k++) { const u = (k / 90) * x; k ? ctx.lineTo(X(u), fy(u)) : ctx.moveTo(X(u), fy(u)); }
     ctx.strokeStyle = css(col); ctx.lineWidth = w; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.stroke();
   }
   ctx.font = `700 10px ${css("--font")}`; ctx.textAlign = "left"; let lx = 6;
-  for (const [label, col] of [["NEAR", "--near"], ["short side", "--usdc"], ["you (both together)", "--up"]]) { ctx.fillStyle = css(col); ctx.fillText(label, lx, H - 5); lx += ctx.measureText(label).width + 12; }
+  for (const [label, col] of [["NEAR", "--near"], ["short side", "--down"], ["your stake", "--usdc"]]) { ctx.fillStyle = css(col); ctx.fillText(label, lx, H - 5); lx += ctx.measureText(label).width + 12; }
   const hx = X(x) + 14 + Math.sin(t * 9) * 2.5, hy = lines[2][2](x); // sideways scuttle
   ctx.font = "20px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("🦀", hx, hy); ctx.textBaseline = "alphabetic";
 }
