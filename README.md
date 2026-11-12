@@ -2,11 +2,11 @@
 
 A continuous-expiry power perpetual on NEAR with two products in one pool:
 
-- **🐂 Bull: Curve Long.** Retail buys convex upside on BTC: the stake is worth `NF × (P / P_ref)^p`
-  (p = 3 on the testnet deployment, so BTC +10% ≈ +33%). It is **never liquidated**; it pays
-  funding by slowly shrinking.
-- **🦀 Crab: the hedged vault.** Yield hunters deposit USDC. The vault is the Curve Short side and
-  holds `p × long claims` of BTC so price moves mostly cancel out. What's left is the funding the
+- **🐮 Trade: Curve Long.** Retail buys convex upside on NEAR: the stake is worth `NF × (P / P_ref)^p`,
+  written x^p in the app (p = 3 on the testnet deployment, so NEAR +10% ≈ +33%). It is **never
+  liquidated**; it pays funding by slowly shrinking.
+- **🦀 Yield: the hedged vault.** Liquidity providers deposit USDC. The vault is the Curve Short side and
+  holds `p × long claims` of NEAR so price moves mostly cancel out. What's left is the funding the
   longs pay.
 
 Funding is `p(p−1)/2 · σ² · m(u)`, where σ is the higher of a floor and the realized volatility of

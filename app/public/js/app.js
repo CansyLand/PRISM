@@ -109,6 +109,8 @@ async function demoBuy() {
     if (!wickShown && i === wick && px < future[i][0] * 0.88) { wickShown = true; wickHint(); }
     renderPosition();
     if (q?.melted) return demoClose("melted");
+    // the very first trade always ends as a win: if it's in profit and starts giving back, close it for the player
+    if (demo.trades === 0 && q.value > q.stake * 1.1 && ((q.peak > q.stake * 1.5 && q.value < q.peak * 0.75) || timeLeft(q.p, q.t) < 0.15)) return demoClose("auto");
     requestAnimationFrame(frame);
   };
   requestAnimationFrame(frame);
@@ -136,6 +138,7 @@ function demoClose(why) {
   modal("result"); drawResult($("rChart"), trail, r.p, melted);
   $("rText").textContent = r.out > 0 ? (r.pnl <= 0 && why === "ended" ? "The replay ended, so the position was closed." : "")
     : `The price didn't rise fast enough before the ${pw(r.p)} timer ran out.`;
+  if (why === "auto") $("rText").textContent = "We closed your first trade at a good moment. From now on, you decide when to close.";
   $("result").querySelector("[data-close]").onclick = () => {
     modal("result", false); $("px").textContent = fmtP(chart.price()); $("chg").textContent = ""; render();
     if (demo.trades === 1 && mode === "demo") pointAtLive();
@@ -233,7 +236,7 @@ function drawStake(cv, hist, cost) {
   ctx.fillText("start", 2, H - 3); ctx.textAlign = "right"; ctx.fillText("today", W - 2, H - 3); ctx.fillText(`you put in ${fmt(cost, 0)}`, W - 30, Y(cost) + 13);
 }
 function ff(on) { $("ff").hidden = !on; }
-function flip(on) { $("flip").classList.toggle("flipped", on); }
+function flip(on) { $("flip").classList.toggle("flipped", on); $("buy").hidden = on; $("close").hidden = !on; $("buyErr").hidden = on; }
 
 // While a trade runs the price moves every frame (each candle walks open → wick → wick → close in ⅓ s).
 // The numbers show an eased value (about ¼ s behind) and are repainted ~8 times a second, so they're readable.

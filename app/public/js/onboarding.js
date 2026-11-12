@@ -20,9 +20,9 @@ const SLIDES = [
     draw: drawMelt,
   },
   {
-    kicker: "Bridged via NEAR Intents",
-    title: "1,000 USDC just landed on NEAR.",
-    text: "You moved it from Ethereum in one step, no bridge to pick, no gas to buy. This one is demo money: pick a strength, buy and watch time fast-forward. When you're ready, switch to Live.",
+    kicker: "Crosschain Liquidity",
+    title: "Demo USDC just landed on NEAR.",
+    text: "You moved it from Demo Ethereum. Pick a curve, buy and watch time fast-forward. When you're ready, switch to Live.",
     draw: drawCoins,
   },
 ];

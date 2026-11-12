@@ -1,7 +1,7 @@
 # Uprise app
 
-Three tabs: **🐂 Bull** (chart + buy Curve Long, strength 1×–10×), **🦀 Crab** (the vault) and
-**📊 Analytics** (traders, the vault with its yield, and liquidity providers, with coins flying between them). A switch at the top
+Three tabs: **📊 Analytics** (traders, the vault with its yield, and liquidity providers, with coins
+flying between them), **🐮 Trade** (chart + buy Curve Long, strength x¹–x¹⁰) and **🦀 Yield** (the vault). A switch at the top
 flips between **Demo** and **Live**.
 
 ## Demo (no blockchain)

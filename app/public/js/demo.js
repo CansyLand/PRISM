@@ -22,8 +22,11 @@ export class Demo {
   }
   save() { try { localStorage.setItem(KEY, JSON.stringify({ balance: this.balance, trades: this.trades, vault: this.vault, cursor: this.cursor, order: this.order, last: this.last })); } catch {} }
   reset() { this.balance = 1000; this.trades = 0; this.vault = seedVault(); this.cursor = 0; this.last = null; this.order = this.shuffled(); this.save(); }
-  /** 7 rallies + 3 dumps in random order, but the first trade is always a rally. */
-  shuffled() { const a = shuffle(this.snippets.map((_, i) => i)); const r = a.findIndex((i) => this.snippets[i].kind === "rally"); if (r > 0) [a[0], a[r]] = [a[r], a[0]]; return a; }
+  /** 7 rallies + 3 dumps in random order, but the first trade always plays the strongest early rally. */
+  shuffled() {
+    const a = shuffle(this.snippets.map((_, i) => i)), best = this.snippets.reduce((b, s, i) => (s.kind === "rally" && s.best > this.snippets[b].best ? i : b), 0);
+    const r = a.indexOf(best); [a[0], a[r]] = [a[r], a[0]]; return a;
+  }
   /** The snippet the next trade will play. */
   snippet() { return this.snippets[this.order[this.cursor % this.order.length]]; }
   scale() { const s = this.snippet(); return this.last ? this.last / s.candles[s.entry][3] : 1; }
