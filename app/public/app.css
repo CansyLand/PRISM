@@ -21,7 +21,10 @@ main { display: flex; flex-direction: column; gap: 12px; }
 .mode button { border: 0; background: transparent; border-radius: 99px; padding: 5px 12px; font-weight: 700; font-size: 13px; color: var(--muted); cursor: pointer; }
 .mode button[aria-selected="true"] { background: var(--ink); color: var(--bg); }
 .mode button[data-mode="live"][aria-selected="true"] { background: var(--up); color: #062014; }
-.wallet-btn { margin-left: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 6px 11px; cursor: pointer; display: flex; flex-direction: column; align-items: flex-end; line-height: 1.15; }
+.help-btn { margin-left: auto; width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--line); background: var(--panel); color: var(--muted); font-weight: 700; cursor: pointer; flex: none; }
+.help-btn:hover { color: inherit; }
+.help-btn.sm { margin-left: 6px; width: 22px; height: 22px; font-size: 12px; vertical-align: middle; }
+.wallet-btn { margin-left: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 6px 11px; cursor: pointer; display: flex; flex-direction: column; align-items: flex-end; line-height: 1.15; }
 .wallet-btn small { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .06em; }
 .wallet-btn b { font-family: var(--mono); font-size: 15px; }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 18px; padding: 14px; }

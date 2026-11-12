@@ -7,6 +7,7 @@ const $ = (id) => document.getElementById(id);
 const E6 = 1e6;
 const fmt = (v, d = 2) => (v < 0 ? "−" : "") + "$" + Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
 const pct = (v, d = 0) => (v >= 0 ? "+" : "−") + Math.abs(v * 100).toFixed(d) + "%";
+try { if (new URLSearchParams(location.search).has("fresh")) { ["uprise.v1.onboarded", "uprise.v1.crabSeen", "uprise.demo.v1", "uprise.mode"].forEach((k) => localStorage.removeItem(k)); history.replaceState(null, "", location.pathname); } } catch {}
 const ls = { get: (k) => { try { return localStorage.getItem(k); } catch { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch {} } };
 
 let mode = ls.get("uprise.mode") || "demo", tab = "bull", live = null, demo = null, busy = false;
@@ -313,5 +314,8 @@ function render() {
   renderStrength();
   if (mode === "live") await setMode("live"); else { mode = "demo"; await setMode("demo").catch(() => {}); loadDemoChart(); $("mkt").textContent = "Demo market"; }
   render();
-  if (!ls.get("uprise.v1.onboarded")) showOnboarding($("onboarding"), () => { ls.set("uprise.v1.onboarded", "1"); $("amt").focus(); });
+  const intro = () => showOnboarding($("onboarding"), () => { ls.set("uprise.v1.onboarded", "1"); $("amt").focus(); });
+  $("helpBtn").onclick = () => (tab === "crab" ? modal("crabIntro") : intro());
+  $("crabHelp").onclick = () => modal("crabIntro");
+  if (!ls.get("uprise.v1.onboarded")) intro();
 })();

@@ -12,6 +12,8 @@ flips between **Demo** and **Live**.
   history plays at one day per ⅓ second as animated candles. 10 snippets, 7 rallies and 3 dumps,
   first trade always a rally. A flat market melts 10× in 30 s and 1× in 2 minutes.
 - One position at a time. After the first trade a hand points at **Live**.
+- The **?** button (header, and next to Crab Vault) replays the intros. Open `/?fresh` to reset
+  the demo and all first-visit screens (the live wallet key is kept).
 - Crab demo: deposit play money, it grows a day per second while you watch.
 - Data: `public/demo-snippets.json` (regenerate with `node ops/make-snippets.js`).
 
