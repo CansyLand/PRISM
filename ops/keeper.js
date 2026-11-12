@@ -1,5 +1,5 @@
 // Uprise keeper: price feed + vault rebalancing.
-//   node keeper.js                 # live BTC price from Coinbase (Binance fallback)
+//   node keeper.js                 # live price of the deployment's asset (NEAR or BTC), Coinbase with Binance fallback
 //   PRICE_MODE=random VOL=3 node keeper.js   # synthetic random walk, VOL = yearly vol (3 = 300%) for fast tests
 //   node keeper.js once            # one price push + one vault cycle, then exit
 //
@@ -7,13 +7,14 @@
 // Every VAULT_SECS: sync the vault, then take up to MAX_STEPS bounded actions:
 //   1. pay queued withdrawals (pull free ledger cash, else close part of the short)
 //   2. bring free ledger cash home
-//   3. hedge toward p × long claims (buy or sell BTC on the swap)
+//   3. hedge toward p × long claims (buy or sell the asset on the swap)
 //   4. keep about SHORT_SHARE of the vault in Curve Short (needed before anyone can open a long)
-import { account, view, call, loadDeployment, sleep, ONE_YOCTO, fmtUsd } from "./lib.js";
+import { account, view, call, loadDeployment, sleep, ONE_YOCTO, fmtUsd, ASSETS, spotPrice } from "./lib.js";
 
 const d = loadDeployment();
 if (!d) throw new Error("run setup.js first");
 const keeper = account(d.keeper);
+const ASSET = ASSETS[d.assetSymbol || "BTC"], SYM = ASSET.symbol, UNIT = 10n ** BigInt(d.assetDecimals ?? 8);
 const PRICE_SECS = Number(process.env.PRICE_SECS || 15);
 const VAULT_SECS = Number(process.env.VAULT_SECS || 45);
 const MODE = process.env.PRICE_MODE || "live";
@@ -25,15 +26,7 @@ const ts = () => new Date().toISOString().slice(11, 19);
 const say = (...a) => console.log(ts(), ...a);
 
 let last = null;
-async function livePrice() {
-  try {
-    const r = await fetch("https://api.coinbase.com/v2/prices/BTC-USD/spot").then((r) => r.json());
-    return Number(r.data.amount);
-  } catch {
-    const r = await fetch("https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT").then((r) => r.json());
-    return Number(r.price);
-  }
-}
+const livePrice = () => spotPrice(ASSET);
 async function nextPrice() {
   if (MODE !== "random") return livePrice();
   if (last == null) last = await livePrice();
@@ -57,16 +50,23 @@ async function pushPrice() {
 
 const big = (x) => BigInt(x);
 async function sync() {
+  const before = (await view(d.vault, "get_vault")).syncs;
   await call(keeper, d.vault, "sync", {}, { tgas: 300 });
+  // RPC nodes can lag a block behind: wait until the view shows this sync.
+  for (let i = 0; i < 10; i++) {
+    const v = await view(d.vault, "get_vault");
+    if (v.syncs > before) return v;
+    await sleep(700);
+  }
   return view(d.vault, "get_vault");
 }
 
 /** Decide one action from a fresh snapshot, or null when the vault is where it should be. */
 function decide(v) {
   const s = v.snapshot, price = big(s.price);
-  const nav = big(s.nav), cash = big(s.usdc), btc = big(s.btc), free = big(s.ledger_free);
+  const nav = big(s.nav), cash = big(s.usdc), held = big(s.asset), free = big(s.ledger_free);
   const shortVal = big(s.short_value), shortShares = big(s.short_shares);
-  const hedgeVal = btc * price / 100_000_000n, target = big(s.hedge_target_usd);
+  const hedgeVal = held * price / UNIT, target = big(s.hedge_target_usd);
   const sharePx = big(v.share_price_e6);
   const owedW = v.pending_withdrawals.reduce((a, w) => a + big(w.amount) * sharePx / 1_000_000n, 0n);
   const tol = nav / 100n > 5_000_000n ? nav / 100n : 5_000_000n; // 1% of NAV, at least $5
@@ -85,11 +85,11 @@ function decide(v) {
   const err = hedgeVal - target;
   if (err < -tol && cash - owedW > 1_000_000n) {
     let buy = -err; const room = cash - owedW; if (buy > room) buy = room;
-    return ["hedge_buy", { usdc_amount: String(buy) }, `buy BTC for ${fmtUsd(buy)} (hedge ${fmtUsd(hedgeVal)} → ${fmtUsd(target)})`];
+    return ["hedge_buy", { usdc_amount: String(buy) }, `buy ${SYM} for ${fmtUsd(buy)} (hedge ${fmtUsd(hedgeVal)} → ${fmtUsd(target)})`];
   }
   if (err > tol) {
-    const sell = err * 100_000_000n / price;
-    if (sell > 0n) return ["hedge_sell", { btc_amount: String(sell) }, `sell ${(Number(sell) / 1e8).toFixed(5)} BTC (hedge ${fmtUsd(hedgeVal)} → ${fmtUsd(target)})`];
+    const sell = err * UNIT / price;
+    if (sell > 0n) return ["hedge_sell", { asset_amount: String(sell) }, `sell ${(Number(sell * 100000n / UNIT) / 1e5).toFixed(4)} ${SYM} (hedge ${fmtUsd(hedgeVal)} → ${fmtUsd(target)})`];
   }
   // 4. short allocation
   const wantShort = BigInt(Math.floor(Number(nav) * SHORT_SHARE));
@@ -123,7 +123,7 @@ async function vaultCycle() {
     v = await sync();
   }
   const s = v.snapshot;
-  say(`vault NAV ${fmtUsd(s.nav)} · share ${(Number(v.share_price_e6) / 1e6).toFixed(5)} · cash ${fmtUsd(s.usdc)} · short ${fmtUsd(s.short_value)} · BTC ${fmtUsd(v.hedge_btc_value)} / target ${fmtUsd(s.hedge_target_usd)} · queue ${v.pending_deposits.length}D ${v.pending_withdrawals.length}W`);
+  say(`vault NAV ${fmtUsd(s.nav)} · share ${(Number(v.share_price_e6) / 1e6).toFixed(5)} · cash ${fmtUsd(s.usdc)} · short ${fmtUsd(s.short_value)} · ${SYM} ${fmtUsd(v.hedge_value)} / target ${fmtUsd(s.hedge_target_usd)} · queue ${v.pending_deposits.length}D ${v.pending_withdrawals.length}W`);
   return v;
 }
 
@@ -134,7 +134,7 @@ async function main() {
     try {
       const p = await pushPrice();
       const m = await view(d.ledger, "get_market");
-      say(`BTC $${p.toFixed(2)} · util ${(m.utilization_bps / 100).toFixed(1)}% · funding ${(m.funding_rate_annual_bps / 100).toFixed(1)}%/yr (σ ${(m.funding_vol_bps / 100).toFixed(0)}%) · claims ${fmtUsd(m.long_claims)} · pool ${fmtUsd(m.risk_pool)}`);
+      say(`${SYM} $${p.toFixed(SYM === "NEAR" ? 4 : 2)} · util ${(m.utilization_bps / 100).toFixed(1)}% · funding ${(m.funding_rate_annual_bps / 100).toFixed(1)}%/yr (σ ${(m.funding_vol_bps / 100).toFixed(0)}%) · claims ${fmtUsd(m.long_claims)} · pool ${fmtUsd(m.risk_pool)}`);
     } catch (e) { say("price push failed:", String(e.message || e).slice(0, 200)); }
     if (once || Date.now() >= nextVault) {
       try { await vaultCycle(); } catch (e) { say("vault cycle failed:", String(e.message || e).slice(0, 200)); }

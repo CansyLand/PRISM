@@ -1,21 +1,32 @@
 # Uprise app
 
-One page, two tabs: **🐂 Bull** (BTC chart and a buy button for Curve Long) and **🦀 Crab** (the
-hedged vault). No browser wallet needed: the app creates an ed25519 key on first visit, keeps it
-in the browser's local storage and uses the matching NEAR implicit account (64 hex characters).
-The same device finds the same wallet again. **Backup** in the wallet sheet shows the key so it
-can be restored on another device.
+Three tabs: **🐂 Bull** (chart + buy Curve Long, strength 1×–10×), **🦀 Crab** (the vault) and
+**📊 Analytics** (traders, vault and hunters with coins flying between them). A switch at the top
+flips between **Demo** and **Live**.
 
-## Deposits
+## Demo (no blockchain)
 
-- **Demo (testnet):** new wallets get 0.5 NEAR of gas and 1,000 test USDC; **Get 1,000 test USDC**
-  adds more every 10 minutes.
-- **Any mode:** send USDC on NEAR to the wallet address shown in the wallet sheet.
-- **Live (mainnet):** **From another chain** asks NEAR Intents 1Click for a deposit address
-  (USDC on Ethereum, Solana, Base or Arbitrum, ETH, SOL or BTC). The user pays there; USDC arrives
-  in the wallet.
+- First visit: three ELI5 screens (Continuous-Expiry Power Perpetuals; growth with 1×/5×/10×;
+  no liquidation on wicks), then $1,000 of play money.
+- Buying flips the card to your position and starts fast-forward (badge top right): real price
+  history plays at one day per ⅓ second as animated candles. 10 snippets, 7 rallies and 3 dumps,
+  first trade always a rally. A flat market melts 10× in 30 s and 1× in 2 minutes.
+- One position at a time. After the first trade a hand points at **Live**.
+- Crab demo: deposit play money, it grows a day per second while you watch.
+- Data: `public/demo-snippets.json` (regenerate with `node ops/make-snippets.js`).
 
-## Run locally
+## Live
+
+- **New to crypto:** "Create my wallet" makes a key on the device (NEAR implicit account). Every
+  call is a meta-transaction that the server's relayer pays for, so no NEAR is ever needed. When the
+  wallet first holds money, the app asks for a recovery email (encrypted key backup on the server,
+  restore with a 6-digit code).
+- **Already on NEAR:** "Connect NEAR wallet" (Meteor, MyNearWallet, Intear via Wallet Selector).
+  Each transaction asks for approval in the wallet.
+- Add money: test USDC (testnet), USDC on NEAR to the shown address, or NEAR Intents from other
+  chains (mainnet).
+
+## Run
 
 ```bash
 cd ops && npm install
@@ -25,26 +36,17 @@ cd ops && npm install
 node app/server.js
 ```
 
-Open http://localhost:8787. The keeper (`ops/keeper.js`) must be running, or the ledger price goes
-stale and trades revert.
+The keeper (`node ops/keeper.js`) must run for live mode. Server endpoints are listed at the top
+of `server.js`. State (`.server-state.json`) and the backup encryption key (`.backup-key`, or
+`BACKUP_KEY` env) stay next to the server and are gitignored.
 
-## Server deployment (uprise.wtf)
+## Deploying to uprise.wtf
 
-1. Copy the repo with `ops/deployment.json` and an `ops/.keys.json` that holds only the
-   `keeper` and `faucet` keys (the keeper runs the market, the faucet pays demo gas and mints
-   test USDC). Keep the master key off the server. File mode 600.
-2. Run three processes (systemd or pm2): `node ops/keeper.js`, `node app/server.js`, and
-   optionally `node ops/players.js run` (needs the `r1…r6` and `h1…h3` keys too) so the demo market is never empty.
-3. Put the server behind Caddy or nginx with HTTPS and forward `X-Forwarded-For` (rate limits use it).
-4. Demo mode is the default. `MODE=live` switches off the faucet and enables 1Click deposits, but
-   live mode needs a mainnet deployment first. See the open items below.
+1. Copy the repo plus `ops/deployment.json` and an `ops/.keys.json` with only the `keeper` and
+   `faucet` (relayer) keys. Keep the master key off the server.
+2. Run `node ops/keeper.js` and `node app/server.js` under systemd or pm2 (optionally
+   `node ops/players.js run` for a busy testnet market).
+3. HTTPS via Caddy or nginx, forwarding `X-Forwarded-For`.
+4. Set `BACKUP_KEY` (64 hex chars) from a secret store and connect SMTP for recovery codes.
 
-## Before live mode with real money
-
-- Mainnet contracts: the ledger and vault against real USDC, with a **Pyth** oracle instead of the
-  pusher.
-- The vault's hedge swap must point at a real venue (an adapter for Ref Finance or another DEX).
-  The mock swap is testnet-only.
-- Gas: mainnet users have no NEAR. Use a relayer for meta-transactions (NEP-366), or have the
-  server fund new accounts with a small amount.
-- Caps: start with low open-interest and vault limits. None of this code is audited.
+See [`../MAINNET.md`](../MAINNET.md) for the live-money checklist.

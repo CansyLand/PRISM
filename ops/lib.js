@@ -1,6 +1,6 @@
 // Shared helpers for Uprise testnet ops: keys, accounts, calls, views.
 // Keys live in ops/.keys.json (gitignored). Testnet only.
-import { Account, JsonRpcProvider, KeyPair, KeyPairSigner, teraToGas, nearToYocto } from "near-api-js";
+import { Account, JsonRpcProvider, KeyPair, KeyPairSigner, teraToGas, nearToYocto, decodeSignedDelegate } from "near-api-js";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -77,4 +77,14 @@ export async function balanceNear(id) {
   return s ? Number(BigInt(s.amount) / 10n ** 21n) / 1000 : 0;
 }
 
-export { KeyPair, Account, KeyPairSigner };
+/** Underlying assets the stack can run on. Mainnet target: NEAR. */
+export const ASSETS = {
+  NEAR: { symbol: "NEAR", decimals: 24, coinbase: "NEAR-USD", binance: "NEARUSDT", volFloorBps: 8_000, seedUnits: 1_400_000n },
+  BTC: { symbol: "BTC", decimals: 8, coinbase: "BTC-USD", binance: "BTCUSDT", volFloorBps: 6_000, seedUnits: 70n },
+};
+export async function spotPrice(a) {
+  try { const r = await fetch(`https://api.coinbase.com/v2/prices/${a.coinbase}/spot`).then((r) => r.json()); return Number(r.data.amount); }
+  catch { const r = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${a.binance}`).then((r) => r.json()); return Number(r.price); }
+}
+
+export { KeyPair, Account, KeyPairSigner, decodeSignedDelegate };

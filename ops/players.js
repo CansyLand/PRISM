@@ -34,8 +34,8 @@ export async function vaultWithdraw(id, shares) {
 async function status() {
   const m = await view(d.ledger, "get_market");
   const v = await view(d.vault, "get_vault");
-  console.log(`BTC $${(Number(m.price) / 1e6).toFixed(2)} · p=${m.power} · pool ${fmtUsd(m.risk_pool)} · claims ${fmtUsd(m.long_claims)} · util ${(m.utilization_bps / 100).toFixed(1)}% · funding ${(m.funding_rate_annual_bps / 100).toFixed(1)}%/yr`);
-  console.log(`vault NAV ${fmtUsd(v.snapshot.nav)} · share ${(Number(v.share_price_e6) / 1e6).toFixed(5)} · BTC hedge ${fmtUsd(v.hedge_btc_value)} / target ${fmtUsd(v.snapshot.hedge_target_usd)}`);
+  console.log(`${d.assetSymbol || "BTC"} $${(Number(m.price) / 1e6).toFixed(4)} · p=${m.power} · pool ${fmtUsd(m.risk_pool)} · claims ${fmtUsd(m.long_claims)} · util ${(m.utilization_bps / 100).toFixed(1)}% · funding ${(m.funding_rate_annual_bps / 100).toFixed(1)}%/yr`);
+  console.log(`vault NAV ${fmtUsd(v.snapshot.nav)} · share ${(Number(v.share_price_e6) / 1e6).toFixed(5)} · hedge ${fmtUsd(v.hedge_value)} / target ${fmtUsd(v.snapshot.hedge_target_usd)}`);
   for (const id of [...d.retail, ...d.hunters]) {
     const [bal, acc, pos] = await Promise.all([
       view(d.usdc, "ft_balance_of", { account_id: id }),

@@ -19,3 +19,4 @@ hackathon-x-post.md
 demo/
 .keys.json
 app/.server-state.json
+app/.backup-key

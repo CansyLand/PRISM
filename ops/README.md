@@ -6,16 +6,17 @@ rebalancing, and test players who trade against each other.
 ## What is deployed
 
 `deployment.json` lists the live testnet accounts (no secrets). Keys are in `.keys.json`
-(gitignored, mode 600). The current deployment lives under `uprise-ir12p.testnet`:
+(gitignored, mode 600). The current deployment runs on **NEAR/USD** (like mainnet will) under
+`uprise-ir12p.testnet`; the earlier BTC deployment is kept in `deployment-btc.json`:
 
 | Account | Role |
 |---|---|
-| `usdc.…`, `btc.…` | Mock USDC (6 dp) and mock BTC (8 dp). Open faucet: `mint(account_id, amount)` |
-| `swap.…` | Mock DEX: USDC↔BTC at the keeper's price, 5 bps fee, seeded with $5M + 70 BTC |
-| `ledger.…` | Uprise ledger, BTC, power 3, pusher oracle (the keeper) |
-| `vault.…` | Hedged Crab vault, keeper = `keeper.…` |
+| `usdc.…`, `wnear.…` | Mock USDC (6 dp) and mock wNEAR (24 dp). Open faucet: `mint(account_id, amount)` |
+| `swap-near.…` | Mock DEX: USDC↔wNEAR at the keeper's price, 5 bps fee, seeded with $5M + 1.4M NEAR |
+| `ledger-near.…` | Uprise ledger, NEAR/USD, power 3, pusher oracle (the keeper) |
+| `vault-near.…` | Hedged Crab vault (wNEAR hedge), keeper = `keeper.…` |
 | `keeper.…` | Pushes prices, syncs and rebalances the vault |
-| `faucet.…` | Pays gas for new app wallets (demo mode); refills itself from the testnet faucet |
+| `faucet.…` | Relayer: pays gas for app users (meta-transactions) and creates new wallets |
 | `r1…r6`, `h1…h3` | Test retail players ($2k each) and yield hunters ($25k each) |
 
 ## Run
@@ -36,7 +37,7 @@ node players.js run
 node players.js status
 ```
 
-- `keeper.js` pushes the live BTC price (Coinbase, Binance fallback) every 15 s and runs a vault
+- `keeper.js` pushes the live NEAR price (Coinbase, Binance fallback) every 15 s and runs a vault
   cycle every 45 s: sync → pay queued withdrawals → bring free ledger cash home → hedge to
   `p × claims` → keep about 50% of the vault in Curve Short.
 - For stress tests, `PRICE_MODE=random VOL=1.5 PRICE_SECS=6 node keeper.js` drives a synthetic
@@ -46,8 +47,8 @@ node players.js status
 
 ## Redeploy from scratch
 
-Build the wasm (see the root README), move `deployment.json` and `.keys.json` aside, then run
-`node setup.js`. It pulls testnet NEAR from the public faucet, creates every account, deploys and
+Build the wasm (see the root README), move `deployment.json` aside (keep `.keys.json`), then run
+`ASSET=NEAR node setup.js` (or `ASSET=BTC`). It pulls testnet NEAR from the public faucet, creates every account, deploys and
 initializes all contracts, seeds the swap, pushes the first price and funds the test players. Each
 step is skipped if it's already done, so it's safe to re-run after a failure.
 
@@ -55,4 +56,5 @@ step is skipped if it's already done, so it's safe to re-run after a failure.
 
 - Mock tokens with an open faucet, and a mock swap that trades at the keeper's own price.
 - The keeper is the price oracle (pusher mode). Mainnet uses Pyth.
-- The app's demo server gives every new device wallet 0.5 NEAR of gas and 1,000 test USDC.
+- The app server gives every new device wallet 1,000 test USDC. Gas is sponsored on both networks.
+- `node make-snippets.js` regenerates the demo's chart snippets (`app/public/demo-snippets.json`).
