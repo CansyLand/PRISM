@@ -84,7 +84,11 @@ function renderPreview() {
   $("buy").textContent = a ? `Buy ${fmt(a, a % 1 ? 2 : 0)}` : "Buy";
 }
 $("amt").addEventListener("input", renderPreview);
-document.querySelectorAll("[data-a]").forEach((b) => (b.onclick = () => { const v = b.dataset.a; $("amt").value = v === "max" ? Math.floor(cash() * 100) / 100 : v; renderPreview(); }));
+// quick amounts: a share of what you have (25%, 50%, 75%) or all of it
+document.querySelectorAll("[data-a]").forEach((b) => (b.onclick = () => { const v = b.dataset.a, c = cash(); $("amt").value = Math.floor((v === "max" ? c : c * v / 100) * 100) / 100 || ""; renderPreview(); }));
+// the slider's left part is filled in ink: keep its fill in step with the value
+const paintSlider = () => { const s = $("p"); s.style.setProperty("--fill", ((s.value - s.min) / (s.max - s.min)) * 100 + "%"); };
+$("p").addEventListener("input", paintSlider); paintSlider();
 
 // ── DEMO: fast-forward replay ──
 // One continuous market: each trade plays the next history snippet scaled to start at the last price.

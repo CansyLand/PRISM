@@ -157,7 +157,7 @@ export class Arena {
     ctx.lineWidth = 10;
     ctx.beginPath(); ctx.arc(v.x, v.y, v.r + 7, a0, a0 + aN); ctx.strokeStyle = C("--near"); ctx.stroke();
     ctx.beginPath(); ctx.arc(v.x, v.y, v.r + 7, a0 + aN, a0 + Math.PI * 2); ctx.strokeStyle = C("--usdc"); ctx.stroke();
-    ctx.beginPath(); ctx.arc(v.x, v.y, v.r, 0, 7); ctx.fillStyle = C("--panel2"); ctx.fill();
+    ctx.beginPath(); ctx.arc(v.x, v.y, v.r, 0, 7); ctx.fillStyle = C("--panel"); ctx.fill();
     ctx.textAlign = "center"; ctx.fillStyle = C("--muted"); ctx.font = F(10, 700); ctx.fillText("CRAB VAULT", v.x, v.y - v.r * 0.3);
     ctx.fillStyle = C("--ink"); ctx.font = F(Math.max(13, v.r * 0.26), 700, true); ctx.fillText(big(v.nav), v.x, v.y + 4);
     ctx.fillStyle = C("--muted"); ctx.font = F(10, 500); ctx.fillText(`owed to traders ${big(v.owed)}`, v.x, v.y + v.r * 0.38);
@@ -170,11 +170,11 @@ export class Arena {
     ctx.fillStyle = C("--up"); ctx.font = F(Math.max(11, yc.r * 0.42), 700, true); ctx.fillText(`${(v.apy * 100).toFixed(1)}%`, yc.x, yc.y + yc.r * 0.12);
     ctx.fillStyle = C("--muted"); ctx.font = F(9, 500); ctx.fillText(v.earned != null ? `+${big(v.earned)} paid` : `${big(v.perDay)}/day`, yc.x, yc.y + yc.r * 0.55);
     // exchange
-    ctx.beginPath(); ctx.arc(this.exch.x, this.exch.y, this.exch.r, 0, 7); ctx.fillStyle = C("--panel2"); ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = C("--ex"); ctx.stroke();
+    ctx.beginPath(); ctx.arc(this.exch.x, this.exch.y, this.exch.r, 0, 7); ctx.fillStyle = C("--panel"); ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = C("--ex"); ctx.stroke();
     ctx.fillStyle = C("--ex"); ctx.font = F(8.5, 700); ctx.fillText("FEES", this.exch.x, this.exch.y - 2); ctx.fillStyle = C("--ink"); ctx.font = F(10, 600, true); ctx.fillText(big(this.exch.total), this.exch.x, this.exch.y + 10);
     // people
     for (const p of this.retail) {
-      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.fillStyle = C("--panel2"); ctx.fill();
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, 7); ctx.fillStyle = C("--panel"); ctx.fill();
       if (p.open) { const m = p.value / Math.max(1e-9, p.stake); ctx.lineWidth = Math.max(2, p.r * 0.22); ctx.beginPath(); ctx.arc(p.x, p.y, p.r - 1, a0, a0 + Math.min(1, m) * Math.PI * 2); ctx.strokeStyle = m >= 1 ? C("--up") : C("--down"); ctx.stroke(); if (p.r > 10) { ctx.fillStyle = C("--up"); ctx.font = F(Math.max(8, p.r * 0.6), 800); ctx.fillText(pw(p.p), p.x, p.y + p.r * 0.2); } }
       else { ctx.lineWidth = 1; ctx.strokeStyle = C("--line"); ctx.stroke(); }
     }
