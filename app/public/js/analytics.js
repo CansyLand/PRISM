@@ -22,19 +22,20 @@ export class Arena {
   // ── demo crowd ──
   seedDemo() {
     this.retail = Array.from({ length: 18 }, (_, i) => ({ id: "r" + i, bank: Math.round(rand(50, 500)), value: 0, open: false, p: 0, wait: rand(0, 3) }));
-    this.hunters = Array.from({ length: 5 }, (_, i) => ({ id: "h" + i, value: Math.round(rand(5, 40)) * 1000 }));
+    this.hunters = Array.from({ length: 5 }, (_, i) => ({ id: "h" + i, value: Math.round(rand(20, 100)) * 100 }));
     const tvl = this.hunters.reduce((a, h) => a + h.value, 0);
     Object.assign(this.vault, { nav: tvl, usdc: tvl, asset: 0, owed: 0, label: "Crab vault" });
-    this.price = 1; this.exch.total = 0; Object.assign(this.vault, { apy: 0.18, earned: 0, perDay: 0 });
+    this.price = 1; this.exch.total = 0; Object.assign(this.vault, { apy: 0, earned: 0, perDay: 0, rate: undefined });
   }
   stepDemo(dt) {
     this.price *= Math.exp(0.9 * Math.sqrt(dt) * 0.1 * gauss());
-    let owed = 0;
+    let owed = 0, funding = 0;
     for (const r of this.retail) {
       if (r.open) {
         r.value = r.stake * Math.pow(this.price / r.entry, r.p) * Math.exp(-0.05 * r.p * (r.age += dt));
-        const drip = r.lastV - r.value; r.lastV = r.value;
-        if (drip > 0) { r.dripAcc = (r.dripAcc || 0) + drip; while (r.dripAcc >= 10) { r.dripAcc -= 10; this.emit(r, this.vault, "fund", 1); this.exch.total += 1; } }
+        // funding = only the melt part (not price moves): the value it loses to time in this step
+        const drip = r.value * (Math.exp(0.05 * r.p * dt) - 1); funding += drip;
+        r.dripAcc = (r.dripAcc || 0) + drip; while (r.dripAcc >= 10) { r.dripAcc -= 10; this.emit(r, this.vault, "fund", 1); }
         owed += r.value;
         if (r.age > r.hold || r.value < r.stake * 0.2 || r.value > r.stake * 2.5) {
           const out = r.value; r.bank += out; r.open = false; r.wait = rand(1, 4); this.vault.usdc -= out;
@@ -50,13 +51,17 @@ export class Arena {
     const delta = owed * 3; // vault keeps p × claims in the asset; show it as the NEAR share
     this.vault.asset += (delta - this.vault.asset) * Math.min(1, dt);
     this.vault.nav = this.hunters.reduce((a, h) => a + h.value, 0);
-    const grow = Math.pow(1.18, dt / 365 * 30); // ~a month per second of demo yield
+    // Yield is exactly the funding open positions paid (90% to providers, 10% exchange fee), split by
+    // deposit. Few open positions → little yield; nobody holding → no yield coins at all.
+    const toLPs = funding * 0.9, nav = this.vault.nav || 1; this.exch.total += funding * 0.1;
     for (const h of this.hunters) {
-      const add = h.value * (grow - 1); this.vault.earned += add; h.value *= grow;
-      h.yAcc = (h.yAcc || 0) + add; while (h.yAcc >= 150) { h.yAcc -= 150; this.emit(this.yieldC, h, "yield", 1); }
+      const add = toLPs * (h.value / nav); this.vault.earned += add; h.value += add;
+      h.yAcc = (h.yAcc || 0) + add; while (h.yAcc >= 10) { h.yAcc -= 10; this.emit(this.yieldC, h, "yield", 1); }
     }
-    this.vault.perDay = this.vault.nav * 0.18 / 365;
-    if (Math.random() < dt * 0.15) { const h = this.hunters[Math.floor(Math.random() * this.hunters.length)]; const x = Math.round(rand(2, 8)) * 1000; h.value += x; this.emit(h, this.vault, "bar", Math.min(12, x / 1000)); }
+    // shown APY: recent yield per second (EMA), one demo second ≈ one month, so a year ≈ 12.2 s
+    this.vault.rate = (this.vault.rate ?? toLPs / Math.max(dt, 1e-3)) * 0.98 + (toLPs / Math.max(dt, 1e-3)) * 0.02;
+    this.vault.apy = (this.vault.rate * 12.17) / nav; this.vault.perDay = this.vault.rate * 12.17 / 365;
+    if (Math.random() < dt * 0.08) { const h = this.hunters[Math.floor(Math.random() * this.hunters.length)]; const x = Math.round(rand(5, 20)) * 100; h.value += x; this.emit(h, this.vault, "bar", Math.max(1, Math.round(x / 1000))); }
   }
 
   // ── live: real accounts ──
@@ -134,7 +139,7 @@ export class Arena {
     ctx.lineWidth = 1; ctx.strokeStyle = C("--line");
     for (const g of this.rings || []) { ctx.beginPath(); ctx.arc(this.vault.x, this.vault.y, g.R, g.a0 - 0.12, g.a1 + 0.12); ctx.stroke(); }
     ctx.font = F(10.5, 700); ctx.fillStyle = C("--up"); ctx.textAlign = "left"; ctx.fillText("🐮 TRADERS", 8, 20);
-    ctx.fillStyle = C("--crab"); ctx.textAlign = "right"; ctx.fillText("LIQUIDITY PROVIDERS 🦀", this.W - 8, 20);
+    ctx.fillStyle = C("--usdc"); ctx.textAlign = "right"; ctx.fillText("LIQUIDITY PROVIDERS 🦀", this.W - 8, 20);
     // coins first, so the vault, yield and people stay readable on top
     const col = { coin: C("--gold"), win: C("--gold"), fund: C("--accent"), bar: C("--crab"), asset: C("--near"), yield: C("--up") };
     this.coins = this.coins.filter((c) => (c.t += dt / c.dur) < 1);
@@ -174,7 +179,7 @@ export class Arena {
       else { ctx.lineWidth = 1; ctx.strokeStyle = C("--line"); ctx.stroke(); }
     }
     for (const h of this.hunters) {
-      ctx.beginPath(); ctx.arc(h.x, h.y, h.r, 0, 7); ctx.fillStyle = color(C("--crab"), 0.2); ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = C("--crab"); ctx.stroke();
+      ctx.beginPath(); ctx.arc(h.x, h.y, h.r, 0, 7); ctx.fillStyle = color(C("--usdc"), 0.2); ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = C("--usdc"); ctx.stroke();
       ctx.fillStyle = C("--ink"); ctx.font = F(Math.max(9, Math.min(12, h.r * 0.34)), 700, true); ctx.fillText(big(h.value), h.x, h.y + 4);
     }
   }

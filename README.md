@@ -40,3 +40,7 @@ node app/server.js
 ```
 
 The earlier order-book perpetual (PRISM v3–v5) is on the `perpetual` branch.
+
+## License
+
+Proprietary, all rights reserved. You may read this code and hackathon judges may run it to evaluate it; any other use needs written permission. See [LICENSE](LICENSE).

@@ -57,10 +57,10 @@ $("p").addEventListener("input", () => {
 function renderFunding() {
   if (mode === "demo") {
     const p = demo?.position?.p ?? P(), days = meltSeconds(p) / (CANDLE_MS / 1000);
-    $("fundLbl").textContent = `Funding ${pw(p)}`; $("fundRate").textContent = `−${(100 / days).toFixed(1)}%/day`;
+    $("fundLbl").textContent = "funding"; $("fundRate").textContent = `−${(100 / days).toFixed(1)}% day`;
   } else {
-    const m = live?.state?.market; $("fundLbl").textContent = "Funding";
-    $("fundRate").textContent = m ? `−${(m.funding_rate_annual_bps / 1e4 / 365 * 100).toFixed(2)}%/day` : "—";
+    const m = live?.state?.market; $("fundLbl").textContent = "funding";
+    $("fundRate").textContent = m ? `−${(m.funding_rate_annual_bps / 1e4 / 365 * 100).toFixed(2)}% day` : "—";
   }
 }
 
@@ -121,13 +121,15 @@ function demoClose(why) {
   playing?.stop(); playing = null;
   chart.freeze();
   const exitPx = chart.price(), r = demo.close(exitPx);
+  $("px").textContent = fmtP(exitPx);
   const m = r.out / r.stake, melted = why === "melted";
   trail.push({ m: exitPx / r.entry - 1, v: m - 1 });
   flip(false); ff(false); chart.mark(null); renderStrength();
   $("rIco").textContent = r.pnl > 0 ? (m >= 3 ? "🚀" : "🎉") : melted ? "🫠" : "☠️";
   // win / loss: the % sits big behind the chart; a melt down keeps its title
-  $("rTitle").textContent = "Melt Down"; $("rTitle").className = "neg"; $("rTitle").hidden = r.out > 0;
-  $("rBig").textContent = r.out > 0 ? pct(m - 1, 0) : ""; $("rBig").className = "r-big " + (m >= 1 ? "pos" : "neg");
+  $("rBig").textContent = r.out > 0 ? pct(m - 1, 0) : "Melt Down"; $("rBig").className = "r-pct " + (r.out > 0 && m >= 1 ? "pos" : "neg");
+  $("rBig").style.fontSize = r.out > 0 ? "" : "40px";
+  $("rSub").textContent = `${pw(r.p)} curve`;
   $("rAsset").textContent = mode === "demo" ? "USDC/NEAR" : `USDC/${live?.cfg?.asset || "NEAR"}`;
   lastResult = { pts: trail.slice(), p: r.p, melted, out: r.out, mult: m, move: exitPx / r.entry - 1 };
   $("result").querySelector(".modal").className = "modal r-card " + (r.out > 0 && m >= 1 ? "win" : "lose");
@@ -148,7 +150,7 @@ function paintResult(ctx, W, H, pts, p, melted, big = 1) {
   const R = W - 58 * big, n = pts.length, X = (i) => 6 + i / (n - 1) * (R - 6);
   let lo = 0, hi = 0; for (const s of pts) { lo = Math.min(lo, s.m, s.v); hi = Math.max(hi, s.m, s.v); }
   const pad = (hi - lo) * 0.06 || 0.05; lo -= pad; hi += pad;
-  const top = 44 * big, Y = (v) => top + (hi - v) / (hi - lo) * (H - top - 6);
+  const top = (big > 1 ? 44 : 14) * big, Y = (v) => top + (hi - v) / (hi - lo) * (H - top - 6);
   ctx.setLineDash([3, 3]); ctx.strokeStyle = css("--line"); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(6, Y(0)); ctx.lineTo(R, Y(0)); ctx.stroke(); ctx.setLineDash([]);
   const per = Math.max(1, Math.ceil(n / 28)), cw = (R - 6) / Math.ceil(n / per);
   for (let k = 0; k < n; k += per) {
@@ -166,9 +168,11 @@ function paintResult(ctx, W, H, pts, p, melted, big = 1) {
   }
   // "x¹⁰ / curve" above the start
   const sy = Math.max(top - 6 * big, Y(pts[0].v) - 16 * big);
-  ctx.fillStyle = up; ctx.textAlign = "left";
-  ctx.font = `800 ${20 * big}px ${css("--font")}`; ctx.fillText(pw(p), 8, sy - 14 * big);
-  ctx.font = `700 ${11 * big}px ${css("--font")}`; ctx.fillText("curve", 9, sy);
+  if (big > 1) { // the in-app card says "x⁸ curve" above the chart; the share image labels it here
+    ctx.fillStyle = up; ctx.textAlign = "left";
+    ctx.font = `800 ${20 * big}px ${css("--font")}`; ctx.fillText(pw(p), 8, sy - 14 * big);
+    ctx.font = `700 ${11 * big}px ${css("--font")}`; ctx.fillText("curve", 9, sy);
+  }
   const end = pts.at(-1), endCol = melted ? gray : end.v >= 0 ? up : down, yv = Y(end.v), ym = Y(end.m), apart = Math.abs(ym - yv) < 14 * big ? (yv < ym ? -7 : 7) * big : 0;
   ctx.font = `700 ${12 * big}px ${css("--mono")}`;
   ctx.fillStyle = endCol; ctx.beginPath(); ctx.arc(X(n - 1), yv, 4.5 * big, 0, 7); ctx.fill();
@@ -247,8 +251,8 @@ function renderPosition() {
     const left = timeLeft(q.p, q.t);
     $("posP").textContent = pw(q.p); $("posValue").textContent = fmt(v); $("posPaid").textContent = fmt(q.stake);
     $("posEntry").textContent = fmtP(q.entry); $("posNow").textContent = fmtP(px); $("px").textContent = fmtP(px);
-    const curveV = q.net * Math.pow(px / q.entry, q.p); $("posCurveRow").hidden = $("posFundRow").hidden = false;
-    $("posCurve").textContent = fmt(curveV); $("posFund").textContent = "−" + fmt(Math.max(0, curveV - v));
+    const curveV = q.net * Math.pow(px / q.entry, q.p); $("posFundRow").hidden = false;
+    $("posFund").textContent = "−" + fmt(Math.max(0, curveV - v));
     const pnl = v - q.stake; $("posPnl").textContent = `${pnl >= 0 ? "+" : "−"}${fmt(Math.abs(pnl))} · ×${(v / q.stake).toFixed(2)}`; $("posPnl").className = "num " + (pnl >= 0 ? "pos" : "neg");
     $("meltBar").style.width = left * 100 + "%";
     $("meltNote").textContent = `Time left in the window: ${Math.round(left * 100)}%. The longer you hold, the more it melts.`;
@@ -257,7 +261,7 @@ function renderPosition() {
   } else {
     const a = live?.state?.ledgerAcc; if (!a || BigInt(a.long_units) === 0n) return;
     const v = Number(a.long_value) / E6, c = Number(a.long_cost) / E6, m = live.state.market;
-    showCurve(m.power); $("posCurveRow").hidden = $("posFundRow").hidden = true; renderFunding();
+    showCurve(m.power); $("posFundRow").hidden = true; renderFunding();
     $("posP").textContent = pw(m.power); $("posValue").textContent = fmt(v); $("posPaid").textContent = fmt(c);
     $("posEntry").textContent = "—"; $("posNow").textContent = fmtP(Number(m.price) / E6);
     $("posPnl").textContent = `${v >= c ? "+" : "−"}${fmt(Math.abs(v - c))} · ×${(v / c).toFixed(2)}`; $("posPnl").className = "num " + (v >= c ? "pos" : "neg");

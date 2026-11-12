@@ -39,7 +39,7 @@
         <div><span class="muted small" id="mkt">NEAR / USD</span> <span class="small num" id="chg"></span></div>
         <span class="tag" id="mktNote">Demo replay</span>
       </div>
-      <div class="px-row"><div class="price-big num" id="px">—</div><div class="fund-pill" id="fund" title="What holding a Curve Long costs: it melts by this much of its value per day"><small id="fundLbl">Funding</small><b class="num" id="fundRate">—</b></div></div>
+      <div class="px-row"><div class="price-big num" id="px">—</div><div class="fund" id="fund" title="What holding a Curve Long costs: it melts by this much of its value per day"><span id="fundLbl">funding</span> <span id="fundRate">—</span></div></div>
       <canvas id="candles" aria-label="Price chart"></canvas>
       <div class="chips" id="ranges" hidden>
         <button class="chip" data-r="1h" aria-pressed="false">1H</button><button class="chip" data-r="1d" aria-pressed="true">1D</button><button class="chip" data-r="1w" aria-pressed="false">1W</button>
@@ -68,7 +68,6 @@
         <p class="hint" id="meltNote"></p>
         <div class="rows">
           <div class="kv"><span>Paid</span><span id="posPaid">—</span></div>
-          <div class="kv" id="posCurveRow"><span>Curve value (before funding)</span><span id="posCurve">—</span></div>
           <div class="kv" id="posFundRow"><span>Funding paid so far</span><span class="neg" id="posFund">—</span></div>
           <div class="kv"><span>Entry price</span><span id="posEntry">—</span></div>
           <div class="kv"><span>Price now</span><span id="posNow">—</span></div>
@@ -126,7 +125,7 @@
         <li><i class="tok coin"></i><span class="path">🐮 <b>→</b> <u>vault</u></span><span><b>Bulls buy curves</b><small>each coin is $10</small></span></li>
         <li><i class="tok fund"></i><span class="path">🐮 <b>→</b> <u>vault</u></span><span><b>Premium</b><small>bulls pay every second they hold</small></span></li>
         <li><i class="tok yield"></i><span class="path"><u>vault</u> <b>→</b> 🦀</span><span><b>Yield</b><small>paid out to liquidity providers</small></span></li>
-        <li><i class="tok bar"></i><span class="path">🦀 <b>→</b> <u>vault</u></span><span><b>Deposits</b><small>each bar is $1,000</small></span></li>
+        <li><i class="tok bar"></i><span class="path">🦀 <b>→</b> <u>vault</u></span><span><b>Deposits</b><small>each bar is about $1,000</small></span></li>
         <li><i class="tok ring"></i><span class="path"><u>vault</u></span><span><b>Vault ring</b><small><em class="sw usdc"></em>USDC · <em class="sw near"></em>NEAR, auto rebalanced</small></span></li>
       </ul>
     </section>
@@ -136,7 +135,7 @@
 <nav class="tabs" role="tablist">
   <button role="tab" aria-selected="false" data-tab="stats" class="side"><span class="ico">📊</span>Analytics</button>
   <button role="tab" aria-selected="true" data-tab="bull" class="main"><span class="ico">🐮</span>Trade</button>
-  <button role="tab" aria-selected="false" data-tab="crab" class="side"><span class="ico">🦀</span>Crab</button>
+  <button role="tab" aria-selected="false" data-tab="crab" class="side"><span class="ico">🦀</span>Yield</button>
 </nav>
 
 <div class="ff" id="ff" hidden aria-label="Fast-forward">⏱️ <b>100x &gt;&gt;</b></div>
@@ -160,9 +159,9 @@
 <div class="modal-bg" id="result" hidden>
   <div class="modal">
     <div class="r-head"><span class="r-logo">⇡ Uprise</span><span class="r-asset" id="rAsset">USDC/NEAR</span></div>
-    <div class="big-ico" id="rIco">🎉</div>
-    <h2 id="rTitle"></h2>
-    <div class="r-chart"><div class="r-big" id="rBig" aria-hidden="true"></div><canvas id="rChart" aria-label="Market and your curve during the trade"></canvas></div>
+    <div class="r-hero"><span class="r-emoji" id="rIco">🎉</span><span class="r-pct" id="rBig"></span></div>
+    <div class="r-sub" id="rSub"></div>
+    <div class="r-chart"><canvas id="rChart" aria-label="Market and your curve during the trade"></canvas></div>
     <p class="hint" id="rText"></p>
     <div class="r-actions">
       <button class="btn ghost" id="rShare" aria-label="Share on X"><svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path fill="currentColor" d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg> Share</button>

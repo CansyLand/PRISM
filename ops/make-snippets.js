@@ -4,6 +4,7 @@
 // 7 rally right after entry (a bet that can pay), 3 dump (a bet that loses).
 // Every second snippet gets one deep wick early in the future part (a 20% spike down that closes back),
 // so the demo shows a Curve Long riding out a dip that would liquidate a leveraged perp.
+// Two of the three dumps end with a comeback that arrives too late (see below).
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -41,6 +42,14 @@ const snippets = [...wins.map((c) => ({ ...c, kind: "rally" })), ...losses.map((
   const w = HISTORY + 12 + n * 2, [o, h, l, cl] = s.candles[w];
   s.candles[w] = [o, h, +(Math.min(o, cl) * 0.8).toFixed(4), cl];
   return { ...s, wick: w };
+}).map((s, n, all) => {
+  // Two of the three dumps get a late comeback: the price climbs back above the entry, but only after
+  // most of the time window is gone, so the position still loses. One dump stays a plain loss.
+  const dumps = all.map((x, i) => (x.kind === "dump" ? i : -1)).filter((i) => i >= 0);
+  if (s.kind !== "dump" || n === dumps.at(-1)) return s;
+  const E = s.candles[s.entry][3], k0 = HISTORY + 55, RAMP = 30, c0 = s.candles[k0][3], goal = Math.log((E * 1.25) / c0);
+  s.candles = s.candles.map((c, k) => (k < k0 ? c : c.map((v) => +(v * Math.exp(goal * Math.min(1, (k - k0) / RAMP))).toFixed(4))));
+  return { ...s, comeback: k0 };
 });
 fs.writeFileSync(path.join(DIR, "..", "app", "public", "demo-snippets.json"), JSON.stringify(snippets));
 for (const s of snippets) console.log(s.kind.padEnd(5), s.from, `best ×${s.best} worst ×${s.worst} within ${LOOK} candles`);

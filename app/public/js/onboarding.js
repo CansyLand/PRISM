@@ -20,9 +20,9 @@ const SLIDES = [
     draw: drawMelt,
   },
   {
-    kicker: "Try it",
-    title: "Here's $1,000 of play money.",
-    text: "Pick a strength, buy, and watch time fast-forward. When you're ready, switch to Live.",
+    kicker: "Bridged via NEAR Intents",
+    title: "1,000 USDC just landed on NEAR.",
+    text: "You moved it from Ethereum in one step, no bridge to pick, no gas to buy. This one is demo money: pick a strength, buy and watch time fast-forward. When you're ready, switch to Live.",
     draw: drawCoins,
   },
 ];
@@ -144,7 +144,7 @@ function drawWick(ctx, W, H, t) {
 // same % scale) melts a little more every moment, fades to gray and ends at the red MELT DOWN line.
 const P3 = 6, N3 = 24, mkt3 = (u) => 0.03 * Math.sin(u * 9) + 0.012 * Math.sin(u * 31 + 2) + 0.02 * u, val3 = (u) => Math.pow(1 + mkt3(u), P3) * (1 - u) - 1;
 function drawMelt(ctx, W, H, t) {
-  const T = 6, x = Math.min(1, (t % (T + 2)) / T), pad = 14, R = W - 100, X = (u) => pad + u * (R - pad);
+  const T = 6, x = Math.min(1, t / T), pad = 14, R = W - 100, X = (u) => pad + u * (R - pad);
   const lo = -1.08, hi = 0.45, Y = (v) => pad + 30 + (hi - v) / (hi - lo) * (H - 2 * pad - 30);
   ctx.setLineDash([3, 3]); ctx.strokeStyle = css("--line"); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(pad, Y(0)); ctx.lineTo(R, Y(0)); ctx.stroke(); ctx.setLineDash([]);
   const slot = (R - pad) / N3;
@@ -167,7 +167,7 @@ function drawMelt(ctx, W, H, t) {
   ctx.font = `700 12px ${css("--mono")}`; ctx.fillStyle = gray; ctx.fillText(`market ${pnl(1 + mkt3(x))}`, R + 6, Y(mkt3(x)) + 4);
   if (x < 1) { ctx.fillStyle = `color-mix(in srgb, ${val3(x) >= 0 ? up : down} ${Math.round(100 - 85 * x)}%, ${gray})`; ctx.fillText(pnl(1 + val3(x)), R + 6, Y(val3(x)) + 4); }
   // time left
-  ctx.font = `600 11px ${css("--font")}`; ctx.fillStyle = gray; ctx.fillText(`⏱ day ${Math.round(x * 90)} of 90`, pad, pad + 4);
+  ctx.font = `800 22px ${css("--mono")}`; ctx.fillStyle = css("--ink"); ctx.fillText(`⏱ day ${Math.round(x * 90)}`, pad, pad + 12); ctx.font = `600 12px ${css("--font")}`; ctx.fillStyle = gray; ctx.fillText("of 90", pad + 128, pad + 12);
   if (x >= 1) {
     ctx.strokeStyle = down; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(X(1), pad + 14); ctx.lineTo(X(1), H - pad); ctx.stroke();
     ctx.fillStyle = down; ctx.font = `800 12px ${css("--font")}`; ctx.textAlign = "right"; ctx.fillText("MELT DOWN 🫠", X(1) - 6, pad + 26);
@@ -175,6 +175,13 @@ function drawMelt(ctx, W, H, t) {
 }
 function pnl(v) { return (v >= 1 ? "+" : "−") + Math.abs((v - 1) * 100).toFixed(0) + "%"; }
 function drawCoins(ctx, W, H, t) {
+  // route on top: Ethereum → NEAR, a pulse travels along it
+  const y = 22, x0 = W * 0.18, x1 = W * 0.82, u = (t * 0.6) % 1;
+  ctx.font = `700 13px ${css("--font")}`; ctx.textAlign = "center"; ctx.fillStyle = css("--muted");
+  ctx.fillText("Ethereum", x0, y + 4); ctx.fillText("NEAR", x1, y + 4);
+  ctx.strokeStyle = css("--line"); ctx.lineWidth = 2; ctx.setLineDash([4, 5]); ctx.beginPath(); ctx.moveTo(x0 + 40, y); ctx.lineTo(x1 - 30, y); ctx.stroke(); ctx.setLineDash([]);
+  ctx.fillStyle = css("--usdc"); ctx.beginPath(); ctx.arc(x0 + 40 + (x1 - x0 - 70) * u, y, 4, 0, 7); ctx.fill();
+  ctx.font = `600 11px ${css("--font")}`; ctx.fillStyle = css("--muted"); ctx.fillText("USDC via Intents", W / 2, y + 22);
   ctx.textAlign = "center"; ctx.font = `800 ${Math.min(64, W / 6)}px ${css("--mono")}`; ctx.fillStyle = css("--gold");
   ctx.fillText("$1,000", W / 2, H / 2 + 18);
   for (let k = 0; k < 14; k++) {

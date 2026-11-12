@@ -92,8 +92,11 @@ input[type=range] { width: 100%; accent-color: var(--up); margin: 6px 0 0; }
 .r-head { display: flex; justify-content: space-between; align-items: center; margin: -6px 0 2px; }
 .r-logo { font-weight: 800; color: var(--accent); font-size: 15px; letter-spacing: -.01em; }
 .r-asset { font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--muted); border: 1px solid var(--line); border-radius: 8px; padding: 3px 7px; }
-.r-big { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: var(--font); font-weight: 900; font-size: clamp(56px, 19vw, 92px); letter-spacing: -.04em; opacity: .7; pointer-events: none; }
-.r-big.pos { color: color-mix(in srgb, var(--up) 70%, transparent); opacity: 1; } .r-big.neg { color: color-mix(in srgb, var(--down) 70%, transparent); opacity: 1; }
+.r-hero { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 10px 0 2px; }
+.r-emoji { font-size: 40px; line-height: 1; }
+.r-pct { font-family: var(--font); font-weight: 900; font-size: clamp(44px, 14vw, 60px); letter-spacing: -.045em; line-height: 1; }
+.r-pct.pos { color: var(--up); } .r-pct.neg { color: var(--down); }
+.r-sub { color: var(--muted); font-size: 14px; font-weight: 600; }
 #rChart { z-index: 1; }
 .r-card.win { background: radial-gradient(120% 120% at 50% 0%, color-mix(in srgb, var(--up) 14%, var(--panel)), var(--panel) 65%); }
 .r-card.lose { background: radial-gradient(120% 120% at 50% 0%, color-mix(in srgb, var(--down) 12%, var(--panel)), var(--panel) 65%); }
@@ -101,9 +104,7 @@ input[type=range] { width: 100%; accent-color: var(--up); margin: 6px 0 0; }
 #rShare { display: flex; align-items: center; justify-content: center; gap: 8px; }
 #pLabel, #ccP, #posP { font-family: var(--font); font-weight: 800; }
 .px-row { display: flex; align-items: center; gap: 12px; }
-.fund-pill { text-align: left; background: color-mix(in srgb, var(--down) 12%, transparent); border: 1px solid color-mix(in srgb, var(--down) 35%, transparent); border-radius: 12px; padding: 5px 10px; line-height: 1.15; }
-.fund-pill small { display: block; color: var(--muted); font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; }
-.fund-pill b { color: var(--down); font-size: 15px; }
+.fund { color: var(--down); font-weight: 700; font-size: 14px; white-space: nowrap; }
 canvas.celebrate { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 70; }
 /* flip card */
 .flip { display: grid; perspective: 1400px; }
