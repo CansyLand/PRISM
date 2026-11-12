@@ -89,6 +89,12 @@ input[type=range] { width: 100%; accent-color: var(--up); margin: 6px 0 0; }
 /* crab: the deposit button stays on screen above the tab bar */
 #vBtn { position: sticky; bottom: calc(86px + env(safe-area-inset-bottom)); z-index: 4; box-shadow: 0 8px 24px rgba(0,0,0,.35); }
 #vBtn.soft { opacity: .7; }
+.r-head { display: flex; justify-content: space-between; align-items: center; margin: -6px 0 2px; }
+.r-logo { font-weight: 800; color: var(--accent); font-size: 15px; letter-spacing: -.01em; }
+.r-asset { font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--muted); border: 1px solid var(--line); border-radius: 8px; padding: 3px 7px; }
+.r-big { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-family: var(--font); font-weight: 900; font-size: clamp(56px, 19vw, 92px); letter-spacing: -.04em; opacity: .7; pointer-events: none; }
+.r-big.pos { color: color-mix(in srgb, var(--up) 70%, transparent); opacity: 1; } .r-big.neg { color: color-mix(in srgb, var(--down) 70%, transparent); opacity: 1; }
+#rChart { z-index: 1; }
 .r-card.win { background: radial-gradient(120% 120% at 50% 0%, color-mix(in srgb, var(--up) 14%, var(--panel)), var(--panel) 65%); }
 .r-card.lose { background: radial-gradient(120% 120% at 50% 0%, color-mix(in srgb, var(--down) 12%, var(--panel)), var(--panel) 65%); }
 .r-actions { display: grid; grid-template-columns: 1fr 1.4fr; gap: 8px; }

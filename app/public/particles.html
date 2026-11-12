@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>x¹⁰ celebration options</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;600;700;800;900&family=JetBrains+Mono:wght@600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="app.css">
+<style>
+  body { padding: 20px 16px 60px; }
+  .wrap { max-width: 1300px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; } .sub { color: var(--muted); margin: 0 0 20px; font-size: 14px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 18px; }
+  .opt .label { font-weight: 800; font-size: 13px; color: var(--accent); margin: 0 0 8px; letter-spacing: .04em; }
+  .opt .why { color: var(--muted); font-size: 12.5px; margin: 8px 2px 0; line-height: 1.4; }
+  .demo { position: relative; background: var(--panel); border: 1px solid var(--line); border-radius: 22px; padding: 18px; height: 300px; display: flex; flex-direction: column; justify-content: flex-end; overflow: visible; }
+  .demo canvas { position: absolute; inset: -60px; width: calc(100% + 120px); height: calc(100% + 120px); pointer-events: none; z-index: 2; }
+  .row { display: flex; justify-content: space-between; align-items: baseline; }
+  .row b { font-family: var(--font); font-weight: 800; font-size: 26px; color: var(--up); }
+  input[type=range] { width: 100%; accent-color: var(--up); margin: 10px 0 4px; }
+  .ticks { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; }
+  .replay { margin-top: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>x¹⁰ celebration: pick one</h1>
+  <p class="sub">Drag each slider to x¹⁰ (or press Replay). Every effect uses colorful $ signs in different sizes with spin, glow and glitter.</p>
+  <div class="grid" id="grid"></div>
+</div>
+<script>
+const SUP = "⁰¹²³⁴⁵⁶⁷⁸⁹", pw = (p) => "x" + String(p).replace(/\d/g, (d) => SUP[d]);
+const COLORS = ["#2fd08a", "#f5c542", "#ff5d9e", "#8b6cff", "#3fa7ff", "#ff7a59", "#7ef9ff", "#ffffff"];
+const rnd = (a, b) => a + Math.random() * (b - a), pick = (a) => a[Math.floor(Math.random() * a.length)];
+
+const EFFECTS = [
+  { name: "A · BURST", why: "A punchy radial explosion from the slider thumb. Spinning, glowing $ fall with gravity. Fast and clear.", fire: burst },
+  { name: "B · FOUNTAIN", why: "A geyser of $ shoots up for a second and rains back down, twinkling. Feels like a jackpot.", fire: fountain },
+  { name: "C · FIREWORK", why: "A rocket leaves the thumb and bursts into rings of $ with glowing trails. The most pompous.", fire: firework },
+  { name: "D · GLITTER RAIN", why: "$ and sparkles drift down over the whole card, swaying and glittering. Calmer, more premium.", fire: rain },
+  { name: "E · SUPERNOVA", why: "A shockwave ring, a white flash, gold $ and white star sparkles. Big glow, short and loud.", fire: supernova },
+];
+
+// ── one particle engine per card ──
+class Stage {
+  constructor(cv) { this.cv = cv; this.ps = []; this.fx = []; this.run = false; }
+  add(p) { this.ps.push(Object.assign({ x: 0, y: 0, vx: 0, vy: 0, g: 520, drag: 0.985, rot: rnd(0, 6.28), vr: rnd(-8, 8), life: rnd(1.4, 2.4), age: 0, size: rnd(12, 30), color: pick(COLORS), glyph: "$", tw: rnd(0, 6.28), glow: 14 }, p)); this.go(); }
+  effect(f) { this.fx.push(f); this.go(); }
+  go() { if (!this.run) { this.run = true; this.last = performance.now(); requestAnimationFrame((t) => this.frame(t)); } }
+  frame(now) {
+    const dt = Math.max(0, Math.min(0.033, (now - this.last) / 1000)); this.last = now;
+    const r = this.cv.getBoundingClientRect(), dpr = devicePixelRatio || 1;
+    if (this.cv.width !== Math.round(r.width * dpr)) { this.cv.width = Math.round(r.width * dpr); this.cv.height = Math.round(r.height * dpr); }
+    const ctx = this.cv.getContext("2d"); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, r.width, r.height);
+    for (const f of this.fx) f.draw(ctx, dt);
+    this.fx = this.fx.filter((f) => !f.done);
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    for (const p of this.ps) {
+      p.age += dt; if (p.spawn) p.spawn(p, dt, this);
+      p.vx *= p.drag; p.vy = p.vy * p.drag + p.g * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.rot += p.vr * dt;
+      if (p.sway) p.x += Math.sin(p.age * 3 + p.tw) * p.sway * dt;
+      const fade = Math.min(1, (p.life - p.age) / 0.5), twinkle = 0.65 + 0.35 * Math.sin(p.age * 18 + p.tw);
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.globalAlpha = Math.max(0, fade) * (p.glitter ? twinkle : 1);
+      ctx.shadowColor = p.color; ctx.shadowBlur = p.glow;
+      if (p.glyph === "✦") { star(ctx, p.size * 0.5, p.color); }
+      else { ctx.fillStyle = p.color; ctx.font = `900 ${p.size}px "Inter Tight", sans-serif`; ctx.scale(Math.cos(p.age * p.flip || 0) || 1, 1); ctx.fillText(p.glyph, 0, 0); }
+      ctx.restore();
+    }
+    this.ps = this.ps.filter((p) => p.age < p.life);
+    if (this.ps.length || this.fx.length) requestAnimationFrame((t) => this.frame(t)); else { this.run = false; ctx.clearRect(0, 0, r.width, r.height); }
+  }
+}
+function star(ctx, s, col) {
+  ctx.fillStyle = col; ctx.beginPath();
+  for (let i = 0; i < 8; i++) { const a = (i / 8) * Math.PI * 2, rr = i % 2 ? s * 0.25 : s; ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); }
+  ctx.closePath(); ctx.fill();
+}
+
+// ── effects: (stage, x, y) where x/y is the slider thumb in canvas pixels ──
+function burst(st, x, y) {
+  for (let i = 0; i < 70; i++) { const a = rnd(0, Math.PI * 2), v = rnd(180, 520); st.add({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 200, flip: rnd(3, 9), glitter: Math.random() < 0.4 }); }
+  for (let i = 0; i < 30; i++) { const a = rnd(0, Math.PI * 2), v = rnd(100, 380); st.add({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 150, glyph: "✦", size: rnd(8, 16), color: pick(["#fff", "#f5c542", "#7ef9ff"]), glitter: true, g: 300 }); }
+}
+function fountain(st, x, y) {
+  let t = 0;
+  st.effect({ draw(ctx, dt) { t += dt; if (t < 1.1) for (let i = 0; i < 4; i++) st.add({ x: x + rnd(-6, 6), y, vx: rnd(-140, 140), vy: rnd(-620, -420), g: 700, life: rnd(1.8, 2.6), flip: rnd(2, 7), glitter: Math.random() < 0.5 }); else this.done = true; } });
+}
+function firework(st, x, y) {
+  const rocket = { x: x - 60, y, vy: -380, t: 0 }, cx = () => rocket.x;
+  st.effect({ draw(ctx, dt) {
+    rocket.t += dt; rocket.y += rocket.vy * dt; rocket.vy += 260 * dt;
+    ctx.save(); ctx.shadowColor = "#f5c542"; ctx.shadowBlur = 20; ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(rocket.x, rocket.y, 4, 0, 7); ctx.fill(); ctx.restore();
+    st.add({ x: rocket.x + rnd(-2, 2), y: rocket.y, vx: rnd(-20, 20), vy: rnd(20, 60), glyph: "✦", size: rnd(5, 9), color: "#f5c542", life: 0.5, g: 80, glitter: true });
+    if (rocket.t > 0.55) {
+      this.done = true;
+      for (const [n, v, col] of [[24, 330, "#f5c542"], [18, 220, "#ff5d9e"], [12, 120, "#7ef9ff"]])
+        for (let i = 0; i < n; i++) { const a = (i / n) * Math.PI * 2; st.add({ x: cx(), y: rocket.y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, g: 160, drag: 0.975, color: col, size: rnd(14, 26), life: rnd(1.6, 2.2), glow: 22, glitter: true }); }
+      flash(st, cx(), rocket.y, 120);
+    }
+  } });
+}
+function rain(st, x, y) {
+  const r = st.cv.getBoundingClientRect();
+  for (let i = 0; i < 90; i++) {
+    const big = Math.random() < 0.7;
+    st.add({ x: rnd(40, r.width - 40), y: rnd(-120, 20), vx: rnd(-20, 20), vy: rnd(40, 140), g: 60, drag: 0.995, life: rnd(2.6, 3.6), sway: 40, glyph: big ? "$" : "✦", size: big ? rnd(12, 28) : rnd(8, 14), color: big ? pick(COLORS) : "#fff", glitter: true, flip: rnd(1, 4) });
+  }
+  burst2(st, x, y, 16);
+}
+function supernova(st, x, y) {
+  flash(st, x, y, 220);
+  let t = 0; st.effect({ draw(ctx, dt) { t += dt; const rr = t * 520, a = Math.max(0, 1 - t / 0.7); ctx.save(); ctx.strokeStyle = `rgba(245,197,66,${a})`; ctx.lineWidth = 6 * a + 1; ctx.shadowColor = "#f5c542"; ctx.shadowBlur = 30; ctx.beginPath(); ctx.arc(x, y, rr, 0, 7); ctx.stroke(); ctx.restore(); if (t > 0.7) this.done = true; } });
+  for (let i = 0; i < 60; i++) { const a = rnd(0, Math.PI * 2), v = rnd(200, 600); st.add({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, g: 240, drag: 0.97, color: pick(["#f5c542", "#ffd60a", "#ffb020"]), size: rnd(14, 34), glow: 26, flip: rnd(3, 8) }); }
+  for (let i = 0; i < 50; i++) { const a = rnd(0, Math.PI * 2), v = rnd(80, 420); st.add({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, g: 100, glyph: "✦", size: rnd(6, 16), color: "#fff", glow: 18, glitter: true, life: rnd(1, 1.8) }); }
+}
+function burst2(st, x, y, n) { for (let i = 0; i < n; i++) { const a = rnd(-Math.PI, 0), v = rnd(150, 380); st.add({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, flip: rnd(3, 8) }); } }
+function flash(st, x, y, R) { let t = 0; st.effect({ draw(ctx, dt) { t += dt; const a = Math.max(0, 1 - t / 0.35), g = ctx.createRadialGradient(x, y, 0, x, y, R); g.addColorStop(0, `rgba(255,255,255,${0.9 * a})`); g.addColorStop(1, "rgba(255,255,255,0)"); ctx.fillStyle = g; ctx.fillRect(x - R, y - R, 2 * R, 2 * R); if (t > 0.35) this.done = true; } }); }
+
+// ── build the cards ──
+const grid = document.getElementById("grid");
+for (const e of EFFECTS) {
+  const el = document.createElement("div"); el.className = "opt";
+  el.innerHTML = `<p class="label">${e.name}</p><div class="demo"><canvas></canvas>
+    <div class="row"><span class="muted">Strength</span><b>${pw(5)}</b></div>
+    <input type="range" min="1" max="10" step="1" value="5" aria-label="Strength">
+    <div class="ticks"><span>${pw(1)}</span><span>${pw(5)}</span><span>${pw(10)}</span></div>
+    <button class="btn ghost small replay">Replay</button></div><p class="why">${e.why}</p>`;
+  grid.append(el);
+  const cv = el.querySelector("canvas"), st = new Stage(cv), sl = el.querySelector("input"), lbl = el.querySelector(".row b");
+  const fire = () => {
+    const c = cv.getBoundingClientRect(), s = sl.getBoundingClientRect();
+    e.fire(st, s.right - 8 - c.left, s.top + s.height / 2 - c.top);
+  };
+  let was = 5;
+  sl.addEventListener("input", () => { const v = +sl.value; lbl.textContent = pw(v); if (v === 10 && was !== 10) fire(); was = v; });
+  el.querySelector(".replay").onclick = () => { sl.value = 10; lbl.textContent = pw(10); was = 10; fire(); };
+}
+</script>
+</body>
+</html>

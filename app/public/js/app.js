@@ -108,7 +108,10 @@ function demoClose(why) {
   trail.push({ m: exitPx / r.entry - 1, v: m - 1 });
   flip(false); ff(false); chart.mark(null); renderStrength();
   $("rIco").textContent = r.pnl > 0 ? (m >= 3 ? "🚀" : "🎉") : melted ? "🫠" : "☠️";
-  $("rTitle").textContent = r.out > 0 ? pct(m - 1, 0) : "Melt Down"; $("rTitle").className = r.out > 0 ? (m >= 1 ? "pos" : "neg") : "neg";
+  // win / loss: the % sits big behind the chart; a melt down keeps its title
+  $("rTitle").textContent = "Melt Down"; $("rTitle").className = "neg"; $("rTitle").hidden = r.out > 0;
+  $("rBig").textContent = r.out > 0 ? pct(m - 1, 0) : ""; $("rBig").className = "r-big " + (m >= 1 ? "pos" : "neg");
+  $("rAsset").textContent = mode === "demo" ? "USDC/NEAR" : `USDC/${live?.cfg?.asset || "NEAR"}`;
   lastResult = { pts: trail.slice(), p: r.p, melted, out: r.out, mult: m, move: exitPx / r.entry - 1 };
   $("result").querySelector(".modal").className = "modal r-card " + (r.out > 0 && m >= 1 ? "win" : "lose");
   modal("result"); drawResult($("rChart"), trail, r.p, melted);

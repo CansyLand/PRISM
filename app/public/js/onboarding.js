@@ -2,7 +2,7 @@
 import { css, fit, pw } from "./theme.js";
 const SLIDES = [
   {
-    kicker: "Continuous-Expiry Power Perpetuals",
+    kicker: "Power Perpetuals",
     title: "When the price rises, your position grows faster.",
     text: "A power perpetual multiplies your gains as the price climbs, so a big move can pay many times more than a normal leveraged perpetual.",
     draw: drawCurves,
@@ -10,13 +10,13 @@ const SLIDES = [
   {
     kicker: "What's new",
     title: "No liquidation on wicks.",
-    text: "A normal perpetual gets liquidated in a dip and it's over. Uprise rises faster, survives the dip and comes back. You pay by slowly melting over time, so you're betting on a rise within a time window.",
+    text: "A normal perpetual gets liquidated in a dip and it's over. Uprise rises faster, survives the dip and comes back.",
     draw: drawWick,
   },
   {
     kicker: "Continuous-Expiry",
     title: "Time melts your position.",
-    text: "Like an ice cream: a dip can't knock it out of your hand, but it slowly melts. That's the small fee you pay every second. If the price rises fast enough, your gains grow faster than it melts. If not, it melts down to zero.",
+    text: "Instead of a liquidation price, your position has a clock: it melts a little every day. You're betting the price rises before it melts away.",
     draw: drawMelt,
   },
   {
@@ -167,7 +167,7 @@ function drawMelt(ctx, W, H, t) {
   ctx.font = `700 12px ${css("--mono")}`; ctx.fillStyle = gray; ctx.fillText(`market ${pnl(1 + mkt3(x))}`, R + 6, Y(mkt3(x)) + 4);
   if (x < 1) { ctx.fillStyle = `color-mix(in srgb, ${val3(x) >= 0 ? up : down} ${Math.round(100 - 85 * x)}%, ${gray})`; ctx.fillText(pnl(1 + val3(x)), R + 6, Y(val3(x)) + 4); }
   // time left
-  ctx.font = `600 11px ${css("--font")}`; ctx.fillStyle = gray; ctx.fillText(`⏱ time left ${Math.round((1 - x) * 100)}%`, pad, pad + 4);
+  ctx.font = `600 11px ${css("--font")}`; ctx.fillStyle = gray; ctx.fillText(`⏱ day ${Math.round(x * 90)} of 90`, pad, pad + 4);
   if (x >= 1) {
     ctx.strokeStyle = down; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(X(1), pad + 14); ctx.lineTo(X(1), H - pad); ctx.stroke();
     ctx.fillStyle = down; ctx.font = `800 12px ${css("--font")}`; ctx.textAlign = "right"; ctx.fillText("MELT DOWN 🫠", X(1) - 6, pad + 26);
