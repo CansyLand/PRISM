@@ -130,7 +130,6 @@ function demoClose(why) {
   $("rBig").textContent = r.out > 0 ? pct(m - 1, 0) : "Melt Down"; $("rBig").className = "r-pct " + (r.out > 0 && m >= 1 ? "pos" : "neg");
   $("rBig").style.fontSize = r.out > 0 ? "" : "40px";
   $("rSub").textContent = `${pw(r.p)} curve`;
-  $("rAsset").textContent = mode === "demo" ? "USDC/NEAR" : `USDC/${live?.cfg?.asset || "NEAR"}`;
   lastResult = { pts: trail.slice(), p: r.p, melted, out: r.out, mult: m, move: exitPx / r.entry - 1 };
   $("result").querySelector(".modal").className = "modal r-card " + (r.out > 0 && m >= 1 ? "win" : "lose");
   modal("result"); drawResult($("rChart"), trail, r.p, melted);
