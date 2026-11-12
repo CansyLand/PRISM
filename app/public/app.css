@@ -16,8 +16,10 @@ button, input, select { font: inherit; color: inherit; }
 main { display: flex; flex-direction: column; gap: 12px; }
 .top { display: flex; align-items: center; gap: 10px; }
 .logo { color: var(--ink); display: flex; align-items: center; }
-.logo-svg { display: block; height: 26px; width: auto; }
+.logo-svg { display: block; height: 39px; width: auto; }
+.ob-logo { color: var(--ink); margin: 0 0 6px; } .ob-logo .logo-svg { height: 39px; }
 .logo-svg.sm { height: 18px; }
+@media (max-width: 390px) { .logo .logo-svg { height: 30px; } }
 .mode { display: flex; background: var(--panel); border: 1px solid var(--line); border-radius: 99px; padding: 3px; }
 .mode button { border: 0; background: transparent; border-radius: 99px; padding: 5px 12px; font-weight: 700; font-size: 13px; color: var(--muted); cursor: pointer; }
 .mode button[aria-selected="true"] { background: var(--ink); color: var(--bg); }

@@ -30,7 +30,9 @@ const SLIDES = [
 export function showOnboarding(root, onDone) {
   let i = 0, raf = 0, t0 = performance.now();
   root.hidden = false;
+  const logo = document.querySelector(".logo .logo-svg")?.outerHTML || "";
   root.innerHTML = `<div class="ob">
+    <div class="ob-logo">${logo}</div>
     <canvas class="ob-cv" aria-hidden="true"></canvas>
     <div class="ob-kicker"></div><h1 class="ob-title"></h1><p class="ob-text"></p>
     <div class="ob-dots">${SLIDES.map(() => "<i></i>").join("")}</div>
