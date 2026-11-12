@@ -39,7 +39,7 @@ function renderStrength() {
   const mismatch = mode === "live" && live?.cfg && p !== live.cfg.power;
   $("pNote").textContent = mismatch ? `The live market offers ${pw(live.cfg.power)} right now. More strengths are coming.` : "";
   $("pNote").hidden = !mismatch;
-  showCurve(p); renderFunding();
+  showCurve(p); renderFunding(); paintSlider();
 }
 // the slim card follows the slider, or the open position (with a dot at today's price move)
 function showCurve(p, at = null) {
@@ -87,7 +87,7 @@ $("amt").addEventListener("input", renderPreview);
 // quick amounts: a share of what you have (25%, 50%, 75%) or all of it
 document.querySelectorAll("[data-a]").forEach((b) => (b.onclick = () => { const v = b.dataset.a, c = cash(); $("amt").value = Math.floor((v === "max" ? c : c * v / 100) * 100) / 100 || ""; renderPreview(); }));
 // the slider's left part is filled in ink: keep its fill in step with the value
-const paintSlider = () => { const s = $("p"); s.style.setProperty("--fill", ((s.value - s.min) / (s.max - s.min)) * 100 + "%"); };
+const paintSlider = () => { const s = $("p"); s.style.setProperty("--p", (s.value - s.min) / (s.max - s.min)); };
 $("p").addEventListener("input", paintSlider); paintSlider();
 
 // ── DEMO: fast-forward replay ──
@@ -269,7 +269,10 @@ function renderPosition() {
     const v = Number(a.long_value) / E6, c = Number(a.long_cost) / E6, m = live.state.market;
     showCurve(m.power); $("posFundRow").hidden = true; renderFunding();
     $("posP").textContent = pw(m.power); $("posValue").textContent = fmt(v); $("posPaid").textContent = fmt(c);
-    $("posEntry").textContent = "—"; $("posNow").textContent = fmtP(Number(m.price) / E6);
+    const known = Number(ls.get(`uprise.v1.entry.${live.accountId}`) || 0), pNow = Number(m.price) / E6;
+    // estimate if we didn't see the buy: value ≈ cost × (P/E)^p  →  E ≈ P × (cost/value)^(1/p) (melt makes it a little high)
+    const entry = known || (v > 0 ? pNow * Math.pow(c * 0.997 / v, 1 / m.power) : 0);
+    $("posEntry").textContent = entry ? (known ? "" : "≈ ") + fmtP(entry) : "—"; $("posNow").textContent = fmtP(pNow);
     $("posPnl").textContent = `${v >= c ? "+" : "−"}${fmt(Math.abs(v - c))} · ×${(v / c).toFixed(2)}`; $("posPnl").className = "num " + (v >= c ? "pos" : "neg");
     const f = m.funding_rate_annual_bps / 1e4; $("meltBar").style.width = Math.max(4, Math.min(100, (1 - f / 10) * 100)) + "%";
     $("meltNote").textContent = `Funding: ${fmt(v * f / 365)} per day (${Math.round(f * 100)}% a year), paid to the Crab vault.`;
@@ -347,7 +350,9 @@ $("bSave").onclick = () => withBusy($("bSave"), "Saving…", async () => { await
 $("buy").onclick = () => withBusy($("buy"), "Buying…", async () => {
   if (mode === "demo") return demoBuy();
   const a = amount();
-  await live.buy(BigInt(Math.floor(a * E6))); $("amt").value = ""; toast(`Bought ${fmt(a)} of Curve Long`); await liveRefresh();
+  const had = live.state.ledgerAcc && BigInt(live.state.ledgerAcc.long_units) > 0n, pBuy = Number(live.state.market.price) / E6, key = `uprise.v1.entry.${live.accountId}`;
+  await live.buy(BigInt(Math.floor(a * E6))); $("amt").value = "";
+  if (!had) ls.set(key, String(pBuy)); else localStorage.removeItem(key); // adding to a position: fall back to the estimate toast(`Bought ${fmt(a)} of Curve Long`); await liveRefresh();
 });
 $("close").onclick = () => {
   if (mode === "demo") return demoClose("manual");
