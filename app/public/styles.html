@@ -310,6 +310,14 @@ const PALETTES = [
       bar.onclick = (e) => { const b = e.target.closest("button"); if (!b) return; set(b.dataset.s); bar.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", x === b)); };
       el.append(bar);
     }
+    if (i === 14) { // Buy button color tryouts
+      const ph = el.querySelector(".ph"), C = [["Cobalt", "#3557ff", "#fff"], ["Tangerine", "#ff7a1a", "#1d1530"], ["Electric violet", "#7b4dff", "#fff"], ["Cyan", "#22d8e6", "#1d1530"], ["Sunflower", "#ffd23f", "#1d1530"], ["White", "#ffffff", "#1d1530"], ["Ink", "#1d1530", "#b6f36b"]];
+      const bar = document.createElement("div"); bar.className = "bgbar";
+      bar.innerHTML = C.map(([n, c], k) => `<button aria-pressed="${k === 0}" data-k="${k}"><i style="background:${c}"></i>${n}</button>`).join("");
+      const set = (k) => { ph.style.setProperty("--btn", C[k][1]); ph.style.setProperty("--btn-ink", C[k][2]); bar.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", +x.dataset.k === k)); };
+      bar.onclick = (e) => { const b = e.target.closest("button"); if (b) set(+b.dataset.k); };
+      el.append(bar); set(0);
+    }
     if (i === 14) { el.querySelectorAll(".chips span").forEach((c, n) => (c.textContent = ["25%", "50%", "75%", "Max"][n])); }
     if (i === 14) { const tabs = el.querySelectorAll(".tabs span i"); ["stats", "trade", "yield"].forEach((k, n) => (tabs[n].innerHTML = ICONS.duo[k])); }
     if (i >= 11 && i <= 13) {
