@@ -251,3 +251,14 @@ nav.tabs .ico svg, nav.tabs button.main .ico svg { width: 24px; height: 24px; }
 /* Live without a wallet: only the start card, with room around it */
 #tab-bull.start-only > :not(#liveStart) { display: none !important; }
 #tab-bull.start-only #liveStart { margin: 28px 0; padding: 24px 18px; }
+/* wallet sheet: dark tabs with a cobalt active tab */
+#wSeg { background: var(--ink); } #wSeg button { color: var(--panel); opacity: .75; } #wSeg button[aria-selected="true"] { background: var(--accent); color: #fff; opacity: 1; }
+.sheet { overflow: hidden; }
+.send-row { display: flex; gap: 8px; align-items: center; } .send-row .field { flex: 1; margin-top: 10px; } .chip.max { margin-top: 10px; padding: 12px 16px; font-size: 14px; }
+/* add-USDC window */
+.tok-list { display: grid; gap: 6px; text-align: left; } .tok-row { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; background: rgba(29,21,48,.07); border-radius: 14px; padding: 8px 10px; }
+.tok-row span { font-family: var(--mono); } .tok-row .chip:disabled { opacity: .4; cursor: default; }
+.powered { margin-top: 14px; font-size: 11.5px; color: var(--ink); opacity: .7; display: flex; align-items: center; justify-content: center; gap: 6px; }
+.pw-logo { display: inline-flex; align-items: center; gap: 4px; font-weight: 700; } .pw-logo svg { width: 13px; height: 13px; display: block; } .pw-logo b { letter-spacing: .02em; }
+.sheet .kv span:first-child { flex: none; } .sheet .kv span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: right; } .sheet .addr-inline { max-width: 62%; }
+.sheet .rows { grid-template-columns: minmax(0, 1fr); } .sheet .kv { min-width: 0; }

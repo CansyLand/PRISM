@@ -7,7 +7,7 @@
 //   POST /api/relay {signed_delegate}  gas sponsoring: we submit the user's signed meta-transaction (NEP-366)
 //   POST /api/onboard {account_id}   creates the device wallet on chain (tiny NEAR for the key's storage);
 //                                    on testnet also 1,000 test USDC
-//   POST /api/faucet {account_id}    testnet: 1,000 more test USDC (every 10 min)
+//   POST /api/faucet {account_id}    testnet: 1,000 test USDC (device wallets and existing .testnet accounts; every 10 min)
 //   POST /api/backup {account_id, email, secret}   store the device key encrypted, for email recovery
 //   POST /api/recover/start {email}  sends a 6-digit code (SMTP, or the server log until SMTP is set up)
 //   POST /api/recover/finish {email, code}   returns the stored key(s)
@@ -20,7 +20,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
-import { account, view, call, loadDeployment, usd, near, balanceNear, faucetAccount, sleep, RPCS, ASSETS, decodeSignedDelegate } from "../ops/lib.js";
+import { account, view, call, loadDeployment, usd, near, balanceNear, faucetAccount, sleep, RPCS, ASSETS, decodeSignedDelegate, provider } from "../ops/lib.js";
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 const PUB = path.join(DIR, "public");
@@ -160,7 +160,11 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === "/api/faucet" && req.method === "POST") {
       if (!TESTNET) return json(res, 400, { error: "test USDC exists on testnet only" });
       const { account_id } = await body(req);
-      if (!isImplicit(account_id) || !state.onboarded[account_id]) return json(res, 400, { error: "unknown wallet" });
+      // device wallets made here, or any existing testnet account (e.g. a Meteor wallet); limited per account and IP
+      const known = isImplicit(account_id) && state.onboarded[account_id];
+      const named = /^[a-z0-9_.-]{2,64}\.testnet$/.test(String(account_id || "")) && (await provider.viewAccount({ accountId: account_id }).then(() => true).catch(() => false));
+      if (!known && !named) return json(res, 400, { error: "unknown wallet" });
+      if (limited(req, "faucet", 6, 3_600_000)) return json(res, 429, { error: "too many requests, try later" });
       const wait = 600_000 - (Date.now() - (state.faucet[account_id] || 0));
       if (wait > 0) return json(res, 429, { error: `next test USDC in ${Math.ceil(wait / 60_000)} min` });
       await call(relayer, d.usdc, "mint", { account_id, amount: String(usd(1_000)) }, { tgas: 30 });

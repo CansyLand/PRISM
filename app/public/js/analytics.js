@@ -168,7 +168,7 @@ export class Arena {
     ctx.beginPath(); ctx.arc(yc.x, yc.y, yc.r, 0, 7); ctx.fillStyle = color(C("--up"), 0.14); ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = C("--up"); ctx.stroke();
     ctx.fillStyle = C("--muted"); ctx.font = F(8.5, 700); ctx.fillText("YIELD", yc.x, yc.y - yc.r * 0.38);
     ctx.fillStyle = C("--up"); ctx.font = F(Math.max(11, yc.r * 0.42), 700, true); ctx.fillText(`${(v.apy * 100).toFixed(1)}%`, yc.x, yc.y + yc.r * 0.12);
-    ctx.fillStyle = C("--muted"); ctx.font = F(9, 500); ctx.fillText(v.earned != null ? `+${big(v.earned)} paid` : `${big(v.perDay)}/day`, yc.x, yc.y + yc.r * 0.55);
+    ctx.fillStyle = C("--muted"); ctx.font = F(9, 500); ctx.fillText(v.earned != null ? `+${big(v.earned)} paid` : `${v.perDay < 1 ? "$" + v.perDay.toFixed(3) : big(v.perDay)}/day`, yc.x, yc.y + yc.r * 0.55);
     // exchange
     ctx.beginPath(); ctx.arc(this.exch.x, this.exch.y, this.exch.r, 0, 7); ctx.fillStyle = C("--panel"); ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = C("--ex"); ctx.stroke();
     ctx.fillStyle = C("--ex"); ctx.font = F(8.5, 700); ctx.fillText("FEES", this.exch.x, this.exch.y - 2); ctx.fillStyle = C("--ink"); ctx.font = F(10, 600, true); ctx.fillText(big(this.exch.total), this.exch.x, this.exch.y + 10);

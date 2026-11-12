@@ -290,6 +290,26 @@ async function loadLiveChart() {
   try { const rows = await fetch(`/api/history?range=${range}`).then((r) => r.json()); chart.set(rows.slice(-70)); lastCandleT = rows.length ? rows[rows.length - 1][0] : 0; chart.mark(null); } catch {}
   $("mkt").textContent = `${live.cfg.asset} / USD`; $("mktNote").textContent = live.cfg.testnet ? "Live · testnet" : "Live";
 }
+// ── "Add USDC to start": bridge, swap (scan the wallet's tokens), or testnet USDC ──
+let fundShown = false;
+function openFund() {
+  $("fTest").hidden = !live.cfg.testnet; $("fSwapPane").hidden = true; modal("fundModal");
+}
+$("fTest").onclick = () => withBusy($("fTest"), "Adding…", async () => { await live.faucet(); toast("1,000 test USDC added"); modal("fundModal", false); await liveRefresh(); });
+$("fBridge").onclick = () => { modal("fundModal", false); renderWallet(); modal("wallet"); document.querySelector('#wSeg [data-w="in"]').click(); };
+$("fSwap").onclick = async () => {
+  $("fSwapPane").hidden = false; $("fTokens").innerHTML = '<p class="hint">Looking at your wallet…</p>';
+  $("fSwapNote").textContent = live.cfg.testnet ? "Swaps run through NEAR Intents on mainnet. On testnet, use the testnet USDC button." : "Pick a token to swap into USDC. NEAR Intents finds the best price.";
+  try {
+    const api = live.cfg.testnet ? "https://test.api.fastnear.com" : "https://api.fastnear.com";
+    const r = await fetch(`${api}/v1/account/${live.accountId}/ft`).then((x) => x.json());
+    const toks = (r.tokens || []).filter((t) => BigInt(t.balance || 0) > 0n && t.contract_id !== live.cfg.usdc).slice(0, 8); // USDC is what we swap into
+    const rows = await Promise.all(toks.map(async (t) => { const m = await live.view(t.contract_id, "ft_metadata").catch(() => null); const d = m?.decimals ?? 0; return { sym: m?.symbol || t.contract_id, amt: Number(BigInt(t.balance)) / 10 ** d }; }));
+    const acct = await live.provider.viewAccount({ accountId: live.accountId }).catch(() => null), nearBal = acct ? Number(BigInt(acct.amount) / 10n ** 20n) / 1e4 : 0;
+    if (nearBal > 0) rows.unshift({ sym: "NEAR", amt: nearBal });
+    $("fTokens").innerHTML = rows.length ? rows.map((t) => `<div class="tok-row"><b>${t.sym}</b><span>${t.amt.toLocaleString("en-US", { maximumFractionDigits: 4 })}</span><button class="chip" ${live.cfg.testnet ? "disabled" : ""}>Swap</button></div>`).join("") : '<p class="hint">No tokens found in this wallet.</p>';
+  } catch { $("fTokens").innerHTML = '<p class="hint">Couldn\'t read your wallet right now.</p>'; }
+};
 async function liveRefresh() {
   if (mode !== "live" || !live) return;
   try {
@@ -299,6 +319,8 @@ async function liveRefresh() {
     $("px").textContent = fmtP(p);
     const has = live.state.ledgerAcc && BigInt(live.state.ledgerAcc.long_units) > 0n;
     flip(has);
+    // no USDC anywhere yet: offer the ways to get some (once per session)
+    if (live.connected && !fundShown && Number(live.state.usdc || 0n) === 0 && Number(live.cash()) === 0 && Number(live.state.ledgerAcc?.long_units || 0) === 0) { fundShown = true; openFund(); }
     if (live.kind === "device" && Number(live.cash()) > 0 && !ls.get("uprise.v1.backedUp") && !ls.get("uprise.v1.backupLater")) { modal("backup"); ls.set("uprise.v1.backupLater", "1"); }
     render();
   } catch (e) { console.warn(e); }
@@ -399,12 +421,21 @@ function renderWallet() {
   $("wAcct").textContent = live.accountId || "not connected"; $("addr").textContent = live.accountId || "—";
   $("wUsdc").textContent = fmt(Number(st.usdc || 0n) / E6); $("wFree").textContent = fmt(Number(st.ledgerAcc?.free || 0) / E6);
   $("wGas").textContent = live.kind === "device" ? "paid by Uprise" : "your wallet";
-  $("faucet").hidden = !live.cfg.testnet || !live.connected || live.kind !== "device";
-  $("xBtn").disabled = live.cfg.testnet; $("xHint").textContent = live.cfg.testnet ? "Cross-chain deposits through NEAR Intents run on mainnet. On testnet, use the test USDC button." : "Pay with USDC, ETH, SOL or BTC from another chain. NEAR Intents swaps it and delivers USDC here.";
+  $("faucet").hidden = !live.cfg.testnet || !live.connected;
+  document.querySelector('#wSeg [data-w="key"]').textContent = live.kind === "device" ? "Security" : "Sign out";
+  $("xBtn").disabled = live.cfg.testnet; $("xHint").textContent = live.cfg.testnet ? "Cross-chain deposits through NEAR Intents run on mainnet. On testnet, use the test USDC button." : "Send USDC from Ethereum, Solana, Base or Arbitrum. NEAR Intents delivers it here as USDC on NEAR.";
   $("secHint").textContent = live.kind === "device" ? "Your key lives on this device. Save a recovery email so you can't lose it." : "You're signed in with your NEAR wallet. Your keys stay in your wallet.";
   $("backupOpen").hidden = $("showKey").hidden = live.kind !== "device";
 }
-document.querySelectorAll("#wSeg button").forEach((b) => (b.onclick = () => { document.querySelectorAll("#wSeg button").forEach((x) => x.setAttribute("aria-selected", x === b)); document.querySelectorAll("[data-wpane]").forEach((p) => (p.hidden = p.dataset.wpane !== b.dataset.w)); }));
+// wallet tabs: switch the pane and animate the sheet's height so it doesn't jump
+document.querySelectorAll("#wSeg button").forEach((b) => (b.onclick = () => {
+  const sheet = $("wallet").querySelector(".sheet"), from = sheet.getBoundingClientRect().height;
+  document.querySelectorAll("#wSeg button").forEach((x) => x.setAttribute("aria-selected", x === b));
+  document.querySelectorAll("[data-wpane]").forEach((p) => (p.hidden = p.dataset.wpane !== b.dataset.w));
+  const to = sheet.getBoundingClientRect().height;
+  if (from !== to && !matchMedia("(prefers-reduced-motion: reduce)").matches) sheet.animate([{ height: from + "px" }, { height: to + "px" }], { duration: 260, easing: "cubic-bezier(.2,.8,.2,1)" });
+}));
+$("sMax").onclick = () => { $("sAmt").value = Math.floor(Number(live?.state?.usdc || 0n) / E6 * 100) / 100 || ""; };
 $("demoReset").onclick = () => { if (demo.position) demoClose("manual"); demo.reset(); loadDemoChart(); render(); modal("wallet", false); toast("Play money reset to $1,000"); };
 $("faucet").onclick = () => withBusy($("faucet"), "Minting…", async () => { await live.faucet(); toast("1,000 test USDC added"); await liveRefresh(); renderWallet(); });
 $("copy").onclick = async () => { try { await navigator.clipboard.writeText(live.accountId); toast("Address copied"); } catch { toast("Select the address and copy it", true); } };
@@ -412,7 +443,7 @@ $("sendBtn").onclick = () => withBusy($("sendBtn"), "Sending…", async () => { 
 $("backupOpen").onclick = () => { modal("wallet", false); modal("backup"); };
 $("showKey").onclick = () => { $("keyOut").hidden = false; $("keyOut").textContent = live.secret(); };
 $("disconnect").onclick = async () => { if (live.kind === "device" && !ls.get("uprise.v1.backedUp") && !confirm("Without a recovery email or a saved key, signing out loses this wallet. Sign out anyway?")) return; await live.disconnect(); modal("wallet", false); render(); };
-const ASSETS = [["USDC on Ethereum", "nep141:eth-0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48.omft.near", 6], ["USDC on Solana", "nep141:sol-5ce3bf3a31af18be40ba30f721101b4341690186.omft.near", 6], ["USDC on Base", "nep141:base-0x833589fcd6edb6e08f4c7c32d4f71b54bda02913.omft.near", 6], ["USDC on Arbitrum", "nep141:arb-0xaf88d065e77c8cc2239327c5edb3a432268e5831.omft.near", 6], ["ETH", "nep141:eth.omft.near", 18], ["SOL", "nep141:sol.omft.near", 9], ["BTC", "nep141:btc.omft.near", 8]];
+const ASSETS = [["USDC on Ethereum", "nep141:eth-0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48.omft.near", 6], ["USDC on Solana", "nep141:sol-5ce3bf3a31af18be40ba30f721101b4341690186.omft.near", 6], ["USDC on Base", "nep141:base-0x833589fcd6edb6e08f4c7c32d4f71b54bda02913.omft.near", 6], ["USDC on Arbitrum", "nep141:arb-0xaf88d065e77c8cc2239327c5edb3a432268e5831.omft.near", 6]];
 $("xAsset").innerHTML = ASSETS.map(([n], i) => `<option value="${i}">${n}</option>`).join("");
 $("xBtn").onclick = () => withBusy($("xBtn"), "Asking NEAR Intents…", async () => {
   const [name, asset, dec] = ASSETS[+$("xAsset").value], a = Number($("xAmt").value); if (!(a > 0)) throw new Error("Enter an amount");
