@@ -258,7 +258,7 @@ function renderPosition() {
     $("posFund").textContent = "−" + fmt(Math.max(0, curveV - v));
     const pnl = v - q.stake; $("posPnl").textContent = `${pnl >= 0 ? "+" : "−"}${fmt(Math.abs(pnl))} · ×${(v / q.stake).toFixed(2)}`; $("posPnl").className = "num " + (pnl >= 0 ? "pos" : "neg");
     $("meltBar").style.width = left * 100 + "%";
-    $("meltNote").textContent = `Time left in the window: ${Math.round(left * 100)}%. The longer you hold, the more it melts.`;
+    $("meltNote").textContent = "";
     $("chg").textContent = pct(px / q.entry - 1, 1) + " since you bought"; $("chg").className = "small num " + (px >= q.entry ? "pos" : "neg");
     $("balance").textContent = fmt(demo.balance + v);
   } else {

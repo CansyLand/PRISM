@@ -21,8 +21,8 @@ const SLIDES = [
   },
   {
     kicker: "Crosschain Liquidity",
-    title: "Demo USDC just landed on NEAR.",
-    text: "You moved it from Demo Ethereum. Pick a curve, buy and watch time fast-forward. When you're ready, switch to Live.",
+    title: "Demo USDC arrived.",
+    text: "You moved it from Demo Ethereum via NEAR Intents. Pick a curve, buy and watch time fast-forward. When you're ready, switch to Live.",
     draw: drawCoins,
   },
 ];
