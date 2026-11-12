@@ -109,24 +109,24 @@
   .iconbar { display: flex; gap: 6px; margin-top: 12px; }
   .iconbar button { border: 1px solid #c9c9d2; background: #fff; border-radius: 999px; padding: 6px 12px; font: 600 12px "Inter Tight", sans-serif; cursor: pointer; } .iconbar button[aria-pressed="true"] { border-color: #111; box-shadow: 0 0 0 1.5px #111; }
   /* ── 14 · flat screen print: lime, rose, ink. No borders, shadows, gradients or blur. ── */
-  .t14 { --bg:#f77fa6; --panel:#b6f36b; --panel2:#1d1530; --ink:#1d1530; --muted:#1d1530; --line:rgba(29,21,48,.22); --up:#1d1530; --down:#e8467c; --font:"Space Grotesk",sans-serif; --mono:"Space Grotesk",sans-serif; --r:22px; --rs:999px; --bw:0px; --sh:none; --sh-s:none; --btn:#ffffff; --btn-ink:#1d1530; --logo:#ffffff; }
+  .t14 { --lime:#b6f36b; --bg:#f77fa6; --panel:var(--lime); --panel2:#1d1530; --ink:#1d1530; --muted:#1d1530; --line:rgba(29,21,48,.22); --up:#1d1530; --down:#e8467c; --font:"Space Grotesk",sans-serif; --mono:"Space Grotesk",sans-serif; --r:22px; --rs:999px; --bw:0px; --sh:none; --sh-s:none; --btn:#ffffff; --btn-ink:#1d1530; --logo:#ffffff; }
   .t14 .scr { padding-top: 16px; }
   .t14 .top { display: grid; grid-template-columns: 1fr auto 1fr; } .t14 .top .bal { justify-self: end; margin-left: 0; }
-  .t14 .mode { background: #1d1530; padding: 4px; } .t14 .mode span { color: #b6f36b; } .t14 .mode span.on { background: #b6f36b; color: #1d1530; }
-  .t14 .bal { background: #b6f36b; } .t14 .bal small { color: #1d1530; opacity: .7; }
+  .t14 .mode { background: #1d1530; padding: 4px; } .t14 .mode span { color: var(--lime); } .t14 .mode span.on { background: var(--lime); color: #1d1530; }
+  .t14 .bal { background: var(--lime); } .t14 .bal small { color: #1d1530; opacity: .7; }
   .t14 .mk, .t14 .tk { opacity: .75; } .t14 .mk em { color: #1d1530; font-weight: 700; } .t14 .px b { font-size: 38px; font-weight: 700; letter-spacing: -.04em; } .t14 .px span { color: #1d1530; background: #f77fa6; padding: 2px 8px; border-radius: 999px; }
   .t14 .scr > .card:has(.ch) { flex: 1; display: flex; flex-direction: column; min-height: 0; } .t14 .ch { flex: 1; min-height: 0; } .t14 .ch svg { height: 100%; }
-  .t14 .cl { background: #b6f36b; color: #1d1530; } .t14 .cl .str, .t14 .cl .tk { color: #1d1530; opacity: .75; } .t14 .cl .str b { color: #e8467c; opacity: 1; }
+  .t14 .cl { background: var(--lime); color: #1d1530; } .t14 .cl .str, .t14 .cl .tk { color: #1d1530; opacity: .75; } .t14 .cl .str b { color: #e8467c; opacity: 1; }
   .t14 .sl { background: #f77fa6; height: 8px; border-radius: 4px; } .t14 .sl i { background: #1d1530; } .t14 .sl u { background: #1d1530; border: 0; width: 22px; height: 22px; margin: -11px; }
-  .t14 .amt { background: #f77fa6; color: #1d1530; border: 0; } .t14 .chips span { background: #1d1530; color: #b6f36b; border: 0; }
+  .t14 .amt { background: #f77fa6; color: #1d1530; border: 0; } .t14 .chips span { background: #1d1530; color: var(--lime); border: 0; }
   .t14 .pf small, .t14 .pf small b { color: #1d1530; }
   .t14 .buy { background: none; padding: 0; margin-bottom: 22px; } .t14 .buy div { font-size: 18px; padding: 16px; letter-spacing: .02em; }
   .t14 .tabs { background: #1d1530; border: 0; margin: 0 14px 14px; border-radius: 999px; padding: 6px; }
-  .t14 .tabs span { color: #b6f36b; opacity: .65; } .t14 .tabs span i { filter: none; opacity: 1; } .t14 .tabs svg { width: 22px; height: 22px; display: block; }
-  .t14 .tabs span.on { background: #b6f36b; color: #1d1530; opacity: 1; } .t14 .tabs span.on svg { width: 26px; height: 26px; }
+  .t14 .tabs span { color: var(--lime); opacity: .65; } .t14 .tabs span i { filter: none; opacity: 1; } .t14 .tabs svg { width: 22px; height: 22px; display: block; }
+  .t14 .tabs span.on { background: var(--lime); color: #1d1530; opacity: 1; } .t14 .tabs span.on svg { width: 26px; height: 26px; }
   /* ── 15 · screen print with cobalt: Buy and logo cobalt, white menu ── */
-  .t15 { --btn:#3557ff; --btn-ink:#fff; --logo:#3557ff; }
-  .t15 .tabs { background: #fff; } .t15 .tabs span { color: #1d1530; opacity: .55; } .t15 .tabs span.on { background: #3557ff; color: #fff; opacity: 1; }
+  .t15 { --lime:#e4f36b; --btn:#3557ff; --btn-ink:#fff; --logo:#ffffff; }
+  .t15 .tabs span.on { background: #3557ff; color: #fff; opacity: 1; }
   .pals { width: 100%; max-width: 1640px; margin: 34px auto 0; }
   .pals h2 { font-size: 20px; margin: 0 0 4px; } .pals > p { color: #555; margin: 0 0 14px; }
   .palgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
