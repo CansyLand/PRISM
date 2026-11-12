@@ -10,7 +10,7 @@ const SLIDES = [
   {
     kicker: "What's new",
     title: "No liquidation on wicks.",
-    text: "A sudden dip can't knock you out. Instead your position slowly melts over time, so you're betting on a rise within a time window.",
+    text: "A normal perpetual gets liquidated in a dip and it's over. Uprise rises faster, survives the dip and comes back. You pay by slowly melting over time, so you're betting on a rise within a time window.",
     draw: drawWick,
   },
   {
@@ -48,7 +48,29 @@ export function showOnboarding(root, onDone) {
     raf = requestAnimationFrame(loop);
   };
   const done = () => { cancelAnimationFrame(raf); root.hidden = true; root.innerHTML = ""; onDone(); };
-  root.querySelector("[data-next]").onclick = () => (i < SLIDES.length - 1 ? (i++, show()) : done());
+  // last slide: the background fades, the money flies into the balance at the top
+  const fly = () => {
+    cancelAnimationFrame(raf);
+    const r = cv.getBoundingClientRect(), t = (performance.now() - t0) / 1000, W = r.width, H = r.height, bal = document.getElementById("balance");
+    if (!bal || matchMedia("(prefers-reduced-motion: reduce)").matches) return done();
+    const b = bal.getBoundingClientRect(), tx = b.left + b.width / 2, ty = b.top + b.height / 2, finalText = bal.textContent;
+    const layer = document.createElement("div"); layer.className = "ob-fly"; document.body.append(layer);
+    const put = (cls, x, y, html) => { const e = document.createElement("div"); e.className = cls; e.style.left = x + "px"; e.style.top = y + "px"; if (html) e.textContent = html; layer.append(e); return e; };
+    const amt = put("ob-fly-amt", r.left + W / 2, r.top + H / 2 - 2, "$1,000"); amt.style.fontSize = Math.min(64, W / 6) + "px";
+    const coins = Array.from({ length: 14 }, (_, k) => { const a = k / 14 * Math.PI * 2 + t * 0.8, rr = Math.min(W, H) * 0.38 + Math.sin(t * 2 + k) * 6; return put("ob-fly-coin", r.left + W / 2 + Math.cos(a) * rr, r.top + H / 2 + Math.sin(a) * rr * 0.55); });
+    cv.style.visibility = "hidden";
+    root.style.transition = "opacity .45s ease"; root.style.opacity = "0"; root.style.pointerEvents = "none";
+    bal.textContent = "$0.00";
+    const go = (el, delay, dur, scale) => el.animate([{ transform: "translate(-50%,-50%)" }, { transform: `translate(calc(-50% + ${tx - parseFloat(el.style.left)}px), calc(-50% + ${ty - parseFloat(el.style.top)}px)) scale(${scale})`, opacity: 0.85 }],
+      { duration: dur, delay, easing: "cubic-bezier(.55,0,.25,1)", fill: "forwards" }).finished;
+    let got = 0; const tick = () => { got++; bal.textContent = "$" + (1000 * got / coins.length).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
+    Promise.all([go(amt, 200, 950, 0.22), ...coins.map((c, k) => go(c, 380 + k * 45, 700, 0.6).then(tick))]).then(() => {
+      layer.remove(); bal.textContent = finalText;
+      const btn = bal.closest("button"); btn?.classList.add("pop"); setTimeout(() => btn?.classList.remove("pop"), 700);
+      root.style.cssText = ""; cv.style.visibility = ""; done();
+    });
+  };
+  root.querySelector("[data-next]").onclick = () => (i < SLIDES.length - 1 ? (i++, show()) : fly());
   root.querySelector("[data-skip]").onclick = done;
   show(); raf = requestAnimationFrame(loop);
 }
@@ -65,23 +87,40 @@ function drawCurves(ctx, W, H, t) {
     ctx.strokeStyle = css(col); ctx.lineWidth = p === 1 ? 2 : 3; ctx.stroke();
     const v = Math.pow(pricePath(x), p);
     ctx.fillStyle = css(col); ctx.font = `700 13px ${css("--mono")}`; ctx.textAlign = "left";
-    ctx.fillText(`${label}  ×${v.toFixed(2)}`, X(x) + 8, Y(v) + 4);
+    ctx.fillText(`${label}  ${pnl(v)}`, X(x) + 8, Y(v) + 4);
   }
   ctx.fillStyle = css("--muted"); ctx.font = `600 12px ${css("--font")}`;
   ctx.fillText(`price ${(pricePath(x) - 1 >= 0 ? "+" : "")}${((pricePath(x) - 1) * 100).toFixed(1)}%`, pad, pad + 4);
 }
-// A wick: price drops 30% for a moment, then recovers above the start.
-function wickPath(x) { return x < 0.45 ? 1 + 0.05 * x : x < 0.5 ? 1.0225 - 6 * (x - 0.45) : x < 0.55 ? 0.7225 + 6 * (x - 0.5) : 1.0225 + 0.25 * (x - 0.55); }
-function drawWick(ctx, W, H, t) {
-  const T = 5, x = Math.min(1, (t % (T + 1.5)) / T), pad = 16, X = (u) => pad + u * (W - 2 * pad - 10), Y = (v) => H - pad - (v - 0.6) / 0.6 * (H - 2 * pad);
-  ctx.beginPath(); for (let k = 0; k <= 120; k++) { const u = (k / 120) * x; k ? ctx.lineTo(X(u), Y(wickPath(u))) : ctx.moveTo(X(u), Y(wickPath(u))); }
-  ctx.strokeStyle = css("--muted"); ctx.lineWidth = 2; ctx.stroke();
-  const liq = x >= 0.47, uv = Math.pow(wickPath(x), 3) * (1 - 0.06 * x);
-  ctx.font = `700 13px ${css("--font")}`; ctx.textAlign = "left";
-  ctx.fillStyle = css("--down"); ctx.fillText(liq ? "Regular leverage: liquidated 💥" : "Regular leverage: fine…", pad, pad + 4);
-  ctx.fillStyle = css("--up"); ctx.fillText(`Uprise: still in, ×${uv.toFixed(2)}`, pad, pad + 24);
-  if (x >= 0.47) { ctx.fillStyle = css("--down"); ctx.font = "22px sans-serif"; ctx.fillText("💥", X(0.48) - 10, Y(0.74) + 8); }
+// Two positions on the same price: a 5× perpetual (linear, liquidated at 25% left) and an 8× power
+// perpetual (price^8, slowly melting). Uprise rises faster, both fall to the same low, only Uprise recovers.
+const KEYS = [[0, 1], [0.3, 1.06], [0.5, 0.85], [1, 1.12]];
+function crashPath(x) {
+  let k = 0; while (k < KEYS.length - 2 && x > KEYS[k + 1][0]) k++;
+  const [x0, y0] = KEYS[k], [x1, y1] = KEYS[k + 1], u = Math.min(1, Math.max(0, (x - x0) / (x1 - x0))), e = (1 - Math.cos(Math.PI * u)) / 2;
+  return y0 + (y1 - y0) * e + 0.004 * Math.sin(x * 37) * Math.sin(Math.PI * u);
 }
+const LIQ_X = 0.5, perpV = (x) => 1 + 5 * (crashPath(x) - 1), powerV = (x) => Math.pow(crashPath(x), 8) * Math.exp(-0.173 * x);
+function drawWick(ctx, W, H, t) {
+  const T = 6, x = Math.min(1, (t % (T + 1.8)) / T), pad = 14, liq = x >= LIQ_X;
+  let hi = 1.25; for (let k = 0; k <= 40; k++) hi = Math.max(hi, powerV((k / 40) * x) * 1.12);
+  const Y = (v) => H - pad - (v - 0) / (hi - 0) * (H - 2 * pad - 20) , X = (u) => pad + u * (W - 165);
+  ctx.strokeStyle = css("--line"); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(pad, Y(1)); ctx.lineTo(W - 60, Y(1)); ctx.stroke();
+  const line = (fn, to, col, w) => { ctx.beginPath(); for (let k = 0; k <= 90; k++) { const u = (k / 90) * to, v = fn(u); k ? ctx.lineTo(X(u), Y(v)) : ctx.moveTo(X(u), Y(v)); } ctx.strokeStyle = css(col); ctx.lineWidth = w; ctx.lineCap = "round"; ctx.stroke(); };
+  line(perpV, Math.min(x, LIQ_X), "--down", 3);
+  line(powerV, x, "--up", 3);
+  ctx.font = `700 13px ${css("--mono")}`; ctx.textAlign = "left";
+  const ex = Math.min(x, LIQ_X), pv = perpV(ex), uv = powerV(x);
+  if (liq) {
+    ctx.font = "20px sans-serif"; ctx.fillText("💥", X(LIQ_X) - 10, Y(pv) + 22);
+    ctx.font = `700 12px ${css("--font")}`; ctx.fillStyle = css("--down"); ctx.fillText("Perp 5×: liquidated", X(LIQ_X) + 14, Y(pv) + 28);
+  } else { ctx.fillStyle = css("--down"); ctx.fillText(`Perp 5×  ${pnl(pv)}`, X(ex) + 8, Y(pv) + (pv > uv ? -6 : 14)); }
+  ctx.font = `700 13px ${css("--mono")}`; ctx.fillStyle = css("--up");
+  ctx.fillText(`Uprise 8×  ${pnl(uv)}`, X(x) + 8, Y(uv) + (liq || uv >= pv ? 4 : -8));
+  ctx.fillStyle = css("--muted"); ctx.font = `600 12px ${css("--font")}`;
+  ctx.fillText(`price ${(crashPath(x) - 1 >= 0 ? "+" : "")}${((crashPath(x) - 1) * 100).toFixed(1)}%`, pad, pad + 4);
+}
+function pnl(v) { return (v >= 1 ? "+" : "−") + Math.abs((v - 1) * 100).toFixed(0) + "%"; }
 function drawCoins(ctx, W, H, t) {
   ctx.textAlign = "center"; ctx.font = `800 ${Math.min(64, W / 6)}px ${css("--mono")}`; ctx.fillStyle = css("--gold");
   ctx.fillText("$1,000", W / 2, H / 2 + 18);

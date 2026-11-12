@@ -64,6 +64,20 @@ h2 { margin: 0; font-size: 18px; letter-spacing: -0.01em; } h3 { margin: 12px 0 
 .pwr b { font-size: 26px; color: var(--up); }
 input[type=range] { width: 100%; accent-color: var(--up); margin: 6px 0 0; }
 .ticks { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); font-family: var(--mono); }
+/* buy card + slim curve card side by side */
+.buyrow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(118px, 36%); gap: 10px; align-items: stretch; }
+.buyrow .flip { min-width: 0; grid-template-columns: minmax(0, 1fr); }
+.buyrow .flip .face { min-width: 0; }
+.buyrow .field input { min-width: 0; width: 100%; }
+.buyrow .chips { flex-wrap: wrap; }
+.curvecard { display: flex; flex-direction: column; gap: 6px; padding: 12px 10px; min-width: 0; }
+.cc-k { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 700; display: flex; justify-content: space-between; }
+.cc-k b { color: var(--ink); font-size: 13px; }
+.cc-plot { position: relative; flex: 1; min-height: 130px; }
+#curveCv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.cc-row { display: flex; justify-content: space-between; gap: 6px; font-size: 12px; color: var(--muted); }
+.cc-row b { font-size: 13px; }
+.cc-note { margin: 0; font-size: 11.5px; color: var(--muted); line-height: 1.35; }
 /* flip card */
 .flip { display: grid; perspective: 1400px; }
 .flip .face { grid-area: 1 / 1; backface-visibility: hidden; -webkit-backface-visibility: hidden; transition: transform .6s cubic-bezier(.2,.8,.2,1); }
@@ -123,3 +137,11 @@ nav.tabs button[aria-selected="true"] .ico { filter: none; }
 .toast.err { background: var(--down); color: #fff; }
 .spin { display: inline-block; width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: s .7s linear infinite; vertical-align: -2px; }
 @keyframes s { to { transform: rotate(360deg); } }
+
+/* onboarding: play money flies into the balance */
+.ob-fly { position: fixed; inset: 0; z-index: 60; pointer-events: none; }
+.ob-fly > div { position: absolute; transform: translate(-50%, -50%); will-change: transform; }
+.ob-fly-amt { font-family: var(--mono); font-weight: 800; color: var(--gold); white-space: nowrap; line-height: 1; }
+.ob-fly-coin { width: 12px; height: 12px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 10px color-mix(in srgb, var(--gold) 60%, transparent); }
+.wallet-btn.pop { animation: balpop .7s ease; }
+@keyframes balpop { 0% { transform: scale(1); } 35% { transform: scale(1.18); box-shadow: 0 0 0 6px color-mix(in srgb, var(--gold) 35%, transparent); } 100% { transform: scale(1); } }

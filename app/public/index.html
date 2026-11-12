@@ -46,6 +46,7 @@
       </div>
     </section>
 
+    <div class="buyrow">
     <section class="flip" id="flip">
       <div class="face front card">
         <div class="row-between"><h2>Curve Long</h2><span class="muted small" id="assetLabel">on NEAR</span></div>
@@ -73,6 +74,14 @@
         <button class="btn down" id="close">Close position</button>
       </div>
     </section>
+    <section class="card curvecard" aria-label="How your curve pays">
+      <div class="cc-k">Your curve <b class="num" id="ccP">5×</b></div>
+      <div class="cc-plot"><canvas id="curveCv" aria-hidden="true"></canvas></div>
+      <div class="cc-row"><span>Price +10%</span><b class="num pos" id="ccUp"></b></div>
+      <div class="cc-row"><span>Price −10%</span><b class="num neg" id="ccDn"></b></div>
+      <p class="cc-note" id="ccNote"></p>
+    </section>
+    </div>
   </main>
 
   <!-- 🦀 CRAB -->
@@ -109,7 +118,7 @@
   <main id="tab-stats" hidden>
     <section class="card">
       <div class="row-between"><h2>📊 The market, live</h2><span class="tag" id="arenaTag">demo</span></div>
-      <canvas id="arena" aria-label="Animation of money moving between traders, the vault and yield hunters"></canvas>
+      <canvas id="arena" aria-label="Animation of money moving between traders, the vault and liquidity providers"></canvas>
       <div class="legend"><span><em style="background:var(--gold)"></em>$10 traded</span><span><em style="background:var(--accent)"></em>premium (funding)</span><span><em style="background:var(--crab)"></em>$1,000 deposited</span><span><em style="background:var(--near)"></em>NEAR balancing</span></div>
       <p class="hint" id="arenaNote"></p>
     </section>
@@ -134,7 +143,7 @@
     <ol class="thoughts">
       <li><b>Provide liquidity, earn yield.</b> You become the other side of every Curve Long.</li>
       <li><b>Bulls pay a premium</b> every second they hold a position. That premium flows to you.</li>
-      <li><b>Your USDC is balanced with NEAR</b> in the background, so price moves mostly cancel out.</li>
+      <li><b>Your USDC is balanced with NEAR</b>, so price moves mostly cancel out.</li>
     </ol>
     <button class="btn crab" data-close>Got it</button>
   </div>

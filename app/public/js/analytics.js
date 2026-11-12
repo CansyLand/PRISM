@@ -1,4 +1,4 @@
-// Analytics arena: retail on the left, the vault in the middle, yield hunters on the right,
+// Analytics arena: traders on the left, the vault in the middle, liquidity providers on the right,
 // coins flying between them. Demo: a small simulated crowd. Live: real ledger accounts, with
 // coins animated from the changes between polls (an approximation of on-chain flows).
 const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
@@ -11,7 +11,7 @@ export class Arena {
     this.exch = { x: 0, y: 0, r: 22, total: 0 }; this.running = false; this.mode = "demo"; this.prev = new Map();
   }
   start(mode, live) {
-    this.mode = mode; this.live = live; this.coins = []; this.prev = new Map();
+    this.mode = mode; this.live = live; this.coins = []; this.prev = new Map(); this.W = 0; // force a fresh layout: new people have no positions yet
     if (mode === "demo") this.seedDemo();
     if (!this.running) { this.running = true; this.last = performance.now(); requestAnimationFrame((t) => this.frame(t)); }
     clearInterval(this.poll);
@@ -25,7 +25,7 @@ export class Arena {
     this.hunters = Array.from({ length: 5 }, (_, i) => ({ id: "h" + i, value: Math.round(rand(5, 40)) * 1000 }));
     const tvl = this.hunters.reduce((a, h) => a + h.value, 0);
     Object.assign(this.vault, { nav: tvl, usdc: tvl, asset: 0, owed: 0, label: "Crab vault" });
-    this.price = 1; this.exch.total = 0;
+    this.price = 1; this.exch.total = 0; Object.assign(this.vault, { apy: 0.18, earned: 0, perDay: 0 });
   }
   stepDemo(dt) {
     this.price *= Math.exp(0.9 * Math.sqrt(dt) * 0.1 * gauss());
@@ -50,7 +50,9 @@ export class Arena {
     const delta = owed * 3; // vault keeps p × claims in the asset; show it as the NEAR share
     this.vault.asset += (delta - this.vault.asset) * Math.min(1, dt);
     this.vault.nav = this.hunters.reduce((a, h) => a + h.value, 0);
-    for (const h of this.hunters) h.value *= Math.pow(1.18, dt / 365 * 30); // ~a month per second of demo yield
+    const grow = Math.pow(1.18, dt / 365 * 30); // ~a month per second of demo yield
+    for (const h of this.hunters) { this.vault.earned += h.value * (grow - 1); h.value *= grow; }
+    this.vault.perDay = this.vault.nav * 0.18 / 365;
     if (Math.random() < dt * 0.15) { const h = this.hunters[Math.floor(Math.random() * this.hunters.length)]; const x = Math.round(rand(2, 8)) * 1000; h.value += x; this.emit(h, this.vault, "bar", Math.min(12, x / 1000)); }
   }
 
@@ -64,6 +66,8 @@ export class Arena {
       this.retail = traders.slice(0, 40).map((a) => ({ id: a.account_id, bank: e6(a.free), value: e6(a.long_value), open: BigInt(a.long_units) > 0n, p: market.power, stake: e6(a.long_cost) }));
       Object.assign(this.vault, { nav: e6(s.nav), usdc: e6(s.usdc) + e6(s.short_value) + e6(s.ledger_free), asset: e6(vault.hedge_value), owed: e6(market.long_claims), label: "Crab vault" });
       this.hunters = [{ id: "depositors", value: e6(s.nav) }];
+      const share = Number(market.short_shares) > 0 ? Number(s.short_shares) / Number(market.short_shares) : 0, perYear = market.funding_rate_annual_bps / 1e4 * e6(market.long_claims) * share * 0.9;
+      Object.assign(this.vault, { apy: e6(s.nav) > 0 ? perYear / e6(s.nav) : 0, perDay: perYear / 365, earned: null });
       this.exch.total = e6(market.fees);
       this.layout();
       for (const r of this.retail) {
@@ -92,7 +96,8 @@ export class Arena {
       const cols = Math.max(1, Math.ceil(Math.sqrt(n * box.w / box.h))), rows = Math.ceil(n / cols), cw = box.w / cols, ch = box.h / rows, rr = Math.min(maxR, Math.min(cw, ch) * 0.36);
       list.forEach((o, k) => { o.x = box.x + cw * (k % cols + 0.5); o.y = box.y + ch * (Math.floor(k / cols) + 0.5); o.r = rr; });
     };
-    Object.assign(this.vault, { x: W / 2, y: H * 0.46, r: Math.min(W * 0.16, H * 0.2) });
+    Object.assign(this.vault, { x: W / 2, y: H * 0.52, r: Math.min(W * 0.15, H * 0.18) });
+    this.yieldC = { r: Math.min(34, this.vault.r * 0.55) }; Object.assign(this.yieldC, { x: W / 2, y: this.vault.y - this.vault.r - 16 - this.yieldC.r });
     Object.assign(this.exch, { x: W / 2, y: H - 30 });
     this.market = { x: W / 2, y: 18, r: 6 };
     place(this.retail, { x: 8, y: 34, w: W * 0.3, h: H - 50 }, 18);
@@ -112,7 +117,7 @@ export class Arena {
     const ctx = cv.getContext("2d"); ctx.scale(dpr, dpr);
     const C = (n) => css(n), F = (s, w = 600, mono) => `${w} ${s}px ${mono ? css("--mono") : css("--font")}`;
     ctx.font = F(10.5, 700); ctx.fillStyle = C("--up"); ctx.textAlign = "left"; ctx.fillText("🐂 TRADERS", 8, 20);
-    ctx.fillStyle = C("--crab"); ctx.textAlign = "right"; ctx.fillText("YIELD HUNTERS 🦀", this.W - 8, 20);
+    ctx.fillStyle = C("--crab"); ctx.textAlign = "right"; ctx.fillText("LIQUIDITY PROVIDERS 🦀", this.W - 8, 20);
     // vault: ring = USDC vs NEAR, inside = total
     const v = this.vault, tot = Math.max(1e-9, v.usdc + v.asset), a0 = -Math.PI / 2, aN = v.asset / tot * Math.PI * 2;
     ctx.lineWidth = 10;
@@ -123,6 +128,13 @@ export class Arena {
     ctx.fillStyle = C("--ink"); ctx.font = F(Math.max(13, v.r * 0.26), 700, true); ctx.fillText(big(v.nav), v.x, v.y + 4);
     ctx.fillStyle = C("--muted"); ctx.font = F(10, 500); ctx.fillText(`owed to traders ${big(v.owed)}`, v.x, v.y + v.r * 0.38);
     ctx.fillText(`NEAR ${Math.round(v.asset / tot * 100)}% · USDC ${Math.round(v.usdc / tot * 100)}%`, v.x, v.y + v.r + 26);
+    // yield: what the vault earns for liquidity providers
+    const yc = this.yieldC;
+    ctx.beginPath(); ctx.moveTo(yc.x, yc.y + yc.r); ctx.lineTo(v.x, v.y - v.r - 12); ctx.strokeStyle = C("--line"); ctx.lineWidth = 1.5; ctx.stroke();
+    ctx.beginPath(); ctx.arc(yc.x, yc.y, yc.r, 0, 7); ctx.fillStyle = color(C("--up"), 0.14); ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = C("--up"); ctx.stroke();
+    ctx.fillStyle = C("--muted"); ctx.font = F(8.5, 700); ctx.fillText("YIELD", yc.x, yc.y - yc.r * 0.38);
+    ctx.fillStyle = C("--up"); ctx.font = F(Math.max(11, yc.r * 0.42), 700, true); ctx.fillText(`${(v.apy * 100).toFixed(1)}%`, yc.x, yc.y + yc.r * 0.12);
+    ctx.fillStyle = C("--muted"); ctx.font = F(9, 500); ctx.fillText(v.earned != null ? `+${big(v.earned)} paid` : `${big(v.perDay)}/day`, yc.x, yc.y + yc.r * 0.55);
     // exchange
     ctx.beginPath(); ctx.arc(this.exch.x, this.exch.y, this.exch.r, 0, 7); ctx.fillStyle = C("--panel2"); ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = C("--ex"); ctx.stroke();
     ctx.fillStyle = C("--ex"); ctx.font = F(8.5, 700); ctx.fillText("FEES", this.exch.x, this.exch.y - 2); ctx.fillStyle = C("--ink"); ctx.font = F(10, 600, true); ctx.fillText(big(this.exch.total), this.exch.x, this.exch.y + 10);

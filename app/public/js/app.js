@@ -2,6 +2,7 @@ import { CandleChart, fmtP } from "./candles.js";
 import { Demo, CANDLE_MS, meltSeconds } from "./demo.js";
 import { showOnboarding } from "./onboarding.js";
 import { Arena } from "./analytics.js";
+import { CurveCard, pctTxt } from "./curvecard.js";
 
 const $ = (id) => document.getElementById(id);
 const E6 = 1e6;
@@ -13,6 +14,7 @@ const ls = { get: (k) => { try { return localStorage.getItem(k); } catch { retur
 let mode = ls.get("uprise.mode") || "demo", tab = "bull", live = null, demo = null, busy = false;
 const chart = new CandleChart($("candles"));
 const arena = new Arena($("arena"));
+const curve = new CurveCard($("curveCv"));
 
 // ── toast + busy buttons ──
 let tt;
@@ -30,10 +32,16 @@ const P = () => +$("p").value;
 function renderStrength() {
   const p = P(), name = mode === "live" ? (live?.cfg?.asset || "NEAR") : "the price";
   $("pLabel").textContent = p + "×";
-  const up = Math.pow(1.1, p) - 1, down = Math.pow(0.9, p) - 1;
-  $("pNote").textContent = mode === "demo"
-    ? `${name === "the price" ? "Price" : name} +10% → ${pct(up)} · −10% → ${pct(down)}. A flat market melts it in ${Math.round(meltSeconds(p))} s of fast-forward.`
-    : p !== live?.cfg?.power ? `The live market offers ${live?.cfg?.power}× right now. More strengths are coming.` : `${name} +10% → ${pct(up)} · −10% → ${pct(down)}. Pays funding every second you hold it.`;
+  const mismatch = mode === "live" && live?.cfg && p !== live.cfg.power;
+  $("pNote").textContent = mismatch ? `The live market offers ${live.cfg.power}× right now. More strengths are coming.` : "";
+  $("pNote").hidden = !mismatch;
+  showCurve(p);
+}
+// the slim card follows the slider, or the open position (with a dot at today's price move)
+function showCurve(p, at = null) {
+  curve.set(p, at);
+  $("ccP").textContent = p + "×"; $("ccUp").textContent = pctTxt(1.1 ** p - 1); $("ccDn").textContent = pctTxt(0.9 ** p - 1);
+  $("ccNote").textContent = at != null ? "The dot is your position now." : mode === "demo" ? `Flat price: melts away in ${Math.round(meltSeconds(p))} s of fast-forward.` : "Pays funding every second you hold it.";
 }
 $("p").addEventListener("input", () => { renderStrength(); renderPreview(); });
 
@@ -44,9 +52,7 @@ function renderPreview() {
   const a = amount(), p = P(), net = a * 0.997;
   let rows = [];
   if (a > 0) {
-    rows = [["If price +10%", `${fmt(net * 1.1 ** p)} (${pct(1.1 ** p * 0.997 - 1)})`], ["If price +25%", `${fmt(net * 1.25 ** p)} (${pct(1.25 ** p * 0.997 - 1)})`], ["If price −10%", `${fmt(net * 0.9 ** p)} (${pct(0.9 ** p * 0.997 - 1)})`]];
-    if (mode === "demo") rows.push(["Melts if flat", `${pct(-demo.meltPerMinute(p))} per minute`]);
-    else if (live?.state?.market) { const f = live.state.market.funding_rate_annual_bps / 1e4; rows.push(["Funding now", `${fmt(net * f / 365)}/day (${Math.round(f * 100)}%/yr)`]); }
+    if (mode === "live" && live?.state?.market) { const f = live.state.market.funding_rate_annual_bps / 1e4; rows.push(["Funding now", `${fmt(net * f / 365)}/day (${Math.round(f * 100)}%/yr)`]); }
   }
   $("preview").innerHTML = rows.map(([k, v]) => `<div class="kv"><span>${k}</span><span>${v}</span></div>`).join("");
   let err = "";
@@ -88,7 +94,7 @@ function demoClose(why) {
   if (!demo.position) return;
   playing?.stop(); playing = null;
   const r = demo.close();
-  flip(false); ff(false); chart.mark(null);
+  flip(false); ff(false); chart.mark(null); renderStrength();
   const m = r.out / r.stake;
   $("rIco").textContent = r.pnl > 0 ? (m >= 3 ? "🚀" : "🎉") : why === "melted" ? "🫠" : "📉";
   $("rTitle").textContent = r.pnl > 0 ? `+${fmt(r.pnl)}` : r.out > 0 ? `${fmt(r.pnl)}` : `Melted away`;
@@ -112,6 +118,7 @@ function flip(on) { $("flip").classList.toggle("flipped", on); }
 function renderPosition() {
   if (mode === "demo") {
     const q = demo.position; if (!q) return;
+    showCurve(q.p, chart.price() / q.entry - 1);
     const left = Math.max(0, Math.exp(-Math.log(100) / meltSeconds(q.p) * q.t));
     $("posP").textContent = q.p + "×"; $("posValue").textContent = fmt(q.value); $("posPaid").textContent = fmt(q.stake);
     $("posEntry").textContent = fmtP(q.entry); $("posNow").textContent = fmtP(chart.price()); $("px").textContent = fmtP(chart.price());
@@ -123,6 +130,7 @@ function renderPosition() {
   } else {
     const a = live?.state?.ledgerAcc; if (!a || BigInt(a.long_units) === 0n) return;
     const v = Number(a.long_value) / E6, c = Number(a.long_cost) / E6, m = live.state.market;
+    showCurve(m.power);
     $("posP").textContent = m.power + "×"; $("posValue").textContent = fmt(v); $("posPaid").textContent = fmt(c);
     $("posEntry").textContent = "—"; $("posNow").textContent = fmtP(Number(m.price) / E6);
     $("posPnl").textContent = `${v >= c ? "+" : "−"}${fmt(Math.abs(v - c))} · ×${(v / c).toFixed(2)}`; $("posPnl").className = "num " + (v >= c ? "pos" : "neg");
@@ -274,7 +282,7 @@ function setTab(t) {
   document.querySelectorAll("nav.tabs button").forEach((x) => x.setAttribute("aria-selected", x.dataset.tab === t));
   for (const k of ["bull", "crab", "stats"]) $("tab-" + k).hidden = k !== t;
   if (t === "crab" && !ls.get("uprise.v1.crabSeen")) { modal("crabIntro"); ls.set("uprise.v1.crabSeen", "1"); }
-  if (t === "stats") { arena.start(mode, live); $("arenaTag").textContent = mode; $("arenaNote").textContent = mode === "demo" ? "A simulated crowd: bulls buy curves (gold), pay premium (purple) into the vault, and hunters deposit (orange bars)." : "Real accounts from the ledger. Coins show the changes between updates every 8 seconds, so they're an approximation of the on-chain flows."; }
+  if (t === "stats") { arena.start(mode, live); $("arenaTag").textContent = mode; $("arenaNote").textContent = mode === "demo" ? "A simulated crowd: bulls buy curves (gold), pay premium (purple) into the vault, and liquidity providers deposit (orange bars). The green circle is the yield they earn." : "Real accounts from the ledger. Coins show the changes between updates every 8 seconds, so they're an approximation of the on-chain flows."; }
   else arena.stop();
   if (t !== "crab" && !demo.position) ff(false);
   render(); chart.draw();
