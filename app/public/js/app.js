@@ -109,8 +109,6 @@ async function demoBuy() {
     if (!wickShown && i === wick && px < future[i][0] * 0.88) { wickShown = true; wickHint(); }
     renderPosition();
     if (q?.melted) return demoClose("melted");
-    // the very first trade always ends as a win: if it's in profit and starts giving back, close it for the player
-    if (demo.trades === 0 && q.value > q.stake * 1.1 && ((q.peak > q.stake * 1.5 && q.value < q.peak * 0.75) || timeLeft(q.p, q.t) < 0.15)) return demoClose("auto");
     requestAnimationFrame(frame);
   };
   requestAnimationFrame(frame);
@@ -138,7 +136,6 @@ function demoClose(why) {
   modal("result"); drawResult($("rChart"), trail, r.p, melted);
   $("rText").textContent = r.out > 0 ? (r.pnl <= 0 && why === "ended" ? "The replay ended, so the position was closed." : "")
     : `The price didn't rise fast enough before the ${pw(r.p)} timer ran out.`;
-  if (why === "auto") $("rText").textContent = "We closed your first trade at a good moment. From now on, you decide when to close.";
   $("result").querySelector("[data-close]").onclick = () => {
     modal("result", false); $("px").textContent = fmtP(chart.price()); $("chg").textContent = ""; render();
     if (demo.trades === 1 && mode === "demo") pointAtLive();

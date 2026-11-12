@@ -38,7 +38,7 @@ const snippets = [...wins.map((c) => ({ ...c, kind: "rally" })), ...losses.map((
   const out = { kind: c.kind, from: new Date(Date.parse(src.start) + (c.s - HISTORY + 1) * 864e5).toISOString().slice(0, 10), entry: HISTORY - 1, best: +c.up.toFixed(3), worst: +c.down.toFixed(3), candles: rows };
   return out;
 }).map((s, n) => {
-  if (n % 2) return s;
+  if (n % 2 === 0) return s; // odd ones: snippet 0 is the strongest rally, which the first trade plays
   const w = HISTORY + 12 + n * 2, [o, h, l, cl] = s.candles[w];
   s.candles[w] = [o, h, +(Math.min(o, cl) * 0.8).toFixed(4), cl];
   return { ...s, wick: w };
