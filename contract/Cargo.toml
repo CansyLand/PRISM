@@ -1,19 +1,11 @@
 [package]
-name = "curve-ledger"
+name = "uprise-ledger"
 version = "0.1.0"
 edition = "2021"
-description = "Continuous-expiry power-perpetual ledger + treasury (Curve / Flat sides), oracle-priced, fully collateralized"
+description = "Uprise ledger: continuous-expiry power perpetual (Curve Long / Curve Short), oracle-priced, fully collateralized"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
-
-[profile.release]
-codegen-units = 1
-opt-level = "z"
-lto = true
-debug = false
-panic = "abort"
-overflow-checks = true
 
 [dependencies]
 near-sdk = "5"

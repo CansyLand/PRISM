@@ -366,16 +366,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "curve-ledger"
-version = "0.1.0"
-dependencies = [
- "near-contract-standards",
- "near-sdk",
- "serde_json",
- "uint",
-]
-
-[[package]]
 name = "curve25519-dalek"
 version = "4.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2456,6 +2446,43 @@ name = "untrusted"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a156c684c91ea7d62626509bce3cb4e1d9ed5c4d978f7b4352658f96a4c26b4a"
+
+[[package]]
+name = "uprise-ledger"
+version = "0.1.0"
+dependencies = [
+ "near-contract-standards",
+ "near-sdk",
+ "serde_json",
+ "uint",
+]
+
+[[package]]
+name = "uprise-mock-ft"
+version = "0.1.0"
+dependencies = [
+ "near-contract-standards",
+ "near-sdk",
+ "serde_json",
+]
+
+[[package]]
+name = "uprise-mock-swap"
+version = "0.1.0"
+dependencies = [
+ "near-contract-standards",
+ "near-sdk",
+ "serde_json",
+]
+
+[[package]]
+name = "uprise-vault"
+version = "0.1.0"
+dependencies = [
+ "near-contract-standards",
+ "near-sdk",
+ "serde_json",
+]
 
 [[package]]
 name = "version_check"

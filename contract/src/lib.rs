@@ -1,4 +1,4 @@
-//! Curve Ledger: a continuous-expiry power perpetual on NEAR.
+//! Uprise ledger: a continuous-expiry power perpetual on NEAR (Curve Long / Curve Short).
 //!
 //! One USDC treasury, two sides, priced only by the oracle:
 //!
