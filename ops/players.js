@@ -52,6 +52,13 @@ async function run() {
   say("crowd running: retail trades every ~20s, hunters check yield every ~2 min");
   const opened = new Map();
   for (let tick = 0; ; tick++) {
+    try { await crowdTick(tick, opened); } catch (e) { say("tick failed:", String(e.message || e).slice(0, 160)); }
+    await sleep(30_000 + Math.random() * 20_000);
+  }
+}
+
+async function crowdTick(tick, opened) {
+  {
     const id = d.retail[Math.floor(Math.random() * d.retail.length)];
     try {
       const acc = await view(d.ledger, "get_account", { account_id: id });
@@ -81,7 +88,6 @@ async function run() {
         else if (BigInt(pos.shares) > 0n && Math.random() < 0.15) { await vaultWithdraw(h, BigInt(pos.shares) / 2n); say(`${h.split(".")[0]} asks to withdraw half`); }
       } catch (e) { say(h.split(".")[0], "vault action failed:", String(e.message || e).slice(0, 160)); }
     }
-    await sleep(15_000 + Math.random() * 10_000);
   }
 }
 

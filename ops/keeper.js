@@ -14,8 +14,8 @@ import { account, view, call, loadDeployment, sleep, ONE_YOCTO, fmtUsd } from ".
 const d = loadDeployment();
 if (!d) throw new Error("run setup.js first");
 const keeper = account(d.keeper);
-const PRICE_SECS = Number(process.env.PRICE_SECS || 10);
-const VAULT_SECS = Number(process.env.VAULT_SECS || 30);
+const PRICE_SECS = Number(process.env.PRICE_SECS || 15);
+const VAULT_SECS = Number(process.env.VAULT_SECS || 45);
 const MODE = process.env.PRICE_MODE || "live";
 const VOL = Number(process.env.VOL || 3);
 const SHORT_SHARE = Number(process.env.SHORT_SHARE || 0.5);

@@ -36,8 +36,8 @@ node players.js run
 node players.js status
 ```
 
-- `keeper.js` pushes the live BTC price (Coinbase, Binance fallback) every 10 s and runs a vault
-  cycle every 30 s: sync → pay queued withdrawals → bring free ledger cash home → hedge to
+- `keeper.js` pushes the live BTC price (Coinbase, Binance fallback) every 15 s and runs a vault
+  cycle every 45 s: sync → pay queued withdrawals → bring free ledger cash home → hedge to
   `p × claims` → keep about 50% of the vault in Curve Short.
 - For stress tests, `PRICE_MODE=random VOL=1.5 PRICE_SECS=6 node keeper.js` drives a synthetic
   random walk where every push is one simulated hour. Switch back to live afterwards; the ledger's

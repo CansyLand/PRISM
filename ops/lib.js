@@ -6,8 +6,32 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const DIR = path.dirname(fileURLToPath(import.meta.url));
-export const RPC = process.env.NEAR_RPC || "https://test.rpc.fastnear.com";
-export const provider = new JsonRpcProvider({ url: RPC });
+// Free public testnet RPCs rate-limit per IP, so fail over between several.
+// NEAR_RPC (comma-separated, e.g. a FastNEAR URL with an API key) goes first.
+export const RPCS = [...(process.env.NEAR_RPC ? process.env.NEAR_RPC.split(",") : []),
+  "https://test.rpc.fastnear.com", "https://near-testnet.drpc.org", "https://rpc.testnet.near.org"];
+export const RPC = RPCS[0];
+/** Wrap several RPC providers: on a rate limit or network error, try the next one. */
+export function failover(providers) {
+  let cur = 0;
+  const retryable = (e) => /429|rate limit|fetch failed|ECONN|ETIMEDOUT|socket|50[234]|DEPRECATED|discontinued|internal server error|server error|timeout|timed out/i.test(String(e?.message || e) + String(e?.cause || ""));
+  return new Proxy(providers[0], {
+    get(_, prop) {
+      const v = providers[cur][prop];
+      if (typeof v !== "function") return v;
+      return async (...args) => {
+        let err;
+        for (let k = 0; k < providers.length * 2; k++) {
+          const i = (cur + k) % providers.length;
+          try { const r = await providers[i][prop](...args); cur = i; return r; }
+          catch (e) { err = e; if (!retryable(e)) throw e; if (k >= providers.length - 1) await new Promise((r) => setTimeout(r, 800)); }
+        }
+        throw err;
+      };
+    },
+  });
+}
+export const provider = failover(RPCS.map((url) => new JsonRpcProvider({ url }, { retries: 2, wait: 300 })));
 const KEYS = path.join(DIR, ".keys.json");
 const DEPLOY = path.join(DIR, "deployment.json");
 

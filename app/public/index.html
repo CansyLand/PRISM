@@ -509,7 +509,7 @@ document.querySelectorAll("nav.tabs button").forEach((b) => (b.onclick = () => {
 // ── start ──
 async function start() {
   cfg = await fetch("/api/config").then((r) => r.json());
-  provider = new JsonRpcProvider({ url: cfg.rpc });
+  provider = new JsonRpcProvider({ url: location.origin + "/api/rpc" }, { retries: 4, wait: 500 }); // server fails over between RPCs
   $("modePill").textContent = cfg.mode === "live" ? "live" : "testnet demo"; $("modePill").classList.toggle("live", cfg.mode === "live");
   $("demoDeposit").hidden = cfg.mode !== "demo";
   if (cfg.mode !== "live") { $("xchainHint").textContent = "Cross-chain deposits through NEAR Intents (1Click) run on mainnet, so they are available in live mode."; $("xBtn").disabled = true; }
@@ -519,7 +519,7 @@ async function start() {
     useKey(secret);
     if (!(await exists(me)) && cfg.mode === "demo") { $("welcome").hidden = false; $("bull").hidden = true; }
   } else { $("welcome").hidden = false; $("bull").hidden = true; }
-  loadHistory(); refresh(); setInterval(refresh, 5000); setInterval(loadHistory, 60_000); setInterval(loadVaultHistory, 60_000);
+  loadHistory(); refresh(); setInterval(() => { if (!document.hidden) refresh(); }, 8000); setInterval(loadHistory, 60_000); setInterval(loadVaultHistory, 60_000);
 }
 $("createBtn").onclick = () => withBusy($("createBtn"), "Creating your wallet…", async () => {
   let secret = loadKey();

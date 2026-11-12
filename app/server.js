@@ -14,7 +14,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
-import { account, view, call, loadDeployment, usd, near, balanceNear, faucetAccount, sleep } from "../ops/lib.js";
+import { account, view, call, loadDeployment, usd, near, balanceNear, faucetAccount, sleep, RPCS } from "../ops/lib.js";
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 const PUB = path.join(DIR, "public");
@@ -37,6 +37,24 @@ function limited(req, max, windowMs) {
   const now = Date.now(), hits = (ipHits.get(ip) || []).filter((t) => now - t < windowMs);
   if (hits.length >= max) return true;
   hits.push(now); ipHits.set(ip, hits); return false;
+}
+
+// ── JSON-RPC proxy: the browser talks to NEAR through us, we fail over between public RPCs ──
+let rpcCur = 0;
+async function rpcProxy(req, res) {
+  let raw = ""; for await (const c of req) { raw += c; if (raw.length > 200_000) { res.writeHead(413); return res.end(); } }
+  for (let k = 0; k < RPCS.length * 2; k++) {
+    const i = (rpcCur + k) % RPCS.length;
+    try {
+      const r = await fetch(RPCS[i], { method: "POST", headers: { "Content-Type": "application/json" }, body: raw, signal: AbortSignal.timeout(15_000) });
+      const text = await r.text();
+      if (r.status === 429 || r.status >= 500 || /"code":\s*-429|DEPRECATED|discontinued/.test(text)) continue;
+      rpcCur = i;
+      res.writeHead(r.status, { "Content-Type": "application/json", "Cache-Control": "no-store" });
+      return res.end(text);
+    } catch {}
+  }
+  json(res, 503, { jsonrpc: "2.0", id: null, error: { code: -32000, message: "all NEAR RPC endpoints are busy, try again" } });
 }
 
 // ── price history (Coinbase), cached ──
@@ -86,8 +104,9 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://x");
   try {
     if (url.pathname === "/api/config") {
-      return json(res, 200, { mode: MODE, network: d.network, rpc: d.rpc, power: d.power, usdc: d.usdc, btc: d.btc, ledger: d.ledger, vault: d.vault, swap: d.swap });
+      return json(res, 200, { mode: MODE, network: d.network, rpc: RPCS[0], rpcs: RPCS, power: d.power, usdc: d.usdc, btc: d.btc, ledger: d.ledger, vault: d.vault, swap: d.swap });
     }
+    if (url.pathname === "/api/rpc" && req.method === "POST") return rpcProxy(req, res);
     if (url.pathname === "/api/history") return json(res, 200, await history(url.searchParams.get("range") || "1d"));
     if (url.pathname === "/api/vault-history") return json(res, 200, state.vault.slice(-2_000));
     if (url.pathname === "/api/onboard" && req.method === "POST") {
