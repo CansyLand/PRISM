@@ -157,17 +157,17 @@ function drawMelt(ctx, W, H, t) {
     ctx.beginPath(); ctx.moveTo(cx, Y(h)); ctx.lineTo(cx, Y(l)); ctx.stroke();
     ctx.fillRect(cx - slot * 0.3, Y(Math.max(o, c)), slot * 0.6, Math.max(1, Y(Math.min(o, c)) - Y(Math.max(o, c))));
   }
-  const up = css("--up"), down = css("--down"), gray = css("--muted");
+  const up = css("--up"), down = css("--down"), gray = css("--muted"), bgc = css("--panel"); // the melting curve fades into the card color
   ctx.lineWidth = 3.2; ctx.lineCap = "round";
   for (let k = 1; k <= 120; k++) {
     const u0 = ((k - 1) / 120) * x, u1 = (k / 120) * x, base = val3(u1) >= 0 ? up : down;
-    ctx.strokeStyle = `color-mix(in srgb, ${base} ${Math.round(100 - 85 * u1)}%, ${gray})`;
+    ctx.strokeStyle = `color-mix(in srgb, ${base} ${Math.round(100 - 85 * u1)}%, ${bgc})`;
     ctx.beginPath(); ctx.moveTo(X(u0), Y(val3(u0))); ctx.lineTo(X(u1), Y(val3(u1))); ctx.stroke();
   }
   ctx.fillStyle = up; ctx.textAlign = "left"; ctx.font = `800 20px ${css("--font")}`; ctx.fillText(pw(P3), pad + 2, Y(0) - 26);
   ctx.font = `700 11px ${css("--font")}`; ctx.fillText("curve", pad + 3, Y(0) - 12);
   ctx.font = `700 12px ${css("--mono")}`; ctx.fillStyle = gray; ctx.fillText(`market ${pnl(1 + mkt3(x))}`, R + 6, Y(mkt3(x)) + 4);
-  if (x < 1) { ctx.fillStyle = `color-mix(in srgb, ${val3(x) >= 0 ? up : down} ${Math.round(100 - 85 * x)}%, ${gray})`; ctx.fillText(pnl(1 + val3(x)), R + 6, Y(val3(x)) + 4); }
+  if (x < 1) { ctx.fillStyle = `color-mix(in srgb, ${val3(x) >= 0 ? up : down} ${Math.round(100 - 85 * x)}%, ${bgc})`; ctx.fillText(pnl(1 + val3(x)), R + 6, Y(val3(x)) + 4); }
   // time left
   ctx.font = `800 22px ${css("--mono")}`; ctx.fillStyle = css("--ink"); ctx.fillText(`⏱ day ${Math.round(x * 90)}`, pad, pad + 12); ctx.font = `600 12px ${css("--font")}`; ctx.fillStyle = gray; ctx.fillText("of 90", pad + 128, pad + 12);
   if (x >= 1) {
@@ -184,7 +184,7 @@ function drawCoins(ctx, W, H, t) {
   ctx.strokeStyle = css("--line"); ctx.lineWidth = 2; ctx.setLineDash([4, 5]); ctx.beginPath(); ctx.moveTo(x0 + 40, y); ctx.lineTo(x1 - 30, y); ctx.stroke(); ctx.setLineDash([]);
   ctx.fillStyle = css("--usdc"); ctx.beginPath(); ctx.arc(x0 + 40 + (x1 - x0 - 70) * u, y, 4, 0, 7); ctx.fill();
   ctx.font = `600 11px ${css("--font")}`; ctx.fillStyle = css("--muted"); ctx.fillText("USDC via Intents", W / 2, y + 22);
-  ctx.textAlign = "center"; ctx.font = `800 ${Math.min(64, W / 6)}px ${css("--mono")}`; ctx.fillStyle = css("--gold");
+  ctx.textAlign = "center"; ctx.font = `800 ${Math.min(64, W / 6)}px ${css("--mono")}`; ctx.fillStyle = css("--accent");
   ctx.fillText("$1,000", W / 2, H / 2 + 18);
   for (let k = 0; k < 14; k++) {
     const a = k / 14 * Math.PI * 2 + t * 0.8, rr = Math.min(W, H) * 0.38 + Math.sin(t * 2 + k) * 6;

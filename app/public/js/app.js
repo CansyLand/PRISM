@@ -162,11 +162,11 @@ function paintResult(ctx, W, H, pts, p, melted, big = 1) {
     ctx.lineWidth = big; ctx.beginPath(); ctx.moveTo(cx, Y(h)); ctx.lineTo(cx, Y(l)); ctx.stroke();
     ctx.fillRect(cx - cw * 0.3, Y(Math.max(o, c)), cw * 0.6, Math.max(big, Y(Math.min(o, c)) - Y(Math.max(o, c))));
   }
-  const up = css("--up"), down = css("--down"), gray = css("--muted");
+  const up = css("--up"), down = css("--down"), gray = css("--muted"), bgc = css("--panel"); // a melt down fades into the card color
   ctx.lineWidth = 3.2 * big; ctx.lineCap = "round";
   for (let i = 1; i < n; i++) {
     const a = pts[i - 1], b = pts[i], base = (a.v + b.v) / 2 >= 0 ? up : down, fade = melted ? Math.round(100 - 85 * (i / (n - 1))) : 100;
-    ctx.strokeStyle = fade < 100 ? `color-mix(in srgb, ${base} ${fade}%, ${gray})` : base;
+    ctx.strokeStyle = fade < 100 ? `color-mix(in srgb, ${base} ${fade}%, ${bgc})` : base;
     ctx.beginPath(); ctx.moveTo(X(i - 1), Y(a.v)); ctx.lineTo(X(i), Y(b.v)); ctx.stroke();
   }
   // "x¹⁰ / curve" above the start
@@ -176,7 +176,7 @@ function paintResult(ctx, W, H, pts, p, melted, big = 1) {
     ctx.font = `800 ${20 * big}px ${css("--font")}`; ctx.fillText(pw(p), 8, sy - 14 * big);
     ctx.font = `700 ${11 * big}px ${css("--font")}`; ctx.fillText("curve", 9, sy);
   }
-  const end = pts.at(-1), endCol = melted ? gray : end.v >= 0 ? up : down, yv = Y(end.v), ym = Y(end.m), apart = Math.abs(ym - yv) < 14 * big ? (yv < ym ? -7 : 7) * big : 0;
+  const end = pts.at(-1), endCol = melted ? `color-mix(in srgb, ${down} 30%, ${bgc})` : end.v >= 0 ? up : down, yv = Y(end.v), ym = Y(end.m), apart = Math.abs(ym - yv) < 14 * big ? (yv < ym ? -7 : 7) * big : 0;
   ctx.font = `700 ${12 * big}px ${css("--mono")}`;
   ctx.fillStyle = endCol; ctx.beginPath(); ctx.arc(X(n - 1), yv, 4.5 * big, 0, 7); ctx.fill();
   ctx.fillText(pct(end.v, 0), R + 8 * big, yv + 4 * big + apart);
