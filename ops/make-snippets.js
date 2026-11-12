@@ -2,6 +2,8 @@
 //   node ops/make-snippets.js   →  app/public/demo-snippets.json
 // Each snippet: HISTORY candles shown before you buy, then FUTURE candles that play in fast-forward.
 // 7 rally right after entry (a bet that can pay), 3 dump (a bet that loses).
+// Every second snippet gets one deep wick early in the future part (a 20% spike down that closes back),
+// so the demo shows a Curve Long riding out a dip that would liquidate a leveraged perp.
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -32,7 +34,13 @@ const snippets = [...wins.map((c) => ({ ...c, kind: "rally" })), ...losses.map((
   const k = START / src.c[c.s];
   const rows = [];
   for (let i = c.s - HISTORY + 1; i <= c.s + FUTURE; i++) rows.push(candle(i).map((v) => +(v * k).toFixed(4)));
-  return { kind: c.kind, from: new Date(Date.parse(src.start) + (c.s - HISTORY + 1) * 864e5).toISOString().slice(0, 10), entry: HISTORY - 1, best: +c.up.toFixed(3), worst: +c.down.toFixed(3), candles: rows };
+  const out = { kind: c.kind, from: new Date(Date.parse(src.start) + (c.s - HISTORY + 1) * 864e5).toISOString().slice(0, 10), entry: HISTORY - 1, best: +c.up.toFixed(3), worst: +c.down.toFixed(3), candles: rows };
+  return out;
+}).map((s, n) => {
+  if (n % 2) return s;
+  const w = HISTORY + 12 + n * 2, [o, h, l, cl] = s.candles[w];
+  s.candles[w] = [o, h, +(Math.min(o, cl) * 0.8).toFixed(4), cl];
+  return { ...s, wick: w };
 });
 fs.writeFileSync(path.join(DIR, "..", "app", "public", "demo-snippets.json"), JSON.stringify(snippets));
 for (const s of snippets) console.log(s.kind.padEnd(5), s.from, `best ×${s.best} worst ×${s.worst} within ${LOOK} candles`);

@@ -78,15 +78,17 @@ input[type=range] { width: 100%; accent-color: var(--up); margin: 6px 0 0; }
 .cc-row { display: flex; justify-content: space-between; gap: 6px; font-size: 12px; color: var(--muted); }
 .cc-row b { font-size: 13px; }
 .cc-note { margin: 0; font-size: 11.5px; color: var(--muted); line-height: 1.35; }
-/* result card: price move → curve → payout */
-.r-viz { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 6px; margin: 10px 0 4px; }
-.r-viz figure { margin: 0; background: var(--panel2); border: 1px solid var(--line); border-radius: 12px; padding: 8px 8px 6px; }
-.r-viz canvas { width: 100%; height: 92px; display: block; }
-.r-viz figcaption { font-size: 12px; color: var(--muted); margin-top: 4px; }
-.r-viz figcaption b { color: var(--ink); font-size: 13.5px; }
-.r-op { font-size: 20px; color: var(--muted); }
+/* result card: market vs your curve on one chart */
+.r-chart { position: relative; height: 170px; margin: 12px 0 4px; }
+#rChart { position: absolute; inset: 0; width: 100%; height: 100%; }
+.r-legend { display: flex; justify-content: center; gap: 16px; font-size: 12.5px; color: var(--muted); }
+.r-legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: 3px; margin-right: 6px; }
+.r-legend b { color: var(--ink); font-weight: 600; }
 .stake-plot { position: relative; height: 130px; margin: 6px 0 4px; }
 #stakeCv { position: absolute; inset: 0; width: 100%; height: 100%; }
+/* crab: the deposit button stays on screen above the tab bar */
+#vBtn { position: sticky; bottom: calc(86px + env(safe-area-inset-bottom)); z-index: 4; box-shadow: 0 8px 24px rgba(0,0,0,.35); }
+#vBtn.soft { opacity: .7; }
 /* flip card */
 .flip { display: grid; perspective: 1400px; }
 .flip .face { grid-area: 1 / 1; backface-visibility: hidden; -webkit-backface-visibility: hidden; transition: transform .6s cubic-bezier(.2,.8,.2,1); }

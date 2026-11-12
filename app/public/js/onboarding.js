@@ -74,52 +74,62 @@ export function showOnboarding(root, onDone) {
   show(); raf = requestAnimationFrame(loop);
 }
 
-// Price climbs with small wiggles; 1×, 5×, 10× follow price^p.
-function pricePath(x) { return 1 + 0.16 * x + 0.012 * Math.sin(x * 19) + 0.008 * Math.sin(x * 47); }
+// Slide 1: the price as candles (1×, gray) and the Uprise curve (green): price^3, drawn smooth.
+const P1 = 3, N1 = 20, smooth1 = (u) => 1 + 0.3 * u, noisy1 = (u) => smooth1(u) + 0.03 * Math.sin(u * 23) + 0.015 * Math.sin(u * 61 + 1);
 function drawCurves(ctx, W, H, t) {
-  const T = 4.5, x = Math.min(1, (t % (T + 1.5)) / T), pad = 14, cols = [["1×", 1, "--muted"], ["5×", 5, "--accent"], ["10×", 10, "--up"]];
-  const yMax = Math.max(1.25, Math.pow(pricePath(x), 10) * 1.12), Y = (v) => H - pad - (v - 0.8) / (yMax - 0.8) * (H - 2 * pad), X = (u) => pad + u * (W - 90);
-  ctx.strokeStyle = css("--line"); ctx.beginPath(); ctx.moveTo(pad, Y(1)); ctx.lineTo(W - 60, Y(1)); ctx.stroke();
-  for (const [label, p, col] of cols) {
-    ctx.beginPath();
-    for (let k = 0; k <= 80; k++) { const u = (k / 80) * x, v = Math.pow(pricePath(u), p); k ? ctx.lineTo(X(u), Y(v)) : ctx.moveTo(X(u), Y(v)); }
-    ctx.strokeStyle = css(col); ctx.lineWidth = p === 1 ? 2 : 3; ctx.stroke();
-    const v = Math.pow(pricePath(x), p);
-    ctx.fillStyle = css(col); ctx.font = `700 13px ${css("--mono")}`; ctx.textAlign = "left";
-    ctx.fillText(`${label}  ${pnl(v)}`, X(x) + 8, Y(v) + 4);
+  const T = 5, x = Math.min(1, (t % (T + 1.5)) / T), pad = 14;
+  const hi = Math.max(1.4, Math.pow(smooth1(x), P1) * 1.08), lo = 0.95;
+  const Y = (v) => H - pad - (v - lo) / (hi - lo) * (H - 2 * pad), X = (u) => pad + u * (W - 165);
+  ctx.strokeStyle = css("--line"); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(pad, Y(1)); ctx.lineTo(W - 20, Y(1)); ctx.stroke();
+  // candles
+  const slot = (X(1) - X(0)) / N1;
+  for (let k = 0; k < N1; k++) {
+    const u0 = k / N1; if (u0 > x) break;
+    const u1 = Math.min(x, (k + 1) / N1), o = noisy1(u0), c = noisy1(u1), wig = 0.012 + 0.012 * Math.abs(Math.sin(k * 7.3));
+    const h = Math.max(o, c) + wig * (u1 - u0) * N1, l = Math.min(o, c) - wig * 0.8 * (u1 - u0) * N1, cx = X(u0) + slot / 2;
+    ctx.strokeStyle = ctx.fillStyle = css(c >= o ? "--muted" : "--line");
+    ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(cx, Y(h)); ctx.lineTo(cx, Y(l)); ctx.stroke();
+    ctx.fillRect(cx - slot * 0.3, Y(Math.max(o, c)), slot * 0.6, Math.max(1, Y(Math.min(o, c)) - Y(Math.max(o, c))));
   }
-  ctx.fillStyle = css("--muted"); ctx.font = `600 12px ${css("--font")}`;
-  ctx.fillText(`price ${(pricePath(x) - 1 >= 0 ? "+" : "")}${((pricePath(x) - 1) * 100).toFixed(1)}%`, pad, pad + 4);
+  // the curve
+  ctx.beginPath(); for (let k = 0; k <= 80; k++) { const u = (k / 80) * x, v = Math.pow(smooth1(u), P1); k ? ctx.lineTo(X(u), Y(v)) : ctx.moveTo(X(u), Y(v)); }
+  ctx.strokeStyle = css("--up"); ctx.lineWidth = 3.5; ctx.lineCap = "round"; ctx.stroke();
+  const pv = noisy1(x), uv = Math.pow(smooth1(x), P1);
+  ctx.font = `700 13px ${css("--mono")}`; ctx.textAlign = "left";
+  ctx.fillStyle = css("--muted"); ctx.fillText(`price ${pnl(pv)}`, X(x) + slot + 6, Y(pv) + 4);
+  ctx.fillStyle = css("--up"); ctx.fillText(`Uprise ${P1}× ${pnl(uv)}`, X(x) + 8, Y(uv) + 4);
 }
-// Two positions on the same price: an 8× perpetual (linear, liquidated at 10% left) and an 8× power
-// perpetual (price^8, slowly melting). Uprise rises faster; the perp is liquidated halfway down a deep
-// wick, while Uprise rides it out and recovers far above the start.
+// Slide 2: a leveraged perp (red) moves like Uprise (green) but is liquidated halfway down the drop;
+// Uprise dips all the way, survives and climbs back far above the start.
 const KEYS = [[0, 1], [0.25, 1.06], [0.5, 0.7], [1, 1.2]];
 function crashPath(x) {
   let k = 0; while (k < KEYS.length - 2 && x > KEYS[k + 1][0]) k++;
   const [x0, y0] = KEYS[k], [x1, y1] = KEYS[k + 1], u = Math.min(1, Math.max(0, (x - x0) / (x1 - x0))), e = (1 - Math.cos(Math.PI * u)) / 2;
   return y0 + (y1 - y0) * e + 0.004 * Math.sin(x * 37) * Math.sin(Math.PI * u);
 }
-let LIQ_X = 0.5; const perpV = (x) => 1 + 8 * (crashPath(x) - 1), powerV = (x) => Math.pow(crashPath(x), 8) * Math.exp(-0.173 * x);
-// the 8× perp is liquidated (10% of margin left) about halfway down the drop
-for (let x = 0.25; x < 0.5; x += 0.001) if (perpV(x) <= 0.1) { LIQ_X = x; break; }
+const powerV = (x) => Math.pow(crashPath(x), 8) * Math.exp(-0.173 * x), perpV = (x) => 1 + 0.8 * (powerV(x) - 1);
+let LIQ_X = 0.4;
+{ // liquidation: halfway (in height) between the perp's peak and Uprise's lowest point
+  let peak = 0, peakX = 0, bottom = Infinity;
+  for (let x = 0; x <= 1; x += 0.002) { if (perpV(x) > peak && x < 0.4) { peak = perpV(x); peakX = x; } bottom = Math.min(bottom, powerV(x)); }
+  const target = (peak + bottom) / 2;
+  for (let x = peakX; x < 1; x += 0.001) if (perpV(x) <= target) { LIQ_X = x; break; }
+}
 function drawWick(ctx, W, H, t) {
   const T = 6, x = Math.min(1, (t % (T + 1.8)) / T), pad = 14, liq = x >= LIQ_X;
   let hi = 1.25; for (let k = 0; k <= 40; k++) hi = Math.max(hi, powerV((k / 40) * x) * 1.12);
-  const Y = (v) => H - pad - (v - 0) / (hi - 0) * (H - 2 * pad - 20) , X = (u) => pad + u * (W - 165);
+  const Y = (v) => H - pad - 6 - v / hi * (H - 2 * pad - 20), X = (u) => pad + u * (W - 165);
   ctx.strokeStyle = css("--line"); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(pad, Y(1)); ctx.lineTo(W - 60, Y(1)); ctx.stroke();
   const line = (fn, to, col, w) => { ctx.beginPath(); for (let k = 0; k <= 90; k++) { const u = (k / 90) * to, v = fn(u); k ? ctx.lineTo(X(u), Y(v)) : ctx.moveTo(X(u), Y(v)); } ctx.strokeStyle = css(col); ctx.lineWidth = w; ctx.lineCap = "round"; ctx.stroke(); };
   line(perpV, Math.min(x, LIQ_X), "--down", 3);
   line(powerV, x, "--up", 3);
-  ctx.font = `700 13px ${css("--mono")}`; ctx.textAlign = "left";
   const ex = Math.min(x, LIQ_X), pv = perpV(ex), uv = powerV(x);
   if (liq) {
-    ctx.beginPath(); ctx.moveTo(X(LIQ_X), Y(pv)); ctx.lineTo(X(LIQ_X), Y(0)); ctx.strokeStyle = css("--down"); ctx.lineWidth = 3; ctx.stroke();
-    ctx.font = "20px sans-serif"; ctx.textAlign = "center"; ctx.fillText("💥", X(LIQ_X), Y(0) - 2); ctx.textAlign = "left";
-    ctx.font = `700 12px ${css("--font")}`; ctx.fillStyle = css("--down"); ctx.fillText("Perp 8×: liquidated", Math.max(pad, X(LIQ_X) - 60), Y(0) + 11);
-  } else { ctx.fillStyle = css("--down"); ctx.fillText(`Perp 8×  ${pnl(pv)}`, X(ex) + 8, Y(pv) + (pv > uv ? -6 : 14)); }
-  ctx.font = `700 13px ${css("--mono")}`; ctx.fillStyle = css("--up");
-  ctx.fillText(`Uprise 8×  ${pnl(uv)}`, X(x) + 8, Y(uv) + (liq || uv >= pv ? 4 : -8));
+    ctx.font = "22px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText("💥", X(LIQ_X), Y(pv)); ctx.textBaseline = "alphabetic";
+    ctx.font = `700 12px ${css("--font")}`; ctx.fillStyle = css("--down"); ctx.textAlign = "right"; ctx.fillText("Perp: liquidated", X(LIQ_X) - 14, Y(pv) + 4);
+  } else { ctx.font = `700 13px ${css("--mono")}`; ctx.textAlign = "left"; ctx.fillStyle = css("--down"); ctx.fillText(`Perp ${pnl(pv)}`, X(ex) + 8, Y(pv) + 16); }
+  ctx.font = `700 13px ${css("--mono")}`; ctx.textAlign = "left"; ctx.fillStyle = css("--up");
+  ctx.fillText(`Uprise ${pnl(uv)}`, X(x) + 8, Y(uv) + (liq ? 4 : -8));
   ctx.fillStyle = css("--muted"); ctx.font = `600 12px ${css("--font")}`;
   ctx.fillText(`price ${(crashPath(x) - 1 >= 0 ? "+" : "")}${((crashPath(x) - 1) * 100).toFixed(1)}%`, pad, pad + 4);
 }

@@ -17,7 +17,7 @@ let mode = ls.get("uprise.mode") || "demo", tab = "bull", live = null, demo = nu
 const chart = new CandleChart($("candles"));
 const arena = new Arena($("arena"));
 crabIntro($("crabIntro"));
-const curve = new CurveCard($("curveCv")), rCurve = new CurveCard($("rCurve"), { still: true });
+const curve = new CurveCard($("curveCv"));
 
 // ── toast + busy buttons ──
 let tt;
@@ -70,23 +70,26 @@ $("amt").addEventListener("input", renderPreview);
 document.querySelectorAll("[data-a]").forEach((b) => (b.onclick = () => { const v = b.dataset.a; $("amt").value = v === "max" ? Math.floor(cash() * 100) / 100 : v; renderPreview(); }));
 
 // ── DEMO: fast-forward replay ──
-let playing = null, trail = []; // { stop }, prices seen while the position was open
+// One continuous market: each trade plays the next history snippet scaled to start at the last price.
+let playing = null, trail = []; // { stop }, samples { m: market move, v: position move } while open
 function loadDemoChart() { chart.set(demo.history()); chart.mark(null); $("px").textContent = fmtP(chart.price()); $("chg").textContent = ""; }
 async function demoBuy() {
   const a = amount(), p = P();
   demo.open(a, p);
   $("amt").value = "";
-  chart.mark(demo.position.entry, `your entry ${fmtP(demo.position.entry)}`);
-  flip(true); ff(true, "1 day = ⅓ s");
-  const future = demo.future(); let i = 0, stopped = false, last = performance.now(), lastS = 0;
-  trail = [demo.position.entry];
+  const entry = demo.position.entry;
+  chart.mark(entry, `your entry ${fmtP(entry)}`);
+  flip(true); ff(true);
+  const future = demo.future(), wick = demo.wickAt(); let i = 0, stopped = false, last = performance.now(), lastS = 0, wickShown = false;
+  trail = [{ m: 0, v: demo.position.value / demo.position.stake - 1 }];
   playing = { stop: () => (stopped = true) };
   const frame = (now) => {
     if (stopped) return;
     chart.step(now); chart.draw();
     const dt = Math.max(0, (now - last) / 1000); last = now;
-    const q = demo.update(chart.price(), dt);
-    const px = chart.price(); if (now - lastS > 80 && Number.isFinite(px)) { trail.push(px); lastS = now; }
+    const px = chart.price(), q = demo.update(px, dt);
+    if (now - lastS > 80 && Number.isFinite(px)) { trail.push({ m: px / entry - 1, v: q.value / q.stake - 1 }); lastS = now; }
+    if (!wickShown && i === wick && px < future[i][0] * 0.88) { wickShown = true; wickHint(); }
     renderPosition();
     if (q?.melted) return demoClose("melted");
     requestAnimationFrame(frame);
@@ -94,26 +97,50 @@ async function demoBuy() {
   requestAnimationFrame(frame);
   (async () => { for (; i < future.length && !stopped; i++) await chart.play(future[i], CANDLE_MS); if (!stopped) demoClose("ended"); })();
 }
+// a deep wick (20% down inside one candle): leveraged perps get wiped out by these, a Curve Long stays open
+function wickHint() { toast("Wick −20%! Dips like this liquidate leveraged perps. Your Curve Long is still open."); }
 function demoClose(why) {
   if (!demo.position) return;
   playing?.stop(); playing = null;
-  const exitPx = chart.price(), r = demo.close();
-  trail.push(exitPx);
+  chart.freeze();
+  const exitPx = chart.price(), r = demo.close(exitPx);
+  const m = r.out / r.stake, melted = why === "melted";
+  trail.push({ m: exitPx / r.entry - 1, v: m - 1 });
   flip(false); ff(false); chart.mark(null); renderStrength();
-  const m = r.out / r.stake;
-  $("rIco").textContent = r.pnl > 0 ? (m >= 3 ? "🚀" : "🎉") : why === "melted" ? "🫠" : "📉";
+  $("rIco").textContent = r.pnl > 0 ? (m >= 3 ? "🚀" : "🎉") : melted ? "🫠" : "📉";
   $("rTitle").textContent = r.pnl > 0 ? `+${fmt(r.pnl)}` : r.out > 0 ? `${fmt(r.pnl)}` : `Melt Down`;
-  const move = exitPx / r.entry - 1, pure = (1 + move) ** r.p;
-  $("rPx").textContent = pct(move, 1); $("rPx").className = "num " + (move >= 0 ? "pos" : "neg");
-  $("rP").textContent = r.p + "×"; $("rMul").textContent = "×" + m.toFixed(2); $("rMul").className = "num " + (m >= 1 ? "pos" : "neg");
-  modal("result"); drawTrail($("rPrice"), trail); rCurve.set(r.p, move);
-  $("rText").textContent = (r.out > 0 ? `Price ${pct(move, 0)} on a ${r.p}× curve is ×${pure.toFixed(2)}; melting over time leaves ×${m.toFixed(2)}: ${fmt(r.stake)} became ${fmt(r.out)}. ` : `The price didn't rise fast enough, so the ${r.p}× position melted. That's the time window at work. `)
-    + (r.pnl > 0 ? "" : why === "ended" ? "The replay ended, so the position was closed." : "Try a lower strength or close sooner next time.");
+  $("rCurveLbl").textContent = `${r.p}× curve`;
+  modal("result"); drawResult($("rChart"), trail, r.p, melted);
+  $("rText").textContent = r.out > 0
+    ? `${fmt(r.stake)} became ${fmt(r.out)}.` + (r.pnl > 0 ? "" : why === "ended" ? " The replay ended, so the position was closed." : "")
+    : `The price didn't rise fast enough before the ${r.p}× timer ran out.`;
   $("result").querySelector("[data-close]").onclick = () => {
-    modal("result", false); loadDemoChart(); render();
+    modal("result", false); $("px").textContent = fmtP(chart.price()); $("chg").textContent = ""; render();
     if (demo.trades === 1 && mode === "demo") pointAtLive();
   };
   render();
+}
+// result chart: the market (gray) and your curve (green) on one axis, in % since you bought.
+// A melt down gets a red line where the timer ran out.
+function drawResult(cv, pts, p, melted) {
+  const f = fit(cv); if (!f || pts.length < 2) return; const { ctx, W, H } = f;
+  let lo = 0, hi = 0; for (const s of pts) { lo = Math.min(lo, s.m, s.v); hi = Math.max(hi, s.m, s.v); }
+  const pad = (hi - lo) * 0.1 || 0.1; lo -= pad; hi += pad;
+  const R = W - 64, X = (i) => 6 + i / (pts.length - 1) * (R - 6), Y = (v) => 8 + (hi - v) / (hi - lo) * (H - 26);
+  ctx.setLineDash([3, 3]); ctx.strokeStyle = css("--line"); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(6, Y(0)); ctx.lineTo(R, Y(0)); ctx.stroke(); ctx.setLineDash([]);
+  const line = (key, col, w) => { ctx.beginPath(); pts.forEach((s, i) => (i ? ctx.lineTo(X(i), Y(s[key])) : ctx.moveTo(X(i), Y(s[key])))); ctx.strokeStyle = col; ctx.lineWidth = w; ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.stroke(); };
+  const end = pts.at(-1), curveCol = css(end.v >= 0 ? "--up" : "--down");
+  line("m", css("--muted"), 2); line("v", curveCol, 3.2);
+  ctx.font = `700 12px ${css("--mono")}`; ctx.textAlign = "left";
+  const ym = Y(end.m), yv = Y(end.v), apart = Math.abs(ym - yv) < 14 ? (yv < ym ? -7 : 7) : 0;
+  ctx.fillStyle = css("--muted"); ctx.fillText(pct(end.m, 0), R + 8, ym + 4 - apart);
+  ctx.fillStyle = curveCol; ctx.fillText(pct(end.v, 0), R + 8, yv + 4 + apart);
+  ctx.beginPath(); ctx.arc(X(pts.length - 1), yv, 4.5, 0, 7); ctx.fill();
+  if (melted) {
+    const x = X(pts.length - 1); ctx.strokeStyle = css("--down"); ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(x, 6); ctx.lineTo(x, H - 18); ctx.stroke();
+    ctx.fillStyle = css("--down"); ctx.font = `800 11px ${css("--font")}`; ctx.textAlign = "right"; ctx.fillText("MELT DOWN", x - 6, 16);
+  }
+  ctx.font = `600 10px ${css("--font")}`; ctx.fillStyle = css("--muted"); ctx.textAlign = "left"; ctx.fillText("you bought", 6, H - 3); ctx.textAlign = "right"; ctx.fillText(melted ? "timer ran out" : "closed", R, H - 3);
 }
 function pointAtLive() {
   const b = document.querySelector('[data-mode="live"]').getBoundingClientRect(), h = $("hand");
@@ -136,15 +163,6 @@ function drawStake(cv, hist, cost) {
   ctx.font = "20px sans-serif"; ctx.textAlign = "center"; ctx.fillText("🦀", ex + 2, ey + 4);
   ctx.font = `600 10px ${css("--font")}`; ctx.fillStyle = css("--muted"); ctx.textAlign = "left";
   ctx.fillText("start", 2, H - 3); ctx.textAlign = "right"; ctx.fillText("today", W - 2, H - 3); ctx.fillText(`you put in ${fmt(cost, 0)}`, W - 30, Y(cost) + 13);
-}
-// small price line for the result card: entry dashed, end dot
-function drawTrail(cv, pts) {
-  const f = fit(cv); if (!f || pts.length < 2) return; const { ctx, W, H } = f;
-  let lo = Math.min(...pts), hi = Math.max(...pts); const pad = (hi - lo) * 0.12 || hi * 0.01; lo -= pad; hi += pad;
-  const X = (i) => 4 + i / (pts.length - 1) * (W - 12), Y = (v) => 4 + (hi - v) / (hi - lo) * (H - 8), up = pts.at(-1) >= pts[0];
-  ctx.setLineDash([3, 3]); ctx.strokeStyle = css("--muted"); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(0, Y(pts[0])); ctx.lineTo(W, Y(pts[0])); ctx.stroke(); ctx.setLineDash([]);
-  ctx.beginPath(); pts.forEach((v, i) => (i ? ctx.lineTo(X(i), Y(v)) : ctx.moveTo(X(i), Y(v)))); ctx.strokeStyle = css(up ? "--up" : "--down"); ctx.lineWidth = 2.2; ctx.lineJoin = "round"; ctx.stroke();
-  ctx.fillStyle = css("--ink"); ctx.beginPath(); ctx.arc(X(pts.length - 1), Y(pts.at(-1)), 4, 0, 7); ctx.fill();
 }
 function ff(on) { $("ff").hidden = !on; }
 function flip(on) { $("flip").classList.toggle("flipped", on); }
@@ -257,7 +275,7 @@ function renderCrab() {
   const a = vAmount(); let err = "";
   if (mode === "live" && !live?.connected) err = "Create or connect a wallet on the Bull tab first.";
   else if (vMode === "dep" && a > (mode === "demo" ? demo.balance : Number(live.state.usdc) / E6) + 1e-9) err = "More than you have.";
-  $("vErr").textContent = err; $("vBtn").disabled = !a || !!err || busy; $("vBtn").textContent = (vMode === "dep" ? "Deposit" : "Withdraw") + (a ? " " + fmt(a) : "");
+  $("vErr").textContent = err; $("vBtn").disabled = busy; $("vBtn").classList.toggle("soft", !a || !!err); $("vBtn").textContent = (vMode === "dep" ? "Deposit" : "Withdraw") + (a ? " " + fmt(a) : "");
 }
 const vAmount = () => { const v = Number(String($("vAmt").value).replace(",", ".")); return isFinite(v) && v > 0 ? v : 0; };
 $("vAmt").addEventListener("input", renderCrab);
@@ -267,7 +285,13 @@ document.querySelectorAll("[data-va]").forEach((b) => (b.onclick = () => {
   $("vAmt").value = x !== "max" ? x : Math.floor((mode === "demo" ? (vMode === "dep" ? demo.balance : demo.vault.stake) : vMode === "dep" ? Number(live.state.usdc) / E6 : Number(live.state.pos?.value || 0) / E6) * 100) / 100;
   renderCrab();
 }));
-$("vBtn").onclick = () => withBusy($("vBtn"), vMode === "dep" ? "Depositing…" : "Withdrawing…", async () => {
+// always clickable: with no amount it jumps to the input, with a problem it says so
+$("vBtn").onclick = () => {
+  if (!vAmount()) { $("vAmt").focus(); return; }
+  if ($("vErr").textContent) { toast($("vErr").textContent, true); return; }
+  vSubmit();
+};
+const vSubmit = () => withBusy($("vBtn"), vMode === "dep" ? "Depositing…" : "Withdrawing…", async () => {
   const a = vAmount();
   if (mode === "demo") { vMode === "dep" ? demo.vaultDeposit(a) : demo.vaultWithdraw(a); toast(vMode === "dep" ? `${fmt(a)} is now earning` : `${fmt(a)} back in your balance`); }
   else if (vMode === "dep") { await live.vaultDeposit(BigInt(Math.floor(a * E6))); ls.set("uprise.v1.vaultIn", String(Number(ls.get("uprise.v1.vaultIn") || 0) + a)); toast(`Deposit of ${fmt(a)} queued`); }

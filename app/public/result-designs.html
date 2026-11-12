@@ -41,11 +41,89 @@
   .flow .pill small { display: block; color: var(--muted); font-size: 11.5px; } .flow .pill b { font-family: var(--mono); font-size: 20px; }
   .arrow { color: var(--muted); font-size: 18px; }
   svg text { font-family: var(--mono); font-weight: 700; }
+  .opt.wide { grid-column: span 2; } @media (max-width: 700px) { .opt.wide { grid-column: auto; } }
+  .lg { margin: 4px 0 0; font-size: 12.5px; color: var(--muted); } .lg i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: 3px; margin: 0 5px 0 10px; } .lg i.m { background: var(--muted); } .lg i.c { background: var(--up); }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; } .two .btn { margin-top: 12px; }
+  .brand { font-weight: 800; color: var(--accent); font-size: 15px; letter-spacing: -.01em; }
+  .xfoot { color: var(--muted); font-size: 12px; margin-top: 10px; }
+  .xcard { aspect-ratio: 16 / 9; background: radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--up) 14%, var(--panel)), var(--panel) 60%); border: 1px solid var(--line); border-radius: 18px; padding: 18px; display: grid; grid-template-columns: 1fr 1.25fr; gap: 10px; align-items: center; }
+  .xl { display: flex; flex-direction: column; gap: 6px; text-align: left; height: 100%; justify-content: space-between; }
+  .xbig { font-family: var(--mono); font-weight: 800; font-size: clamp(34px, 6vw, 56px); letter-spacing: -.03em; line-height: 1; }
+  .xsub { color: var(--muted); font-family: var(--mono); font-size: 13px; }
+  .xvs { display: flex; gap: 8px; } .xvs span { background: var(--panel2); border-radius: 10px; padding: 6px 10px; } .xvs small { display: block; color: var(--muted); font-size: 11px; } .xvs b { font-family: var(--mono); font-size: 17px; }
+  .sq { aspect-ratio: 1; background: radial-gradient(120% 120% at 50% 0%, color-mix(in srgb, var(--up) 12%, var(--panel)), var(--panel) 65%); border: 1px solid var(--line); border-radius: 18px; padding: 18px; display: flex; flex-direction: column; justify-content: space-between; text-align: center; }
+  .sqhead { font-size: 26px; font-weight: 800; line-height: 1.2; } .sqhead b { font-family: var(--mono); }
+  .rc { text-align: left; } .rrow { display: flex; justify-content: space-between; font-size: 13.5px; padding: 5px 0; border-top: 1px dashed var(--line); } .rrow span { color: var(--muted); } .rrow b { font-family: var(--mono); }
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h1>Result card: pick a direction</h1>
+  <h1>Round 2 · C, made to share</h1>
+  <p class="sub">The two-lines chart, with "market" and "6× curve". Each card can be shared on X: the app draws it as an image, then opens the share sheet (phone) or downloads the image and opens a prepared post (desktop).</p>
+  <div class="grid r2">
+
+    <div class="opt">
+      <p class="label">C1 · IN THE APP, WITH SHARE</p>
+      <div class="card-r">
+        <div class="big-ico">🚀</div>
+        <div class="big pos">+$969</div>
+        <div class="chart" data-w="300" data-h="150"></div>
+        <p class="lg"><i class="m"></i>market <i class="c"></i>6× curve</p>
+        <p class="muted" style="margin:6px 0 0;font-size:14px">$250 became $1,219.</p>
+        <div class="two"><button class="btn ghost">Share on 𝕏</button><button class="btn">Next trade</button></div>
+      </div>
+      <p class="why">What you see after closing. "Share on 𝕏" makes one of the images below.</p>
+    </div>
+
+    <div class="opt wide">
+      <p class="label">C2 · X POST IMAGE (16:9)</p>
+      <div class="xcard">
+        <div class="xl">
+          <div class="brand">⇡ Uprise</div>
+          <div class="xbig pos">+388%</div>
+          <div class="xsub">$250 → $1,219 · 6× curve</div>
+          <div class="xvs"><span><small>market</small><b>+44%</b></span><span><small>me</small><b class="pos">+388%</b></span></div>
+          <div class="xfoot">No liquidation. Just a curve. · uprise.wtf</div>
+        </div>
+        <div class="chart xr" data-w="340" data-h="230" data-labels="1"></div>
+      </div>
+      <p class="why">The standard X image size (1200×675). Big number left, the chart right, brand and link in the corner.</p>
+    </div>
+
+    <div class="opt">
+      <p class="label">C3 · SQUARE POSTER (1:1)</p>
+      <div class="sq">
+        <div class="brand">⇡ Uprise</div>
+        <div class="sqhead">Market <b>+44%</b><br>Me <b class="pos">+388%</b></div>
+        <div class="chart" data-w="300" data-h="160"></div>
+        <div class="xfoot">6× curve · $250 → $1,219 · uprise.wtf</div>
+      </div>
+      <p class="why">Works for X, Telegram and Instagram. The headline is the comparison.</p>
+    </div>
+
+    <div class="opt">
+      <p class="label">C4 · BRAG RECEIPT</p>
+      <div class="sq rc">
+        <div class="brand">⇡ Uprise</div>
+        <div class="chart" data-w="300" data-h="130"></div>
+        <div class="rrow"><span>Bought</span><b>$250 · 6× curve</b></div>
+        <div class="rrow"><span>Market</span><b>+44%</b></div>
+        <div class="rrow"><span>Closed at</span><b class="pos">$1,219 (+388%)</b></div>
+        <div class="xfoot">Held 13 s of fast-forward · uprise.wtf</div>
+      </div>
+      <p class="why">Chart on top, a tiny receipt below. Feels like proof.</p>
+    </div>
+
+    <div class="opt">
+      <p class="label">PREPARED POST TEXT</p>
+      <div class="card-r" style="text-align:left;font-size:14.5px;line-height:1.5">
+        Market +44%.<br>My 6× curve: <b class="pos">+388%</b> 🚀<br><br>No liquidation, just a curve that grows faster the more the price rises.<br><br>Try it: uprise.wtf
+      </div>
+      <p class="why">Pre-filled in the X post window; the image is attached by the user (X doesn't allow attaching it automatically from the web).</p>
+    </div>
+  </div>
+
+  <h1 style="margin-top:36px">Round 1 · first directions</h1>
   <p class="sub">Same trade in every option: $250 at 6×, price +44.5%, the 6× curve makes ×9.10, melting leaves ×4.88, so $250 → $1,219.</p>
   <div class="grid">
 
@@ -158,5 +236,29 @@
 
   </div>
 </div>
+<script>
+  // one sample trade: market up 44.5%, a 6× curve with a linear melt timer (×4.88 at the close)
+  const N = 90, m = [], v = [];
+  for (let i = 0; i < N; i++) {
+    const u = i / (N - 1), mk = 0.445 * Math.pow(u, 1.35) + 0.03 * Math.sin(u * 17) * Math.sin(Math.PI * u) + 0.012 * Math.sin(u * 53);
+    m.push(mk); v.push(Math.pow(1 + mk, 6) * (1 - 0.464 * u) - 1);
+  }
+  m[N - 1] = 0.445; v[N - 1] = 3.88;
+  for (const el of document.querySelectorAll(".chart")) {
+    const W = +el.dataset.w, H = +el.dataset.h, R = W - 52, lo = Math.min(0, ...v, ...m) - 0.2, hi = Math.max(...v) + 0.3;
+    const X = (i) => 6 + (i / (N - 1)) * (R - 6), Y = (y) => 6 + ((hi - y) / (hi - lo)) * (H - 22);
+    const path = (a) => a.map((y, i) => (i ? "L" : "M") + X(i).toFixed(1) + " " + Y(y).toFixed(1)).join(" ");
+    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" aria-hidden="true">
+      <line x1="6" x2="${R}" y1="${Y(0)}" y2="${Y(0)}" stroke="var(--line)" stroke-dasharray="3 3"/>
+      <path d="${path(m)}" fill="none" stroke="var(--muted)" stroke-width="2"/>
+      <path d="${path(v)}" fill="none" stroke="var(--up)" stroke-width="3.2" stroke-linejoin="round" stroke-linecap="round"/>
+      <circle cx="${X(N - 1)}" cy="${Y(v[N - 1])}" r="4.5" fill="var(--up)"/>
+      <text x="${R + 7}" y="${Y(v[N - 1]) + 4}" font-size="12" fill="var(--up)">+388%</text>
+      <text x="${R + 7}" y="${Y(m[N - 1]) + 4}" font-size="11" fill="var(--muted)">+44%</text>
+      ${el.dataset.labels ? `<text x="${X(30)}" y="${Y(m[30]) + 14}" font-size="10" fill="var(--muted)">market</text><text x="${X(60)}" y="${Y(v[60]) - 8}" font-size="10" fill="var(--up)" text-anchor="end">6× curve</text>` : ""}
+      <text x="6" y="${H - 3}" font-size="9.5" fill="var(--muted)">bought</text><text x="${R}" y="${H - 3}" font-size="9.5" fill="var(--muted)" text-anchor="end">closed</text>
+    </svg>`;
+  }
+</script>
 </body>
 </html>

@@ -16,7 +16,10 @@ export class CandleChart {
     this.forming = { target: [o, h, l, c], path, t0: performance.now(), ms, live: [o, o, o, o] };
     return new Promise((done) => (this.forming.done = done));
   }
-  finish() { if (!this.forming) return; this.candles.push(this.forming.target); this.forming.done?.(); this.forming = null; }
+  finish() { if (!this.forming) return; this.push(this.forming.target); this.forming.done?.(); this.forming = null; }
+  /** Stop mid-candle: keep the candle as far as it got, so the next replay continues from this price. */
+  freeze() { if (!this.forming) return; const f = this.forming; this.forming = null; this.push(f.live.slice()); f.done?.(); this.draw(); }
+  push(c) { this.candles.push(c); if (this.candles.length > 400) this.candles.splice(0, this.candles.length - 300); }
   /** Live mode: update the forming candle with a fresh price tick. */
   tick(price) {
     const last = this.candles[this.candles.length - 1];

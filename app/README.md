@@ -11,6 +11,9 @@ flips between **Demo** and **Live**.
 - Buying flips the card to your position and starts fast-forward (badge top right): real price
   history plays at one day per ⅓ second as animated candles. 10 snippets, 7 rallies and 3 dumps,
   first trade always a rally. Melting is a straight timer: 1× melts to zero in 40 s, 10× in 20 s.
+- One continuous market: each trade continues from the last price (the next snippet is scaled to it).
+  Half the snippets have a deep wick early on, with a hint that it would liquidate a leveraged perp.
+- Result card: market vs your curve on one chart; design options in `public/result-designs.html`.
 - One position at a time. After the first trade a hand points at **Live**.
 - The **?** button (header, and next to Crab Vault) replays the intros. Open `/?fresh` to reset
   the demo and all first-visit screens (the live wallet key is kept).

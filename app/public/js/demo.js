@@ -16,18 +16,22 @@ export class Demo {
     this.trades = s.trades ?? 0;
     this.vault = s.vault?.hist ? s.vault : seedVault();
     this.cursor = s.cursor ?? 0;
+    this.last = s.last ?? null; // last price seen: the next snippet is scaled to start here, so the market never jumps
     this.order = s.order ?? this.shuffled();
     this.position = null;
   }
-  save() { try { localStorage.setItem(KEY, JSON.stringify({ balance: this.balance, trades: this.trades, vault: this.vault, cursor: this.cursor, order: this.order })); } catch {} }
-  reset() { this.balance = 1000; this.trades = 0; this.vault = seedVault(); this.cursor = 0; this.order = this.shuffled(); this.save(); }
+  save() { try { localStorage.setItem(KEY, JSON.stringify({ balance: this.balance, trades: this.trades, vault: this.vault, cursor: this.cursor, order: this.order, last: this.last })); } catch {} }
+  reset() { this.balance = 1000; this.trades = 0; this.vault = seedVault(); this.cursor = 0; this.last = null; this.order = this.shuffled(); this.save(); }
   /** 7 rallies + 3 dumps in random order, but the first trade is always a rally. */
   shuffled() { const a = shuffle(this.snippets.map((_, i) => i)); const r = a.findIndex((i) => this.snippets[i].kind === "rally"); if (r > 0) [a[0], a[r]] = [a[r], a[0]]; return a; }
   /** The snippet the next trade will play. */
   snippet() { return this.snippets[this.order[this.cursor % this.order.length]]; }
-  history() { const s = this.snippet(); return s.candles.slice(0, s.entry + 1); }
-  future() { const s = this.snippet(); return s.candles.slice(s.entry + 1); }
-  entryPrice() { const s = this.snippet(); return s.candles[s.entry][3]; }
+  scale() { const s = this.snippet(); return this.last ? this.last / s.candles[s.entry][3] : 1; }
+  history() { const s = this.snippet(), k = this.scale(); return s.candles.slice(0, s.entry + 1).map((c) => c.map((v) => v * k)); }
+  future() { const s = this.snippet(), k = this.scale(); return s.candles.slice(s.entry + 1).map((c) => c.map((v) => v * k)); }
+  /** Index into future() of the snippet's deep wick, or -1. */
+  wickAt() { const s = this.snippet(); return s.wick ? s.wick - s.entry - 1 : -1; }
+  entryPrice() { const s = this.snippet(); return s.candles[s.entry][3] * this.scale(); }
 
   open(stake, p) {
     if (this.position) throw new Error("You already have a position. Close it first.");
@@ -47,8 +51,9 @@ export class Demo {
     return q;
   }
   /** Per-minute melt rate shown in the UI. */
-  close() {
+  close(price) {
     const q = this.position; if (!q) return null;
+    if (price > 0) this.last = price;
     const out = q.melted ? 0 : q.value * (1 - FEE);
     this.balance += out; this.position = null; this.trades++; this.cursor++;
     this.save();
