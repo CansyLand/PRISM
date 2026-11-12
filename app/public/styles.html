@@ -119,6 +119,19 @@
   /* ── 11 · iOS glass, Lime & Rose, static glow ── */
   .t11 { --up:#b6f36b; --down:#f77fa6; --btn:#b6f36b; --btn-ink:#1f2b05; --logo:#b6f36b; background: radial-gradient(rgba(255,255,255,.16) 1.2px, transparent 1.4px) 0 0/16px 16px, radial-gradient(70% 55% at 0% 0%, hsla(280,85%,60%,.42), transparent 70%), radial-gradient(70% 55% at 100% 100%, hsla(140,85%,60%,.38), transparent 70%), #0c0b12 !important; }
   .t11 .sl i { background: var(--up); } .t11 .buy div { box-shadow: inset 0 1px 0 rgba(255,255,255,.6), 0 8px 24px rgba(182,243,107,.3); }
+  /* ── 12 · iOS glass, heavy rims (Lime & Rose + dots) ── */
+  .t12 { --rim: linear-gradient(150deg, rgba(255,255,255,.95) 0%, rgba(255,255,255,.18) 22%, rgba(255,255,255,.04) 50%, rgba(182,243,107,.55) 78%, rgba(255,255,255,.7) 100%); }
+  .t12 .card, .t12 .bal, .t12 .mode, .t12 .tabs { border: 2.5px solid transparent !important; background: linear-gradient(rgba(34,30,46,.55), rgba(20,18,28,.55)) padding-box, var(--rim) border-box !important;
+    box-shadow: inset 0 2px 0 rgba(255,255,255,.55), inset 0 -3px 8px rgba(0,0,0,.45), inset 0 0 24px rgba(255,255,255,.07), 0 22px 44px rgba(0,0,0,.55), 0 0 0 1px rgba(0,0,0,.5); }
+  .t12 .card::before { background: linear-gradient(170deg, rgba(255,255,255,.28) 0%, rgba(255,255,255,0) 28%) !important; }
+  .t12 .scr { gap: 12px; } .t12 .card { padding: 13px; }
+  .t12 .chips span, .t12 .amt { border: 1.5px solid rgba(255,255,255,.28) !important; background: rgba(255,255,255,.07) !important; box-shadow: inset 0 1.5px 0 rgba(255,255,255,.35), inset 0 -2px 4px rgba(0,0,0,.35) !important; }
+  .t12 .buy { background: none !important; border: 0 !important; box-shadow: none !important; padding: 0; }
+  .t12 .buy div { border: 2.5px solid rgba(255,255,255,.7); background: linear-gradient(180deg, #d4ff9a 0%, #b6f36b 45%, #8fd14a 100%); color: #1f2b05; font-size: 18px; padding: 15px;
+    box-shadow: inset 0 3px 0 rgba(255,255,255,.75), inset 0 -4px 8px rgba(40,70,0,.45), 0 12px 30px rgba(182,243,107,.45), 0 0 0 1px rgba(0,0,0,.4); text-shadow: 0 1px 0 rgba(255,255,255,.5); }
+  .t12 .sl { height: 8px; border-radius: 4px; box-shadow: inset 0 2px 3px rgba(0,0,0,.6); } .t12 .sl u { width: 30px; height: 30px; margin: -15px; border: 2px solid rgba(255,255,255,.9); box-shadow: 0 4px 12px rgba(0,0,0,.55), inset 0 -3px 5px rgba(0,0,0,.18); }
+  .t12 .tabs span.on { border: 1.5px solid rgba(255,255,255,.35); box-shadow: inset 0 1.5px 0 rgba(255,255,255,.4); }
+  .t12 .mode span.on { box-shadow: inset 0 -2px 3px rgba(0,0,0,.25), 0 2px 6px rgba(0,0,0,.4); }
   .bgbar { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; width: 360px; }
   .bgbar button { display: flex; align-items: center; gap: 6px; border: 1px solid #c9c9d2; background: #fff; border-radius: 999px; padding: 5px 10px 5px 5px; font: 600 12px "Inter Tight", sans-serif; cursor: pointer; }
   .bgbar button i { width: 18px; height: 18px; border-radius: 50%; display: block; border: 1px solid rgba(0,0,0,.15); }
@@ -150,6 +163,7 @@ const LANGS = [
   ["9 · CYBERPUNK", "Neon cyan and magenta glow, cut corners, wide techno type."],
   ["10 · iOS LIQUID GLASS", "The newest native iPhone look: translucent glass tiles that pick up the colors behind them, a light edge on top, SF type, pill controls and a floating glass tab bar."],
   ["11 · iOS GLASS · LIME & ROSE", "The Liquid Glass phone with the Lime & Rose palette on a calm, still glow (like the swatch card). Lime logo and Buy, rose for losses."],
+  ["12 · iOS GLASS · HEAVY RIMS", "Lime & Rose with dots, but every tile has a thick light-catching glass rim, a bright top highlight, a dark lower bevel and a deep drop shadow. Chunky and tactile."],
 ];
 const css = (el, n) => getComputedStyle(el).getPropertyValue(n).trim();
 const SUP = "⁰¹²³⁴⁵⁶⁷⁸⁹", pw = (p) => "x" + String(p).replace(/\d/g, (d) => SUP[d]);
@@ -190,7 +204,7 @@ const PALETTES = [
   const grid = document.getElementById("grid");
   LANGS.forEach(([name, why], i) => {
     const el = document.createElement("div"); el.className = "item";
-    el.innerHTML = `<h2>${name}</h2><p>${why}</p><div class="ph t${i}${i === 11 ? " t10" : ""}"><div class="scr">
+    el.innerHTML = `<h2>${name}</h2><p>${why}</p><div class="ph t${i}${i >= 11 ? " t10 t11" : ""}"><div class="scr">
       <div class="top"><span class="lg">${logo}</span><div class="mode"><span class="on">Demo</span><span>Live</span></div><div class="bal"><small>Play money</small><b>$1,000.00</b></div></div>
       <div class="card"><div class="mk"><span>Demo market <em>+5.7%</em></span><span>NEAR</span></div><div class="px"><b>$3.807</b><span>funding −1.1% day</span></div><div class="ch"></div></div>
       <div class="row"><div class="card cl"><h3>Curve Long</h3><div class="str"><span>Strength</span><b>${pw(5)}</b></div><div class="sl"><i></i><u></u></div><div class="tk"><span>${pw(1)}</span><span>${pw(5)}</span><span>${pw(10)}</span></div><div class="amt">$ 0</div><div class="chips"><span>$50</span><span>$100</span><span>$250</span><span>Max</span></div></div>
@@ -243,7 +257,7 @@ const PALETTES = [
       ph.insertAdjacentHTML("beforeend", `<div class="hb"></div>`);
     }
     drawCharts(el);
-    if (i === 11) {
+    if (i >= 11) {
       const ph = el.querySelector(".ph");
       ph.insertAdjacentHTML("afterbegin", `<div class="sb"><span>9:41</span><span class="di"></span><span class="ic">●●● ◖</span></div>`);
       ph.insertAdjacentHTML("beforeend", `<div class="hb"></div>`);
