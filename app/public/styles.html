@@ -124,6 +124,9 @@
   .t14 .tabs { background: #1d1530; border: 0; margin: 0 14px 14px; border-radius: 999px; padding: 6px; }
   .t14 .tabs span { color: #b6f36b; opacity: .65; } .t14 .tabs span i { filter: none; opacity: 1; } .t14 .tabs svg { width: 22px; height: 22px; display: block; }
   .t14 .tabs span.on { background: #b6f36b; color: #1d1530; opacity: 1; } .t14 .tabs span.on svg { width: 26px; height: 26px; }
+  /* ── 15 · screen print with cobalt: Buy and logo cobalt, white menu ── */
+  .t15 { --btn:#3557ff; --btn-ink:#fff; --logo:#3557ff; }
+  .t15 .tabs { background: #fff; } .t15 .tabs span { color: #1d1530; opacity: .55; } .t15 .tabs span.on { background: #3557ff; color: #fff; opacity: 1; }
   .pals { width: 100%; max-width: 1640px; margin: 34px auto 0; }
   .pals h2 { font-size: 20px; margin: 0 0 4px; } .pals > p { color: #555; margin: 0 0 14px; }
   .palgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
@@ -189,6 +192,7 @@ const LANGS = [
   ["12 · iOS GLASS · HEAVY RIMS", "Lime & Rose with dots, but every tile has a thick light-catching glass rim, a bright top highlight, a dark lower bevel and a deep drop shadow. Chunky and tactile."],
   ["13 · iOS GLASS · QUIET + ICONS", "Like 11 with softer lights (violet 20%, green 30%) and hand-drawn tab icons instead of emojis: the vault with its crowd, the rising curve, and a coin that sprouts. Two styles to switch."],
   ["14 · FLAT SCREEN PRINT", "Three solid inks only: lime, rose and a deep violet-black. No borders, shadows, gradients or glass. Bold blocks like a screen-printed poster."],
+  ["15 · SCREEN PRINT · COBALT", "Version 14 with a fourth ink: cobalt for the Buy button, the logo and the active tab, on a white menu bar."],
 ];
 const css = (el, n) => getComputedStyle(el).getPropertyValue(n).trim();
 const SUP = "⁰¹²³⁴⁵⁶⁷⁸⁹", pw = (p) => "x" + String(p).replace(/\d/g, (d) => SUP[d]);
@@ -242,7 +246,7 @@ const PALETTES = [
   const grid = document.getElementById("grid");
   LANGS.forEach(([name, why], i) => {
     const el = document.createElement("div"); el.className = "item";
-    el.innerHTML = `<h2>${name}</h2><p>${why}</p><div class="ph t${i}${i >= 11 && i <= 13 ? " t10 t11" : ""}"><div class="scr">
+    el.innerHTML = `<h2>${name}</h2><p>${why}</p><div class="ph t${i}${i >= 11 && i <= 13 ? " t10 t11" : ""}${i === 15 ? " t14" : ""}"><div class="scr">
       <div class="top"><span class="lg">${logo}</span><div class="mode"><span class="on">Demo</span><span>Live</span></div><div class="bal"><small>Play money</small><b>$1,000.00</b></div></div>
       <div class="card"><div class="mk"><span>Demo market <em>+5.7%</em></span><span>NEAR</span></div><div class="px"><b>$3.807</b><span>funding −1.1% day</span></div><div class="ch"></div></div>
       <div class="row"><div class="card cl"><h3>Curve Long</h3><div class="str"><span>Strength</span><b>${pw(5)}</b></div><div class="sl"><i></i><u></u></div><div class="tk"><span>${pw(1)}</span><span>${pw(5)}</span><span>${pw(10)}</span></div><div class="amt">$ 0</div><div class="chips"><span>$50</span><span>$100</span><span>$250</span><span>Max</span></div></div>
@@ -318,8 +322,8 @@ const PALETTES = [
       bar.onclick = (e) => { const b = e.target.closest("button"); if (b) set(+b.dataset.k); };
       el.append(bar); set(0);
     }
-    if (i === 14) { el.querySelectorAll(".chips span").forEach((c, n) => (c.textContent = ["25%", "50%", "75%", "Max"][n])); }
-    if (i === 14) { const tabs = el.querySelectorAll(".tabs span i"); ["stats", "trade", "yield"].forEach((k, n) => (tabs[n].innerHTML = ICONS.duo[k])); }
+    if (i === 14 || i === 15) { el.querySelectorAll(".chips span").forEach((c, n) => (c.textContent = ["25%", "50%", "75%", "Max"][n])); }
+    if (i === 14 || i === 15) { const tabs = el.querySelectorAll(".tabs span i"); ["stats", "trade", "yield"].forEach((k, n) => (tabs[n].innerHTML = ICONS.duo[k])); }
     if (i >= 11 && i <= 13) {
       const ph = el.querySelector(".ph");
       ph.insertAdjacentHTML("afterbegin", `<div class="sb"><span>9:41</span><span class="di"></span><span class="ic">●●● ◖</span></div>`);
