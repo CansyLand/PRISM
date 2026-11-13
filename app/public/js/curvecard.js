@@ -16,7 +16,7 @@ export class CurveCard {
     const d = this.p - this.shown; this.shown = Math.abs(d) < 0.005 ? this.p : this.shown + d * 0.18;
     const wantR = Math.min(0.6, Math.max(0.15, Math.abs(this.at ?? 0) * 1.2)); this.R += (wantR - this.R) * 0.1;
     this.draw();
-    if (this.shown !== this.p || Math.abs(wantR - this.R) > 0.002 || (this.at != null && !this.still)) this.kick();
+    if (this.shown !== this.p || Math.abs(wantR - this.R) > 0.002) this.kick(); // settles, then stops: the dot is redrawn on each update, not animated
   }
   draw() {
     const cv = this.cv, rect = cv.getBoundingClientRect(); if (!rect.width) return;
@@ -37,14 +37,14 @@ export class CurveCard {
     }
     // ±10% markers
     ctx.font = `700 10px ${css("--mono")}`;
-    for (const r of [0.1, -0.1]) {
+    for (const r of this.at == null ? [0.1, -0.1] : []) { // in a trade only your own dot is shown
       const v = f(r), up = r > 0; ctx.fillStyle = css(up ? "--up" : "--down");
       ctx.beginPath(); ctx.arc(X(r), Y(v), 3.5, 0, 7); ctx.fill();
       ctx.textAlign = up ? "right" : "left"; ctx.fillText(pctTxt(v), X(r) + (up ? -6 : 4), up ? Y(v) + 4 : Math.min(H - pb - 3, Y(v) + 15));
     }
     // where an open position is right now
     if (this.at != null) {
-      const r = this.at, v = f(r), pulse = 4 + 2 * Math.sin(performance.now() / 180);
+      const r = this.at, v = f(r), pulse = 5;
       ctx.fillStyle = css("--ink"); ctx.beginPath(); ctx.arc(X(r), Y(v), pulse, 0, 7); ctx.fill();
     }
     ctx.fillStyle = css("--muted"); ctx.font = `600 9.5px ${css("--font")}`;

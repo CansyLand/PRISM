@@ -9,7 +9,7 @@
 //   2. bring free ledger cash home
 //   3. hedge toward p × long claims (buy or sell the asset on the swap)
 //   4. keep about SHORT_SHARE of the vault in Curve Short (needed before anyone can open a long)
-import { account, view, call, loadDeployment, sleep, ONE_YOCTO, fmtUsd, ASSETS, spotPrice } from "./lib.js";
+import { account, view, call, loadDeployment, sleep, ONE_YOCTO, fmtUsd, ASSETS, spotPrice, balanceNear, faucetAccount, loadKeys, near } from "./lib.js";
 
 const d = loadDeployment();
 if (!d) throw new Error("run setup.js first");
@@ -127,9 +127,32 @@ async function vaultCycle() {
   return v;
 }
 
+// ── gas: keep the keeper, the contracts (storage) and the relayer topped up with testnet NEAR ──
+// Every 10 minutes: anything below its floor gets 10 NEAR from the public testnet faucet (it creates a throwaway
+// account funded with 10 NEAR, which we delete straight into the one that needs it). If the faucet refuses
+// (it's rate-limited per IP), the master account sends 5 NEAR instead, as long as it has some to spare.
+const FLOORS = [[d.keeper, 2], [d.ledger, 3], [d.vault, 1.5], [d.relayer || d.faucet, 2]];
+async function refuel() {
+  for (const [id, floor] of FLOORS) {
+    if (!id) continue;
+    const bal = await balanceNear(id).catch(() => floor);
+    if (bal >= floor) continue;
+    try {
+      const tmp = `uprise-tmp-${Math.random().toString(36).slice(2, 8)}.testnet`;
+      await faucetAccount(tmp); await sleep(3000);
+      await account(tmp).deleteAccount(id);
+      say(`gas: ${id} was ${bal} NEAR, +~10 NEAR from the testnet faucet`);
+    } catch (e) {
+      say(`gas: faucet refused for ${id} (${String(e.message || e).slice(0, 80)})`);
+      if (loadKeys()[d.master] && (await balanceNear(d.master)) > 8) { await account(d.master).transfer({ receiverId: id, amount: near(5) }); say(`gas: ${id} +5 NEAR from the master account`); }
+      else say(`gas: ${id} is low (${bal} NEAR) and nothing could top it up`);
+    }
+  }
+}
+
 async function main() {
   say(`keeper ${d.keeper} · price ${MODE}${MODE === "random" ? ` (vol ${VOL * 100}%/yr, 1 step = 1 sim hour)` : ""} · push every ${PRICE_SECS}s · vault every ${VAULT_SECS}s`);
-  let nextVault = 0;
+  let nextVault = 0, nextGas = 0;
   for (;;) {
     try {
       const p = await pushPrice();
@@ -140,6 +163,7 @@ async function main() {
       try { await vaultCycle(); } catch (e) { say("vault cycle failed:", String(e.message || e).slice(0, 200)); }
       nextVault = Date.now() + VAULT_SECS * 1000;
     }
+    if (Date.now() >= nextGas) { try { await refuel(); } catch (e) { say("gas check failed:", String(e.message || e).slice(0, 200)); } nextGas = Date.now() + 600_000; }
     if (once) break;
     await sleep(PRICE_SECS * 1000);
   }

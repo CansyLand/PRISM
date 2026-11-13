@@ -268,3 +268,4 @@ nav.tabs .ico svg, nav.tabs button.main .ico svg { width: 24px; height: 24px; }
 .dep-card h3 { margin: 0; } .dep-card .hint { margin: 0; font-size: 12px; } .dep-card .btn, .dep-card .field, .dep-card .select { margin-top: 4px; } .dep-card .addr { font-size: 11px; }
 @media (max-width: 460px) { .dep2 { grid-template-columns: 1fr; } }
 .dep-card { background: transparent; border: 1px solid var(--panel2); }
+.tags-r { display: flex; align-items: center; gap: 8px; } .net-tag { background: var(--ink); color: var(--panel); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; border-radius: 999px; padding: 3px 9px; }
