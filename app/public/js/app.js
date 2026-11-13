@@ -44,8 +44,8 @@ const showsPosition = (p) => !!heldLong(p) && !browseBuy;
 // position face: the other strengths you hold (tap to switch) and a way back to the slider
 function renderOthers(p) {
   const others = heldLongs().filter((l) => l.power !== p);
-  $("posOthers").hidden = mode !== "live";
-  setHTML($("posOthers"), (others.length ? "Also: " + others.map((l) => `<a href="#" data-pick="${l.power}">${pw(l.power)} ${fmt(Number(l.value) / E6)}</a>`).join(", ") + " · " : "") + `<a href="#" data-buy>+ buy another strength</a>`);
+  $("posOthers").hidden = mode !== "live" || !others.length; // only the other positions you hold, no "buy another" link
+  setHTML($("posOthers"), others.length ? "Also: " + others.map((l) => `<a href="#" data-pick="${l.power}">${pw(l.power)} ${fmt(Number(l.value) / E6)}</a>`).join(", ") : "");
 }
 function renderStrength() {
   const p = P();
@@ -341,7 +341,7 @@ function stopStream() { try { stream?.close(); } catch {} stream = null; }
 const GRAN = { "5m": 5, "1h": 60, "1d": 300, "1w": 3600 }; // seconds per candle
 async function loadLiveChart() {
   startStream();
-  try { const rows = await fetch(`/api/history?range=${range}`).then((r) => r.json()); chart.set(rows.slice(range === "5m" ? -6 : -70)); /* 5m: a few minute candles, then 5-second live ones */ lastCandleT = rows.length ? rows[rows.length - 1][0] : 0; chart.mark(null); } catch {}
+  try { const rows = await fetch(`/api/history?range=${range}`).then((r) => r.json()); chart.set(rows.slice(-70)); lastCandleT = rows.length ? rows[rows.length - 1][0] : 0; chart.mark(null); } catch {}
   $("mkt").textContent = `${live.cfg.asset} / USD`; $("mktNote").textContent = live.cfg.testnet ? "Live · testnet" : "Live";
 }
 // ── "Add USDC to start": bridge, swap (scan the wallet's tokens), or testnet USDC ──

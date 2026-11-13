@@ -94,8 +94,22 @@ async function relay(b64) {
 
 // ── price history ──
 const cache = new Map();
+// 5m view: 5-second candles built from Coinbase's most recent trades (the candles API stops at 1 minute)
+async function tradeCandles() {
+  const hit = cache.get("5s"); if (hit && Date.now() - hit.t < 5_000) return hit.v;
+  const r = await fetch(`https://api.exchange.coinbase.com/products/${ASSET.coinbase}/trades?limit=1000`, { headers: { "User-Agent": "uprise" } });
+  const trades = (await r.json()).map((x) => [Date.parse(x.time) / 1000, Number(x.price)]).sort((a, b) => a[0] - b[0]);
+  const out = [];
+  for (const [t, p] of trades) {
+    const b = Math.floor(t / 5) * 5, last = out[out.length - 1];
+    if (last && last[0] === b) { last[2] = Math.max(last[2], p); last[3] = Math.min(last[3], p); last[4] = p; }
+    else { if (last) for (let g = last[0] + 5; g < b; g += 5) out.push([g, last[4], last[4], last[4], last[4]]); out.push([b, p, p, p, p]); } // quiet seconds: flat candles
+  }
+  const v = out.slice(-70); cache.set("5s", { t: Date.now(), v }); return v;
+}
 async function history(range) {
-  const g = { "5m": 60, "1h": 60, "1d": 300, "1w": 3600 }[range] || 300; // 5m: seeded with 1-minute candles, then 5-second live candles in the app
+  if (range === "5m") return tradeCandles();
+  const g = { "1h": 60, "1d": 300, "1w": 3600 }[range] || 300;
   const hit = cache.get(g);
   if (hit && Date.now() - hit.t < 30_000) return hit.v;
   const r = await fetch(`https://api.exchange.coinbase.com/products/${ASSET.coinbase}/candles?granularity=${g}`, { headers: { "User-Agent": "uprise" } });

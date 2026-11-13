@@ -252,7 +252,7 @@ nav.tabs .ico svg, nav.tabs button.main .ico svg { width: 24px; height: 24px; }
 #tab-bull.start-only #liveStart { margin: 28px 0; padding: 24px 18px; }
 /* wallet sheet: dark tabs with a cobalt active tab */
 #wSeg { background: var(--ink); } #wSeg button { color: var(--panel); opacity: .75; } #wSeg button[aria-selected="true"] { background: var(--accent); color: #fff; opacity: 1; }
-.sheet { overflow: hidden; }
+.sheet { overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; } /* scrolls on short phones */
 .send-row { display: flex; gap: 8px; align-items: center; } .send-row .field { flex: 1; margin-top: 10px; } .chip.max { margin-top: 10px; padding: 12px 16px; font-size: 14px; }
 /* add-USDC window */
 .tok-list { display: grid; gap: 6px; text-align: left; } .tok-row { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; background: rgba(29,21,48,.07); border-radius: 14px; padding: 8px 10px; }
@@ -274,3 +274,5 @@ nav.tabs .ico svg, nav.tabs button.main .ico svg { width: 24px; height: 24px; }
 .sub-how { margin: 6px 0 0; font-size: 13px; color: var(--ink); opacity: .85; }
 /* header without the ? button: logo | Demo/Live | balance; the balance text is centered in its pill */
 header.top { grid-template-columns: auto 1fr auto; } .wallet-btn { align-items: center; padding: 5px 12px; }
+/* no zooming on phones: no double-tap zoom, and inputs at 16px+ so iOS doesn't zoom in on focus */
+html { touch-action: manipulation; -webkit-text-size-adjust: 100%; } input, select, textarea { font-size: max(16px, 1em); }
