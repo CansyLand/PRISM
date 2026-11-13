@@ -1,0 +1,38 @@
+Capital sweep, chosen setting, 6 scenarios × 8 one-year paths. Retail: N open positions on average, $400 median ticket.
+
+── 1. Fixed retail flow (200 open positions), vault size varies
+vault $50k                 vault med  +990.2% p5  +601.9% worst  +535.1% dd90  -29.3% | write-down years   8.3% | refused   1.0% | retail $1→$0.64
+vault $100k                vault med  +489.1% p5  +287.9% worst  +249.8% dd90  -29.0% | write-down years   8.3% | refused   0.7% | retail $1→$0.66
+vault $200k                vault med  +236.6% p5  +133.9% worst   +99.3% dd90  -27.0% | write-down years   8.3% | refused   0.6% | retail $1→$0.68
+vault $350k                vault med  +137.0% p5   +69.3% worst   +41.4% dd90  -24.6% | write-down years   6.3% | refused   0.5% | retail $1→$0.71
+vault $500k                vault med   +84.9% p5   +45.6% worst   +14.6% dd90  -19.5% | write-down years   8.3% | refused   0.4% | retail $1→$0.74
+vault $750k                vault med   +50.0% p5   +21.1% worst    -2.9% dd90  -18.9% | write-down years   4.2% | refused   0.3% | retail $1→$0.78
+vault $1000k               vault med   +31.1% p5   +14.8% worst   -15.0% dd90  -20.0% | write-down years   4.2% | refused   0.2% | retail $1→$0.82
+vault $2000k               vault med   +12.3% p5    -7.8% worst   -23.1% dd90   -8.3% | write-down years   6.3% | refused   0.1% | retail $1→$0.90
+vault $5000k               vault med    +4.1% p5    -8.1% worst   -13.9% dd90   -3.7% | write-down years   0.0% | refused   0.0% | retail $1→$0.95
+vault $10000k              vault med    +1.8% p5    -4.2% worst    -8.0% dd90   -1.9% | write-down years   0.0% | refused   0.0% | retail $1→$0.97
+
+── 2. Fixed vault ($1M), retail flow varies
+25 open                    vault med    +2.1% p5    -6.8% worst   -16.7% dd90   -4.0% | write-down years   0.0% | refused   0.0% | retail $1→$0.99
+50 open                    vault med    +5.4% p5    -5.6% worst   -35.4% dd90   -7.1% | write-down years   2.1% | refused   0.0% | retail $1→$0.95
+100 open                   vault med   +12.4% p5    -9.8% worst   -24.9% dd90  -10.6% | write-down years   4.2% | refused   0.2% | retail $1→$0.91
+200 open                   vault med   +31.1% p5   +14.8% worst   -15.0% dd90  -20.0% | write-down years   4.2% | refused   0.2% | retail $1→$0.82
+400 open                   vault med   +81.5% p5   +38.8% worst    +8.6% dd90  -16.0% | write-down years   8.3% | refused   0.3% | retail $1→$0.74
+800 open                   vault med  +192.2% p5   +97.1% worst   +64.5% dd90  -27.9% | write-down years  10.4% | refused   0.3% | retail $1→$0.69
+1600 open                  vault med  +404.9% p5  +215.0% worst  +189.9% dd90  -29.6% | write-down years  10.4% | refused   0.3% | retail $1→$0.66
+3200 open                  vault med  +795.5% p5  +425.8% worst  +381.1% dd90  -35.4% | write-down years  10.4% | refused   0.3% | retail $1→$0.65
+
+── 3. Same ratio at different scale (vault $1M : 200 open, scaled together)
+vault $100k, 20 open       vault med   +31.5% p5    -2.9% worst   -11.3% dd90  -10.5% | write-down years   4.2% | refused   1.3% | retail $1→$0.81
+vault $500k, 100 open      vault med   +30.5% p5    +8.0% worst   -17.2% dd90  -19.2% | write-down years   4.2% | refused   0.4% | retail $1→$0.82
+vault $1000k, 200 open     vault med   +31.1% p5   +14.8% worst   -15.0% dd90  -20.0% | write-down years   4.2% | refused   0.2% | retail $1→$0.82
+vault $5000k, 1000 open    vault med   +30.9% p5   +10.5% worst   -19.4% dd90  -15.4% | write-down years   8.3% | refused   0.1% | retail $1→$0.82
+vault $20000k, 4000 open   vault med   +30.2% p5   +11.1% worst   -17.9% dd90  -16.3% | write-down years   6.3% | refused   0.1% | retail $1→$0.83
+
+── 4. Steep mix (most retail in x8-x10), 200 open, vault size varies
+vault $100k                vault med  +600.3% p5  +359.9% worst  +252.7% dd90  -39.1% | write-down years  16.7% | refused   4.2% | retail $1→$0.54
+vault $250k                vault med  +235.4% p5  +121.3% worst   +91.3% dd90  -31.2% | write-down years  12.5% | refused   3.1% | retail $1→$0.56
+vault $500k                vault med  +111.6% p5   +53.5% worst    +9.3% dd90  -30.2% | write-down years  10.4% | refused   2.3% | retail $1→$0.61
+vault $1000k               vault med   +52.0% p5   +10.0% worst   -14.5% dd90  -28.6% | write-down years  12.5% | refused   1.6% | retail $1→$0.68
+vault $2000k               vault med   +22.1% p5   -13.4% worst   -29.5% dd90  -16.1% | write-down years   8.3% | refused   0.7% | retail $1→$0.77
+vault $5000k               vault med    +7.9% p5   -19.2% worst   -31.4% dd90   -7.8% | write-down years   2.1% | refused   0.1% | retail $1→$0.84

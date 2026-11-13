@@ -141,6 +141,36 @@ These stress runs keep the chosen setting and change one thing, on 16 paths per 
   $1M vault) the median falls to +12.6% and p5 to −5.6%. The 80% vol floor drives a large part of
   the vault's yield: NEAR's calm regime realizes about 65%, below the floor.
 
+## How much capital is stable
+
+`capital.js` sweeps vault size against retail flow (full output in `capital-results.txt`). Run it
+with `node sim/buckets/capital.js 8`. The system scales: what matters is the ratio of vault capital
+to open retail notional, not the dollar amount. With the same ratio, a $500k vault and a $20M vault
+give the same median (+30% to +31%).
+
+The vault can't go insolvent at any size, because claims are capped at the pool. "Stable" here
+means three things: write-downs are rare, the vault doesn't lose money in bad years, and retail
+gets a fair deal. The middle column is the vault's p5 APY (its worst year in 20).
+
+| Vault : open retail notional | Vault median / p5 | Write-down years | Retail $1 → | Verdict |
+|---|---|---|---|---|
+| < 3:1 (claims > ~40% of the pool) | +137% to +990% / +69% to +600% | 6–8% | $0.64–0.71 | Fragile: wicks write longs down. Vault drawdowns reach 25–30%. Retail overpays. |
+| ~4–6:1 | +50% to +85% / +21% to +46% | 4–8% | $0.74–0.78 | Rich for the vault, still tight |
+| **~6–10:1** (claims ~15–25% of the pool) | **+12% to +31% / −8% to +15%** | **4–6%** | **$0.82–0.90** | **Stable band** |
+| ~15:1 | +12% / −8% | 6% | $0.90 | Starts to bleed in bad years |
+| > 35:1 | +2% to +4% / −4% to −8% | 0% | $0.95–0.97 | Safe but unprofitable, so capital leaves |
+
+With the default flow (200 open positions, about $130k notional at a $660 mean ticket), the band
+is a **$0.75M–1.5M vault**. When most retail sits in x⁸–x¹⁰, write-downs stay at 8–12% of years up
+to a $2M vault. The steep mix needs about 15–35:1 to get write-downs to the same level, and at that
+ratio the vault's p5 is negative. At small scale the averaging stops working: a $100k vault with
+20 open positions has the same median as a large one, but its p5 is −2.9% (vs +14.8% at $1M with
+200 open). So a few hundred thousand dollars and about 100 open positions is a practical floor.
+
+The model has no deposits or withdrawals chasing yield. In practice the high APY at low ratios
+pulls capital in, and the losses at high ratios push it out. That moves the market toward the
+band, but only as fast as LPs react.
+
 ## Remaining risks
 
 1. **Jump and gap risk at high p.** All write-downs in the search come from the `jumpy` scenario
