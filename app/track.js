@@ -82,7 +82,7 @@ function report(days) {
       if (!s.ref && s.views === 1) {
         s.ref = host(d.ref) || "(direct)"; s.utm = [d.source, d.medium, d.campaign, d.ref && !d.ref.includes("/") ? d.ref : ""].filter(Boolean).join(" / ");
         s.device = device(d); s.browser = browser(d.ua); s.tz = d.tz; s.lang = d.lang; s.ip = d.ip;
-        if (s.ref.endsWith("uprise.wtf") || s.ref.endsWith("parutkin.com")) s.ref = "(internal)";
+        if (s.ref.endsWith("uprise.wtf")) s.ref = "(internal)";
         bump(refs, s.ref); bump(utms, s.utm); bump(devices, s.device); bump(browsers, s.browser); bump(zones, d.tz); bump(langs, (d.lang || "").split("-")[0]);
         v.ref ||= s.ref; v.utm ||= s.utm; v.device ||= s.device; v.tz ||= d.tz;
       }

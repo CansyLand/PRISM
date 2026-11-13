@@ -1,5 +1,5 @@
 [Unit]
-Description=Uprise web app + API (uprise.parutkin.com)
+Description=Uprise web app + API (uprise.wtf)
 After=network-online.target
 Wants=network-online.target
 
