@@ -276,3 +276,4 @@ nav.tabs .ico svg, nav.tabs button.main .ico svg { width: 24px; height: 24px; }
 header.top { grid-template-columns: auto 1fr auto; } .wallet-btn { align-items: center; padding: 5px 12px; }
 /* no zooming on phones: no double-tap zoom, and inputs at 16px+ so iOS doesn't zoom in on focus */
 html { touch-action: manipulation; -webkit-text-size-adjust: 100%; } input, select, textarea { font-size: max(16px, 1em); }
+.modal.sheet { border-radius: 26px 26px 0 0; } /* bottom sheet: square bottom edge */
