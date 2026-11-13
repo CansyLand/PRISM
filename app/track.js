@@ -55,7 +55,7 @@ async function collect(req, res) {
 
 const day = (t) => new Date(t).toISOString().slice(0, 10);
 const host = (r) => { try { return r ? new URL(r).hostname.replace(/^www\./, "") : ""; } catch { return ""; } };
-const device = (d) => (/iPhone|Android.*Mobile|Mobile/i.test(d.ua || "") || d.w < 700 ? "mobile" : /iPad|Tablet/i.test(d.ua || "") ? "tablet" : "desktop");
+const device = (d) => (/iPhone|Android.*Mobile|Mobile/i.test(d.ua || "") || (d.w > 0 && d.w < 700) ? "mobile" : /iPad|Tablet/i.test(d.ua || "") ? "tablet" : "desktop");
 const browser = (ua = "") => (/Edg\//.test(ua) ? "Edge" : /Firefox\//.test(ua) ? "Firefox" : /Chrome\//.test(ua) ? "Chrome" : /Safari\//.test(ua) ? "Safari" : "other");
 const bump = (o, k, n = 1) => { if (k) o[k] = (o[k] || 0) + n; };
 const top = (o, n = 15) => Object.entries(o).sort((a, b) => b[1] - a[1]).slice(0, n);
@@ -109,7 +109,7 @@ function report(days) {
   const V = [...visitors.values()], S = [...sessions.values()];
   const secs = S.map((s) => s.sec).sort((a, b) => a - b);
   const funnel = ["visit", "live", "wallet", "funded", "traded"].map((k) => [k, V.filter((v) => v.steps.has(k)).length]);
-  const dayList = []; for (let t = days ? from : Math.min(...events.map((e) => e.at), now); t <= now + 1; t += 86_400_000) dayList.push(day(t));
+  const dayList = []; for (let t = days ? now - (days - 1) * 86_400_000 : Math.min(...events.map((e) => e.at), now); t <= now + 1; t += 86_400_000) dayList.push(day(t));
   return {
     now, days,
     online: online.size,

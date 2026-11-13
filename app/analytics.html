@@ -41,7 +41,7 @@ h2 { font: 600 13px var(--head); margin: 0 0 10px; color: var(--muted); text-tra
 .empty { color: var(--muted); font-size: 13px; padding: 6px 0; }
 svg text { fill: var(--muted); font: 11px var(--font); }
 .funnel { display: grid; gap: 8px; }
-.funnel .st { display: grid; grid-template-columns: 110px 1fr 90px; align-items: center; gap: 10px; }
+.funnel .st { display: grid; grid-template-columns: 140px 1fr 80px; align-items: center; gap: 10px; }
 .funnel .bar { height: 26px; border-radius: 6px; background: var(--accent); min-width: 2px; }
 .funnel .st:nth-child(n+3) .bar { background: var(--rose); }
 .funnel b { font-variant-numeric: tabular-nums; } .funnel span.muted { text-align: right; }
@@ -117,9 +117,9 @@ function chart(rows) {
   let s = `<svg width="100%" viewBox="0 0 ${W} ${H}" role="img" aria-label="Visitors and wallets per day">`;
   for (const t of ticks) s += `<line x1="${pad.l}" x2="${W - pad.r}" y1="${y(t)}" y2="${y(t)}" stroke="var(--line)"/><text x="${pad.l - 6}" y="${y(t) + 4}" text-anchor="end">${t}</text>`;
   rows.forEach((r, i) => {
-    const x = pad.l + i * bw, w = Math.max(2, Math.min(36, bw * 0.7)), cx = x + bw / 2;
-    s += `<rect x="${cx - w / 2}" y="${y(r.visitors)}" width="${w}" height="${y(0) - y(r.visitors)}" rx="3" fill="var(--accent)"><title>${r.day}: ${r.visitors} visitors · ${r.sessions} sessions · ${r.views} views · ${r.wallets} wallets · ${dur(r.sec)} active</title></rect>`;
-    if (r.wallets) s += `<rect x="${cx - w / 2}" y="${y(r.wallets)}" width="${w}" height="${y(0) - y(r.wallets)}" rx="3" fill="var(--rose)"><title>${r.day}: ${r.wallets} wallets</title></rect>`;
+    const x = pad.l + i * bw, w = Math.max(2, Math.min(22, bw * 0.36)), cx = x + bw / 2;
+    s += `<rect x="${cx - w}" y="${y(r.visitors)}" width="${w}" height="${y(0) - y(r.visitors)}" rx="3" fill="var(--accent)"><title>${r.day}: ${r.visitors} visitors · ${r.sessions} sessions · ${r.views} views · ${r.wallets} wallets · ${dur(r.sec)} active</title></rect>`;
+    if (r.wallets) s += `<rect x="${cx + 1}" y="${y(r.wallets)}" width="${w}" height="${y(0) - y(r.wallets)}" rx="3" fill="var(--rose)"><title>${r.day}: ${r.wallets} wallets</title></rect>`;
     if (i % every === 0) s += `<text x="${cx}" y="${H - 8}" text-anchor="middle">${new Date(r.day).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</text>`;
   });
   s += `</svg><div class="small muted" style="margin-top:4px"><span class="pill" style="background:var(--accent);color:#fff">visitors</span> <span class="pill" style="background:var(--rose);color:#fff">wallets active</span> hover a bar for details</div>`;
@@ -157,7 +157,7 @@ function render(r) {
   $("errors").innerHTML = r.errors.length ? `<tr><th>When</th><th>Page</th><th>Error</th></tr>` + r.errors.map((e) => `<tr><td>${when(e.at)}</td><td>${esc(e.p)}</td><td>${esc(e.msg)} <span class="muted small">${esc(e.src || "")}</span></td></tr>`).join("") : '<tr><td class="empty">No errors</td></tr>';
 }
 async function load() {
-  try { const r = await fetch("/api/analytics?days=" + days, { cache: "no-store" }); if (r.ok) render(await r.json()); } catch {}
+  try { const r = await fetch(location.origin + "/api/analytics?days=" + days,{ cache: "no-store" }); if (r.ok) render(await r.json()); } catch {}
 }
 document.querySelectorAll("#range button").forEach((b) => {
   b.setAttribute("aria-pressed", Number(b.dataset.d) === days);
