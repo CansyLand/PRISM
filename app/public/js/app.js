@@ -580,7 +580,7 @@ $("xBtn").onclick = () => withBusy($("xBtn"), "Asking NEAR Intents…", async ()
 // ── tabs + mode ──
 document.querySelectorAll("nav.tabs button").forEach((b) => (b.onclick = () => setTab(b.dataset.tab)));
 function setTab(t) {
-  tab = t;
+  tab = t; closeJoin();
   document.querySelectorAll("nav.tabs button").forEach((x) => x.setAttribute("aria-selected", x.dataset.tab === t));
   for (const k of ["bull", "crab", "stats"]) $("tab-" + k).hidden = k !== t;
   if (t === "crab" && !ls.get("uprise.v1.crabSeen")) { modal("crabIntro"); ls.set("uprise.v1.crabSeen", "1"); }
@@ -591,7 +591,7 @@ function setTab(t) {
 }
 document.querySelectorAll("[data-mode]").forEach((b) => (b.onclick = () => setMode(b.dataset.mode)));
 async function setMode(m) {
-  $("hand").hidden = true;
+  $("hand").hidden = true; closeJoin();
   if (m === mode && (m === "demo" || live)) return;
   if (demo.position) demoClose("manual");
   mode = m; ls.set("uprise.mode", m); if (m === "demo") stopStream();
@@ -619,6 +619,8 @@ function render() {
   if (tab === "crab") renderCrab();
 }
 
+// the envelope's field closes when you switch Demo/Live or tabs; a click opens it again
+const closeJoin = () => { $("joinForm").hidden = $("joinDone").hidden = true; $("mailBtn").setAttribute("aria-expanded", "false"); };
 // ── mainnet waitlist: envelope on the chart. Its red badge goes once clicked; it wiggles now and then until you join. ──
 {
   const btn = $("mailBtn"), form = $("joinForm"), done = $("joinDone");
