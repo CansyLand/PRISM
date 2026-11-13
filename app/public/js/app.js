@@ -625,7 +625,7 @@ const closeJoin = () => { $("joinForm").hidden = $("joinDone").hidden = true; $(
 {
   const btn = $("mailBtn"), form = $("joinForm"), done = $("joinDone");
   const joined = () => ls.get("uprise.v1.waitlist");
-  const showDone = (place) => { done.textContent = `📬 You're #${place} in line. One email on mainnet day, that's it.`; done.hidden = false; form.hidden = true; };
+  const showDone = (place) => { done.textContent = `🔥 Spot #${place} is yours. We're building fast, and you'll be first to know when we launch.`; done.hidden = false; form.hidden = true; };
   if (ls.get("uprise.v1.mailSeen")) btn.classList.add("seen");
   btn.onclick = () => {
     btn.classList.add("seen"); ls.set("uprise.v1.mailSeen", "1");
