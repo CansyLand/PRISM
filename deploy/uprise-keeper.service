@@ -1,0 +1,28 @@
+[Unit]
+Description=Uprise keeper: price pushes, vault hedging, gas top-ups
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=uprise
+Group=uprise
+WorkingDirectory=/home/uprise/uprise/ops
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node /home/uprise/uprise/ops/keeper.js
+Restart=always
+RestartSec=5
+StartLimitIntervalSec=300
+StartLimitBurst=10
+StandardOutput=append:/home/uprise/logs/keeper.log
+StandardError=append:/home/uprise/logs/keeper.log
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectKernelTunables=true
+RestrictSUIDSGID=true
+LockPersonality=true
+ReadWritePaths=/home/uprise/uprise/ops /home/uprise/logs
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,28 @@
+[Unit]
+Description=Uprise testnet bots: retail traders and liquidity providers
+After=network-online.target uprise-keeper.service
+Wants=network-online.target
+
+[Service]
+User=uprise
+Group=uprise
+WorkingDirectory=/home/uprise/uprise/ops
+Environment=NODE_ENV=production
+ExecStart=/usr/bin/node /home/uprise/uprise/ops/players.js run
+Restart=always
+RestartSec=10
+StartLimitIntervalSec=300
+StartLimitBurst=10
+StandardOutput=append:/home/uprise/logs/bots.log
+StandardError=append:/home/uprise/logs/bots.log
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectKernelTunables=true
+RestrictSUIDSGID=true
+LockPersonality=true
+ReadWritePaths=/home/uprise/uprise/ops /home/uprise/logs
+
+[Install]
+WantedBy=multi-user.target

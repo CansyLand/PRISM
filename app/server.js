@@ -24,7 +24,7 @@ import { account, view, call, loadDeployment, usd, near, balanceNear, faucetAcco
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 const PUB = path.join(DIR, "public");
-const PORT = Number(process.env.PORT || 8787);
+const PORT = Number(process.env.PORT || 8787); // HOST=127.0.0.1 behind a reverse proxy
 const d = loadDeployment();
 if (!d) throw new Error("ops/deployment.json missing: run ops/setup.js");
 const TESTNET = d.network === "testnet";
@@ -209,4 +209,4 @@ const server = http.createServer(async (req, res) => {
     json(res, 500, { error: String(e.message || e).slice(0, 300) });
   }
 });
-server.listen(PORT, () => console.log(`Uprise on http://localhost:${PORT} · live = ${d.network} · ${ASSET.symbol} · ledger ${d.ledger}`));
+server.listen(PORT, process.env.HOST || "0.0.0.0", () => console.log(`Uprise on http://${process.env.HOST || "localhost"}:${PORT} · live = ${d.network} · ${ASSET.symbol} · ledger ${d.ledger}`));

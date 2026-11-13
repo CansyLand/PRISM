@@ -1,0 +1,30 @@
+[Unit]
+Description=Uprise web app + API (uprise.parutkin.com)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=uprise
+Group=uprise
+WorkingDirectory=/home/uprise/uprise/app
+Environment=NODE_ENV=production
+Environment=PORT=8795
+Environment=HOST=127.0.0.1
+ExecStart=/usr/bin/node /home/uprise/uprise/app/server.js
+Restart=always
+RestartSec=5
+StartLimitIntervalSec=300
+StartLimitBurst=10
+StandardOutput=append:/home/uprise/logs/app.log
+StandardError=append:/home/uprise/logs/app.log
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectKernelTunables=true
+RestrictSUIDSGID=true
+LockPersonality=true
+ReadWritePaths=/home/uprise/uprise/app /home/uprise/uprise/ops /home/uprise/logs
+
+[Install]
+WantedBy=multi-user.target
