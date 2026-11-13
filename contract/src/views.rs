@@ -10,34 +10,57 @@ use near_sdk::json_types::{I128, U128};
 use near_sdk::{near, AccountId};
 
 #[near(serializers = [json])]
+pub struct BucketView {
+    pub power: u8,
+    pub nf: U128,
+    pub ref_price: U128,
+    pub total_units: U128,
+    /// Unit re-scalings so far (each divides units by 10^6).
+    pub scale: i32,
+    /// Value of one unit (USDC raw × 1e18).
+    pub unit_value_e18: U128,
+    /// This bucket's claims after any haircut, and before.
+    pub claims: U128,
+    pub claims_raw: U128,
+    /// p × claims: asset exposure the hedge needs for this bucket.
+    pub delta_claims: U128,
+    /// claims_raw / pool (bps), and the open cap on it.
+    pub share_of_pool_bps: u32,
+    pub cap_bps: u16,
+    /// Largest single open into this bucket right now (max_open_bps of the pool and the cap).
+    pub max_open: U128,
+    /// Annual funding as a fraction of value (bps): convexity p(p−1)/2·σ², its surcharge,
+    /// and the total (convexity × surcharge + base) × m(u).
+    pub funding_convexity_annual_bps: u32,
+    pub funding_mult_bps: u32,
+    pub funding_rate_annual_bps: u32,
+}
+
+#[near(serializers = [json])]
 pub struct MarketView {
     pub timestamp: u64,
     pub price: U128,
     pub price_ts: u64,
     pub price_fresh: bool,
-    pub ref_price: U128,
-    pub power: u8,
-    pub nf: U128,
-    /// Value of one Curve unit (USDC raw × 1e18).
-    pub unit_value_e18: U128,
-    pub total_units: U128,
+    pub buckets: Vec<BucketView>,
     pub risk_pool: U128,
-    /// long claims after any haircut.
+    /// Total long claims (all buckets) after any haircut.
     pub long_claims: U128,
     pub long_claims_raw: U128,
+    /// Σ p · C_eff,p: what the vault hedges (× its share of the short pool).
+    pub delta_claims: U128,
     pub short_equity: U128,
     pub short_shares: U128,
     pub short_share_price_e18: U128,
+    /// Delta-weighted utilization Σ w_p C_p / R (bps, capped at 100%).
     pub utilization_bps: u32,
-    /// Largest single long open allowed right now (max_open_bps of the pool).
-    pub max_long_open: U128,
+    /// Plain claims / pool (bps, uncapped).
+    pub claims_to_pool_bps: u32,
     /// Curve Short epoch; bumps when wiped-out shorts are replaced by new ones.
     pub short_epoch: u64,
-    /// Funding Curve Long pays per year right now, as a fraction of its value (bps).
-    pub funding_rate_annual_bps: u32,
-    /// Fair convexity rate p(p−1)/2·σ² before the utilization multiplier (bps/yr).
+    /// Flat fee every bucket pays (bps/yr) before the multiplier.
     pub funding_base_annual_bps: u32,
-    /// Current utilization multiplier (10000 = 1×).
+    /// Current utilization multiplier m(u) (10000 = 1×).
     pub funding_multiplier_bps: u32,
     /// Realized volatility of the oracle price (annualized bps, capped); 0 when switched off.
     pub realized_vol_bps: u32,
@@ -52,10 +75,21 @@ pub struct MarketView {
 }
 
 #[near(serializers = [json])]
+pub struct LongView {
+    pub power: u8,
+    pub units: U128,
+    pub value: U128,
+    pub cost: U128,
+    pub pnl: I128,
+}
+
+#[near(serializers = [json])]
 pub struct AccountView {
     pub account_id: AccountId,
     pub free: U128,
-    pub long_units: U128,
+    /// One entry per bucket held.
+    pub longs: Vec<LongView>,
+    /// Sums over `longs`.
     pub long_value: U128,
     pub long_cost: U128,
     pub long_pnl: I128,
@@ -107,22 +141,34 @@ fn preview(r: Result<TradeQuote, &'static str>) -> Preview {
     }
 }
 
+fn bps32(v: u128) -> u32 {
+    v.min(u32::MAX as u128) as u32
+}
+
 impl Contract {
     fn account_view(&self, id: &AccountId, a: &Account, l: &Live) -> AccountView {
         let mut a = a.clone();
         self.normalize(&mut a);
         let a = &a;
-        let raw = Self::units_value(a.long_units, l.unit_value_e18);
-        let long_value = if l.c_raw > l.risk_pool { mul_div(raw, l.risk_pool, l.c_raw) } else { raw };
+        let longs: Vec<LongView> = a
+            .longs
+            .iter()
+            .map(|p| {
+                let value = l.haircut(Self::units_value(p.units, l.uv[(p.power - 1) as usize]));
+                LongView { power: p.power, units: U128(p.units), value: U128(value), cost: U128(p.cost), pnl: I128(value as i128 - p.cost as i128) }
+            })
+            .collect();
+        let long_value: u128 = longs.iter().map(|v| v.value.0).sum();
+        let long_cost: u128 = longs.iter().map(|v| v.cost.0).sum();
         let short_value = if self.short_shares == 0 { 0 } else { mul_div(a.short_shares, l.short_equity, self.short_shares) };
         let equity = a.free + long_value + short_value;
         AccountView {
             account_id: id.clone(),
             free: U128(a.free),
-            long_units: U128(a.long_units),
+            longs,
             long_value: U128(long_value),
-            long_cost: U128(a.long_cost),
-            long_pnl: I128(long_value as i128 - a.long_cost as i128),
+            long_cost: U128(long_cost),
+            long_pnl: I128(long_value as i128 - long_cost as i128),
             short_shares: U128(a.short_shares),
             short_value: U128(short_value),
             short_cost: U128(a.short_cost),
@@ -135,36 +181,60 @@ impl Contract {
             operators: a.operators.clone(),
         }
     }
+
+    fn bucket_views(&self, l: &Live) -> Vec<BucketView> {
+        let util = Self::utilization_bps(l.weighted_raw, l.risk_pool);
+        self.buckets
+            .iter()
+            .enumerate()
+            .map(|(i, b)| {
+                let raw = l.c_raw_p[i];
+                BucketView {
+                    power: b.power,
+                    nf: U128(l.nf[i]),
+                    ref_price: U128(b.ref_price),
+                    total_units: U128(b.total_units),
+                    scale: b.scale,
+                    unit_value_e18: U128(crate::math::sat_u128(l.uv[i])),
+                    claims: U128(l.haircut(raw)),
+                    claims_raw: U128(raw),
+                    delta_claims: U128(l.haircut(raw).saturating_mul(b.power as u128)),
+                    share_of_pool_bps: if l.risk_pool == 0 { 0 } else { bps32(mul_div(raw, BPS, l.risk_pool)) },
+                    cap_bps: self.params.bucket_cap_bps[i],
+                    max_open: U128(self.max_long_open(l, b.power)),
+                    funding_convexity_annual_bps: bps32(self.convexity_rate_e18(b.power) * BPS / ONE),
+                    funding_mult_bps: self.params.bucket_funding_mult_bps[i],
+                    funding_rate_annual_bps: bps32(self.funding_rate_at_e18(b.power, util) * BPS / ONE),
+                }
+            })
+            .collect()
+    }
 }
 
 #[near]
 impl Contract {
     pub fn get_market(&self) -> MarketView {
         let l = self.live();
-        let util = if l.c_raw == 0 || l.risk_pool == 0 { 0 } else { mul_div(l.c_raw, BPS, l.risk_pool) as u32 };
+        let util = Self::utilization_bps(l.weighted_raw, l.risk_pool);
         MarketView {
             timestamp: now_secs(),
             price: U128(self.price),
             price_ts: self.price_ts,
             price_fresh: self.price > 0
                 && now_secs().saturating_sub(self.price_ts) <= self.params.max_price_age_secs,
-            ref_price: U128(self.ref_price),
-            power: self.params.power,
-            nf: U128(l.nf),
-            unit_value_e18: U128(l.unit_value_e18.as_u128()),
-            total_units: U128(self.total_units),
+            buckets: self.bucket_views(&l),
             risk_pool: U128(l.risk_pool),
             long_claims: U128(l.c_eff),
             long_claims_raw: U128(l.c_raw),
+            delta_claims: U128(l.delta_eff),
             short_equity: U128(l.short_equity),
             short_shares: U128(self.short_shares),
             short_share_price_e18: U128(self.short_share_price_e18(&l)),
-            utilization_bps: util,
-            max_long_open: U128(self.max_long_open(&l)),
+            utilization_bps: util as u32,
+            claims_to_pool_bps: if l.c_raw == 0 || l.risk_pool == 0 { 0 } else { bps32(mul_div(l.c_raw, BPS, l.risk_pool)) },
             short_epoch: self.short_epoch,
-            funding_rate_annual_bps: (self.funding_rate_at_e18(Self::utilization_bps(l.c_raw, l.risk_pool)) * BPS / ONE) as u32,
-            funding_base_annual_bps: (self.base_funding_rate_e18() * BPS / ONE) as u32,
-            funding_multiplier_bps: self.util_multiplier_bps(Self::utilization_bps(l.c_raw, l.risk_pool)) as u32,
+            funding_base_annual_bps: self.params.base_funding_bps,
+            funding_multiplier_bps: bps32(self.util_multiplier_bps(util)),
             realized_vol_bps: self.realized_vol_bps(),
             funding_vol_bps: self.funding_vol_bps(),
             funding_pending: U128(l.funding_pending),
@@ -174,6 +244,11 @@ impl Contract {
             open_paused: self.open_paused,
             emergency: self.emergency,
         }
+    }
+
+    /// Just the ten buckets (same numbers as `get_market().buckets`).
+    pub fn get_buckets(&self) -> Vec<BucketView> {
+        self.bucket_views(&self.live())
     }
 
     pub fn get_account(&self, account_id: AccountId) -> Option<AccountView> {
@@ -242,12 +317,12 @@ impl Contract {
         (manager || operator, manager) // (can_trade, can_withdraw)
     }
 
-    pub fn preview_open_long(&self, amount: U128) -> Preview {
-        preview(self.quote_open_long(&self.live(), amount.0))
+    pub fn preview_open_long(&self, power: u8, amount: U128) -> Preview {
+        preview(self.quote_open_long(&self.live(), power, amount.0))
     }
 
-    pub fn preview_close_long(&self, units: U128) -> Preview {
-        preview(self.quote_close_long(&self.live(), units.0))
+    pub fn preview_close_long(&self, power: u8, units: U128) -> Preview {
+        preview(self.quote_close_long(&self.live(), power, units.0))
     }
 
     pub fn preview_open_short(&self, amount: U128) -> Preview {
@@ -258,14 +333,17 @@ impl Contract {
         preview(self.quote_close_short(&self.live(), shares.0))
     }
 
-    /// Payoff curve for charts: value of `units` at each price, at the current NF.
-    pub fn quote_payoff(&self, units: U128, prices: Vec<U128>) -> Vec<U128> {
-        let nf = self.live().nf;
+    /// Payoff curve for charts: value of `units` of bucket `power` at each price, at the current NF
+    /// (no haircut).
+    pub fn quote_payoff(&self, power: u8, units: U128, prices: Vec<U128>) -> Vec<U128> {
+        let i = crate::bucket_index(power);
+        let b = &self.buckets[i];
+        let nf = self.live().nf[i];
         prices
             .into_iter()
             .take(200)
             .map(|p| {
-                let idx = power_index_e18(p.0.min(crate::MAX_PRICE), self.ref_price, self.params.power);
+                let idx = power_index_e18(p.0.min(crate::MAX_PRICE), b.ref_price, b.power);
                 let vpu = U256::from(nf) * idx / U256::from(ONE);
                 U128(Self::units_value(units.0, vpu))
             })

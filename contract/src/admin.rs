@@ -4,12 +4,23 @@
 
 use crate::events::emit;
 use crate::oracle::OracleConfig;
-use crate::{Contract, ContractExt, Params, MAX_OPERATORS};
+use crate::{Contract, ContractExt, Params, BUCKETS, MAX_OPERATORS};
 use near_sdk::serde_json::json;
 use near_sdk::{env, near, require, AccountId};
 
 pub fn validate_params(p: &Params) {
-    require!((1..=10).contains(&p.power), "power must be 1..=10");
+    require!(p.bucket_funding_mult_bps.len() == BUCKETS, "bucket_funding_mult_bps needs 10 entries");
+    require!(p.bucket_cap_bps.len() == BUCKETS, "bucket_cap_bps needs 10 entries");
+    require!(
+        p.bucket_funding_mult_bps.iter().all(|m| (10_000..=50_000).contains(m)),
+        "bucket_funding_mult_bps must be 10000..=50000 (never below fair funding)"
+    );
+    require!(
+        p.bucket_funding_mult_bps.windows(2).all(|w| w[0] <= w[1]),
+        "bucket_funding_mult_bps must not decrease with power"
+    );
+    require!(p.bucket_cap_bps.iter().all(|c| (1..=10_000).contains(c)), "bucket_cap_bps must be 1..=10000");
+    require!(p.util_delta_weight_bps <= 10_000, "util_delta_weight_bps > 100%");
     require!(p.implied_vol_bps <= 50_000, "implied_vol_bps > 500%");
     require!(p.base_funding_bps <= 10_000, "base_funding_bps > 100%/yr");
     require!(
@@ -48,10 +59,6 @@ impl Contract {
     pub fn set_params(&mut self, params: Params) {
         self.assert_owner();
         validate_params(&params);
-        require!(
-            params.power == self.params.power || self.total_units == 0,
-            "power can't change while long units exist"
-        );
         self.accrue(); // book funding at the old rate first
         self.params = params.clone();
         emit("set_params", json!({ "params": params }));

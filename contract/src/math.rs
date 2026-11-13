@@ -58,13 +58,18 @@ pub fn exp_neg_e18(mut x: u128) -> u128 {
     acc * t / ONE
 }
 
+/// Convexity rate (1e18/yr) a hedged short of a power-p perpetual loses under GBM: `p(p-1)/2 · σ²`.
+pub fn convexity_rate_e18(p: u8, vol_bps: u32) -> u128 {
+    let sigma = vol_bps as u128 * ONE / BPS;
+    let sigma2 = sigma * sigma / ONE;
+    let coef = (p as u128) * (p as u128).saturating_sub(1) / 2;
+    coef * sigma2
+}
+
 /// Annual funding rate (1e18) that a power-p perpetual's longs pay under GBM:
 /// `p(p-1)/2 · σ²` plus an optional base rate.
 pub fn annual_funding_rate_e18(p: u8, implied_vol_bps: u32, base_bps: u32) -> u128 {
-    let sigma = implied_vol_bps as u128 * ONE / BPS;
-    let sigma2 = sigma * sigma / ONE;
-    let coef = (p as u128) * (p as u128).saturating_sub(1) / 2;
-    coef * sigma2 + base_bps as u128 * ONE / BPS
+    convexity_rate_e18(p, implied_vol_bps) + base_bps as u128 * ONE / BPS
 }
 
 pub fn mul_div(a: u128, b: u128, c: u128) -> u128 {

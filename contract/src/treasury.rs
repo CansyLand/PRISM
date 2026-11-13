@@ -5,8 +5,8 @@
 //! * **Deposit**: the platform relayer, the `intents.near` verifier (an
 //!   `ft_withdraw` intent with `msg`), or 1Click calls
 //!   `usdc.ft_transfer_call(curve, amount, msg)`, where msg is
-//!   `{"receiver_id": "...", "action": "open_long" | "open_short", "min_out": "..."}`
-//!   (all fields optional; empty msg credits the sender).
+//!   `{"receiver_id": "...", "action": "open_long" | "open_short", "power": 1..10, "min_out": "..."}`
+//!   (all fields optional except `power` with `open_long`; empty msg credits the sender).
 //! * **Withdraw**: `withdraw(amount, receiver_id = 1Click deposit address)` does a
 //!   plain `ft_transfer`. Alternatively `receiver_id = "intents.near"` with
 //!   `msg = "<intents account>"` uses `ft_transfer_call` and credits the
@@ -42,6 +42,8 @@ pub struct DepositMsg {
     pub action: Option<DepositAction>,
     /// Slippage guard for `action` (min units / min shares).
     pub min_out: Option<U128>,
+    /// Curve strength 1..=10, required for `open_long`.
+    pub power: Option<u8>,
 }
 
 /// Who gets refunded if an outgoing transfer fails.
@@ -77,7 +79,8 @@ impl FungibleTokenReceiver for Contract {
         let min = m.min_out.map(|v| v.0).unwrap_or(0);
         match m.action {
             Some(DepositAction::OpenLong) => {
-                self.internal_open_long(&receiver, amount.0, min);
+                let power = m.power.unwrap_or_else(|| env::panic_str("open_long needs power (1..=10)"));
+                self.internal_open_long(&receiver, power, amount.0, min);
             }
             Some(DepositAction::OpenShort) => {
                 self.internal_open_short(&receiver, amount.0, min);

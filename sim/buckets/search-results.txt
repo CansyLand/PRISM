@@ -1,0 +1,131 @@
+Bucketed search: 6 scenarios (base, bull, bear, mania, jumpy, btc14) × 8 one-year paths each.
+Vault $1M (50% in the pool, 50% cash for the hedge), 200 open retail positions on average, $400 median ticket, 30-day holds, uniform across x1..x10.
+Feasible = vault median ≥ +8%, p10 ≥ +3%, write-downs in ≤ 5% of path-years. Score = retail payback + 0.5 × worst bucket's payback − 2 × write-down frequency.
+
+── Stage 1: 1024 settings, 354 feasible. Top 15:
+  sur=1 shape=2 base=+0% capB=0.25 dw=0.5 prem=1.25 kink=0.5 steep=4             | vault med +36.8% p10 +23.2% p5 +13.3% dd90 -17.3% | write-down paths  4.2% (0.08/yr) | cap-refused 0.2% | retail $1→$0.796 (min bucket $0.462)
+  sur=1 shape=2 base=+10% capB=0.25 dw=0.5 prem=1.25 kink=0.5 steep=4            | vault med +37.3% p10 +23.7% p5 +18.2% dd90 -17.3% | write-down paths  4.2% (0.06/yr) | cap-refused 0.3% | retail $1→$0.793 (min bucket $0.463)
+  sur=0.5 shape=1 base=+0% capB=1 dw=1 prem=1.25 kink=0.5 steep=4                | vault med +40.3% p10 +24.4% p5 +24.1% dd90 -11.1% | write-down paths  4.2% (0.04/yr) | cap-refused 0.0% | retail $1→$0.763 (min bucket $0.523)
+  sur=1 shape=2 base=+5% capB=0.25 dw=0.5 prem=1.25 kink=0.5 steep=4             | vault med +37.1% p10 +23.5% p5 +17.8% dd90 -17.3% | write-down paths  4.2% (0.08/yr) | cap-refused 0.3% | retail $1→$0.794 (min bucket $0.460)
+  sur=0.5 shape=1 base=+5% capB=1 dw=1 prem=1.25 kink=0.5 steep=4                | vault med +40.5% p10 +24.6% p5 +24.4% dd90 -11.1% | write-down paths  4.2% (0.04/yr) | cap-refused 0.0% | retail $1→$0.761 (min bucket $0.523)
+  sur=1 shape=2 base=+20% capB=0.25 dw=0.5 prem=1.25 kink=0.5 steep=4            | vault med +37.8% p10 +24.3% p5 +19.4% dd90 -17.1% | write-down paths  4.2% (0.06/yr) | cap-refused 0.2% | retail $1→$0.790 (min bucket $0.464)
+  sur=0.5 shape=1 base=+0% capB=5 dw=1 prem=1.25 kink=0.5 steep=4                | vault med +40.3% p10 +25.4% p5 +24.1% dd90 -11.1% | write-down paths  4.2% (0.04/yr) | cap-refused 0.0% | retail $1→$0.763 (min bucket $0.517)
+  sur=0.5 shape=1 base=+10% capB=1 dw=1 prem=1.25 kink=0.5 steep=4               | vault med +40.9% p10 +24.9% p5 +24.7% dd90 -11.1% | write-down paths  4.2% (0.04/yr) | cap-refused 0.0% | retail $1→$0.759 (min bucket $0.523)
+  sur=0.5 shape=1 base=+5% capB=5 dw=1 prem=1.25 kink=0.5 steep=4                | vault med +40.5% p10 +25.7% p5 +24.4% dd90 -11.1% | write-down paths  4.2% (0.04/yr) | cap-refused 0.0% | retail $1→$0.761 (min bucket $0.518)
+  sur=0.5 shape=1 base=+10% capB=5 dw=1 prem=1.25 kink=0.5 steep=4               | vault med +40.9% p10 +25.9% p5 +24.7% dd90 -11.1% | write-down paths  4.2% (0.04/yr) | cap-refused 0.0% | retail $1→$0.759 (min bucket $0.518)
+  sur=0.5 shape=1 base=+20% capB=1 dw=1 prem=1.25 kink=0.5 steep=4               | vault med +41.4% p10 +25.3% p5 +25.2% dd90 -11.0% | write-down paths  4.2% (0.04/yr) | cap-refused 0.0% | retail $1→$0.755 (min bucket $0.524)
+  sur=0.5 shape=1 base=+0% capB=0.25 dw=1 prem=1.25 kink=0.5 steep=4             | vault med +40.0% p10 +24.3% p5 +22.6% dd90 -14.0% | write-down paths  4.2% (0.04/yr) | cap-refused 0.1% | retail $1→$0.761 (min bucket $0.511)
+  sur=0.5 shape=1 base=+20% capB=5 dw=1 prem=1.25 kink=0.5 steep=4               | vault med +41.4% p10 +26.5% p5 +25.2% dd90 -11.0% | write-down paths  4.2% (0.04/yr) | cap-refused 0.0% | retail $1→$0.755 (min bucket $0.519)
+  sur=0.5 shape=0.5 base=+0% capB=1 dw=1 prem=1.25 kink=0.5 steep=4              | vault med +42.2% p10 +26.8% p5 +25.9% dd90 -10.8% | write-down paths  4.2% (0.04/yr) | cap-refused 0.0% | retail $1→$0.748 (min bucket $0.531)
+  sur=0.5 shape=1 base=+10% capB=0.25 dw=1 prem=1.25 kink=0.5 steep=4            | vault med +40.3% p10 +24.7% p5 +23.1% dd90 -13.9% | write-down paths  4.2% (0.04/yr) | cap-refused 0.1% | retail $1→$0.758 (min bucket $0.508)
+
+  Surcharge curve alone (base fee 10%, capB 0.5, dw 0.5): what x10 pays vs convexity, and the vault
+  sur=0 shape=1 base=+10% capB=0.5 dw=0.5 prem=1.25 kink=0.5 steep=4             | vault med +24.0% p10  +8.3% p5  +5.5% dd90 -18.8% | write-down paths 12.5% (0.25/yr) | cap-refused 0.1% | retail $1→$0.876 (min bucket $0.757)
+  sur=0.5 shape=0.5 base=+10% capB=0.5 dw=0.5 prem=1.25 kink=0.5 steep=4         | vault med +36.2% p10 +23.7% p5 +20.7% dd90 -12.1% | write-down paths 10.4% (0.17/yr) | cap-refused 0.0% | retail $1→$0.798 (min bucket $0.581)
+  sur=0.5 shape=1 base=+10% capB=0.5 dw=0.5 prem=1.25 kink=0.5 steep=4           | vault med +34.1% p10 +21.1% p5 +17.2% dd90 -13.4% | write-down paths 10.4% (0.19/yr) | cap-refused 0.0% | retail $1→$0.811 (min bucket $0.572)
+  sur=0.5 shape=2 base=+10% capB=0.5 dw=0.5 prem=1.25 kink=0.5 steep=4           | vault med +31.4% p10 +17.5% p5 +14.5% dd90 -14.5% | write-down paths  8.3% (0.15/yr) | cap-refused 0.0% | retail $1→$0.828 (min bucket $0.559)
+  sur=1 shape=0.5 base=+10% capB=0.5 dw=0.5 prem=1.25 kink=0.5 steep=4           | vault med +46.0% p10 +31.8% p5 +31.5% dd90  -8.9% | write-down paths  6.3% (0.08/yr) | cap-refused 0.0% | retail $1→$0.731 (min bucket $0.477)
+  sur=1 shape=1 base=+10% capB=0.5 dw=0.5 prem=1.25 kink=0.5 steep=4             | vault med +42.3% p10 +30.2% p5 +28.2% dd90  -9.5% | write-down paths  6.3% (0.08/yr) | cap-refused 0.0% | retail $1→$0.759 (min bucket $0.471)
+  sur=1 shape=2 base=+10% capB=0.5 dw=0.5 prem=1.25 kink=0.5 steep=4             | vault med +37.3% p10 +25.1% p5 +23.4% dd90 -11.1% | write-down paths  6.3% (0.08/yr) | cap-refused 0.0% | retail $1→$0.792 (min bucket $0.458)
+  sur=1.5 shape=0.5 base=+10% capB=0.5 dw=0.5 prem=1.25 kink=0.5 steep=4         | vault med +53.5% p10 +37.9% p5 +23.3% dd90  -7.6% | write-down paths  6.3% (0.06/yr) | cap-refused 0.0% | retail $1→$0.681 (min bucket $0.399)
+  sur=1.5 shape=1 base=+10% capB=0.5 dw=0.5 prem=1.25 kink=0.5 steep=4           | vault med +48.8% p10 +33.9% p5 +27.9% dd90  -8.3% | write-down paths  6.3% (0.06/yr) | cap-refused 0.0% | retail $1→$0.716 (min bucket $0.397)
+  sur=1.5 shape=2 base=+10% capB=0.5 dw=0.5 prem=1.25 kink=0.5 steep=4           | vault med +42.3% p10 +29.1% p5 +24.6% dd90  -9.4% | write-down paths  6.3% (0.06/yr) | cap-refused 0.0% | retail $1→$0.759 (min bucket $0.384)
+  sur=2 shape=0.5 base=+10% capB=0.5 dw=0.5 prem=1.25 kink=0.5 steep=4           | vault med +59.1% p10 +43.8% p5 +32.3% dd90  -6.4% | write-down paths  4.2% (0.04/yr) | cap-refused 0.0% | retail $1→$0.640 (min bucket $0.350)
+  sur=2 shape=1 base=+10% capB=0.5 dw=0.5 prem=1.25 kink=0.5 steep=4             | vault med +52.5% p10 +39.5% p5 +23.2% dd90  -7.4% | write-down paths  6.3% (0.06/yr) | cap-refused 0.0% | retail $1→$0.681 (min bucket $0.347)
+  sur=2 shape=2 base=+10% capB=0.5 dw=0.5 prem=1.25 kink=0.5 steep=4             | vault med +46.3% p10 +32.4% p5 +28.0% dd90  -8.6% | write-down paths  6.3% (0.06/yr) | cap-refused 0.0% | retail $1→$0.735 (min bucket $0.342)
+  sur=3 shape=0.5 base=+10% capB=0.5 dw=0.5 prem=1.25 kink=0.5 steep=4           | vault med +65.9% p10 +53.7% p5 +48.0% dd90  -5.2% | write-down paths  2.1% (0.02/yr) | cap-refused 0.0% | retail $1→$0.581 (min bucket $0.290)
+  sur=3 shape=1 base=+10% capB=0.5 dw=0.5 prem=1.25 kink=0.5 steep=4             | vault med +60.1% p10 +45.8% p5 +40.5% dd90  -5.8% | write-down paths  4.2% (0.04/yr) | cap-refused 0.0% | retail $1→$0.628 (min bucket $0.288)
+  sur=3 shape=2 base=+10% capB=0.5 dw=0.5 prem=1.25 kink=0.5 steep=4             | vault med +51.3% p10 +38.8% p5 +27.3% dd90  -7.4% | write-down paths  6.3% (0.06/yr) | cap-refused 0.0% | retail $1→$0.693 (min bucket $0.284)
+
+  x1 base fee (sur 1, shape 1, capB 0.5, dw 0.5):
+  sur=1 shape=1 base=+0% capB=0.5 dw=0.5 prem=1.25 kink=0.5 steep=4              | vault med +41.7% p10 +29.7% p5 +27.8% dd90  -9.5% | write-down paths  6.3% (0.08/yr) | cap-refused 0.0% | retail $1→$0.762 (min bucket $0.471)  | x1 $1→$1.036 x1 funding +0.0%/yr
+  sur=1 shape=1 base=+5% capB=0.5 dw=0.5 prem=1.25 kink=0.5 steep=4              | vault med +42.0% p10 +30.0% p5 +28.1% dd90  -9.5% | write-down paths  6.3% (0.08/yr) | cap-refused 0.0% | retail $1→$0.760 (min bucket $0.471)  | x1 $1→$1.028 x1 funding +7.5%/yr
+  sur=1 shape=1 base=+10% capB=0.5 dw=0.5 prem=1.25 kink=0.5 steep=4             | vault med +42.3% p10 +30.2% p5 +28.2% dd90  -9.5% | write-down paths  6.3% (0.08/yr) | cap-refused 0.0% | retail $1→$0.759 (min bucket $0.471)  | x1 $1→$1.023 x1 funding +15.0%/yr
+  sur=1 shape=1 base=+20% capB=0.5 dw=0.5 prem=1.25 kink=0.5 steep=4             | vault med +42.7% p10 +30.6% p5 +28.7% dd90  -9.4% | write-down paths  6.3% (0.08/yr) | cap-refused 0.0% | retail $1→$0.756 (min bucket $0.472)  | x1 $1→$1.011 x1 funding +29.9%/yr
+
+  Caps (sur 1, shape 1, base 10%, dw 0.5):
+  sur=1 shape=1 base=+10% capB=0.25 dw=0.5 prem=1.25 kink=0.5 steep=4            | vault med +42.1% p10 +29.0% p5 +22.2% dd90 -15.1% | write-down paths  6.3% (0.08/yr) | cap-refused 0.2% | retail $1→$0.758 (min bucket $0.477)
+  sur=1 shape=1 base=+10% capB=0.5 dw=0.5 prem=1.25 kink=0.5 steep=4             | vault med +42.3% p10 +30.2% p5 +28.2% dd90  -9.5% | write-down paths  6.3% (0.08/yr) | cap-refused 0.0% | retail $1→$0.759 (min bucket $0.471)
+  sur=1 shape=1 base=+10% capB=1 dw=0.5 prem=1.25 kink=0.5 steep=4               | vault med +42.0% p10 +29.4% p5 +29.0% dd90  -9.5% | write-down paths  6.3% (0.08/yr) | cap-refused 0.0% | retail $1→$0.759 (min bucket $0.479)
+  sur=1 shape=1 base=+10% capB=5 dw=0.5 prem=1.25 kink=0.5 steep=4               | vault med +42.0% p10 +29.4% p5 +29.0% dd90  -9.5% | write-down paths  6.3% (0.08/yr) | cap-refused 0.0% | retail $1→$0.760 (min bucket $0.473)
+
+  Delta weight (sur 1, shape 1, base 10%, capB 0.5):
+  sur=1 shape=1 base=+10% capB=0.5 dw=0 prem=1.25 kink=0.5 steep=4               | vault med +38.2% p10 +25.7% p5 +23.5% dd90 -10.7% | write-down paths  8.3% (0.21/yr) | cap-refused 0.1% | retail $1→$0.799 (min bucket $0.523)  | avg u +10%
+  sur=1 shape=1 base=+10% capB=0.5 dw=0.25 prem=1.25 kink=0.5 steep=4            | vault med +40.6% p10 +27.8% p5 +23.5% dd90  -9.7% | write-down paths  8.3% (0.13/yr) | cap-refused 0.0% | retail $1→$0.781 (min bucket $0.499)  | avg u +15%
+  sur=1 shape=1 base=+10% capB=0.5 dw=0.5 prem=1.25 kink=0.5 steep=4             | vault med +42.3% p10 +30.2% p5 +28.2% dd90  -9.5% | write-down paths  6.3% (0.08/yr) | cap-refused 0.0% | retail $1→$0.759 (min bucket $0.471)  | avg u +19%
+  sur=1 shape=1 base=+10% capB=0.5 dw=1 prem=1.25 kink=0.5 steep=4               | vault med +45.5% p10 +33.4% p5 +30.6% dd90  -9.0% | write-down paths  2.1% (0.02/yr) | cap-refused 0.0% | retail $1→$0.713 (min bucket $0.410)  | avg u +27%
+
+── Stage 2: utilization multiplier for 6 stage-1 seeds, 288 settings, 144 feasible. Top 15:
+  sur=0.5 shape=1 base=+0% capB=1 dw=1 prem=1 kink=0.75 steep=20                 | vault med +33.6% p10 +19.2% p5 +18.8% dd90 -13.8% | write-down paths  2.1% (0.02/yr) | cap-refused 0.0% | retail $1→$0.802 (min bucket $0.594)
+  sur=0.5 shape=1 base=+5% capB=1 dw=1 prem=1 kink=0.75 steep=20                 | vault med +34.0% p10 +19.4% p5 +19.0% dd90 -13.7% | write-down paths  2.1% (0.02/yr) | cap-refused 0.0% | retail $1→$0.801 (min bucket $0.594)
+  sur=0.5 shape=1 base=+0% capB=1 dw=1 prem=1 kink=0.6 steep=10                  | vault med +35.0% p10 +19.4% p5 +18.9% dd90 -12.4% | write-down paths  2.1% (0.02/yr) | cap-refused 0.0% | retail $1→$0.793 (min bucket $0.575)
+  sur=0.5 shape=1 base=+5% capB=1 dw=1 prem=1 kink=0.6 steep=10                  | vault med +35.1% p10 +19.6% p5 +19.1% dd90 -12.3% | write-down paths  2.1% (0.02/yr) | cap-refused 0.0% | retail $1→$0.791 (min bucket $0.576)
+  sur=0.5 shape=1 base=+0% capB=1 dw=1 prem=1.1 kink=0.75 steep=20               | vault med +35.9% p10 +21.0% p5 +19.7% dd90 -12.5% | write-down paths  2.1% (0.02/yr) | cap-refused 0.0% | retail $1→$0.789 (min bucket $0.576)
+  sur=0.5 shape=1 base=+5% capB=1 dw=1 prem=1.1 kink=0.75 steep=20               | vault med +36.2% p10 +21.3% p5 +19.9% dd90 -12.4% | write-down paths  2.1% (0.02/yr) | cap-refused 0.0% | retail $1→$0.787 (min bucket $0.576)
+  sur=0.5 shape=1 base=+0% capB=1 dw=1 prem=1 kink=0.6 steep=20                  | vault med +35.6% p10 +19.8% p5 +19.1% dd90 -11.9% | write-down paths  2.1% (0.02/yr) | cap-refused 0.0% | retail $1→$0.784 (min bucket $0.569)
+  sur=0.5 shape=1 base=+5% capB=1 dw=1 prem=1 kink=0.6 steep=20                  | vault med +35.8% p10 +20.1% p5 +19.2% dd90 -11.9% | write-down paths  2.1% (0.02/yr) | cap-refused 0.0% | retail $1→$0.782 (min bucket $0.569)
+  sur=0.5 shape=1 base=+0% capB=1 dw=1 prem=1 kink=0.75 steep=10                 | vault med +33.4% p10 +18.7% p5 +18.0% dd90 -14.2% | write-down paths  4.2% (0.04/yr) | cap-refused 0.0% | retail $1→$0.809 (min bucket $0.592)
+  sur=0.5 shape=1 base=+5% capB=1 dw=1 prem=1 kink=0.75 steep=10                 | vault med +33.5% p10 +18.8% p5 +18.2% dd90 -14.4% | write-down paths  4.2% (0.04/yr) | cap-refused 0.0% | retail $1→$0.807 (min bucket $0.591)
+  sur=0.5 shape=1 base=+0% capB=1 dw=1 prem=1.1 kink=0.6 steep=10                | vault med +37.5% p10 +21.3% p5 +20.9% dd90 -11.8% | write-down paths  2.1% (0.02/yr) | cap-refused 0.0% | retail $1→$0.780 (min bucket $0.557)
+  sur=0.5 shape=1 base=+5% capB=1 dw=1 prem=1.1 kink=0.6 steep=10                | vault med +37.7% p10 +21.6% p5 +21.1% dd90 -11.8% | write-down paths  2.1% (0.02/yr) | cap-refused 0.0% | retail $1→$0.778 (min bucket $0.558)
+  sur=0.5 shape=1 base=+0% capB=1 dw=1 prem=1 kink=0.5 steep=10                  | vault med +37.2% p10 +20.2% p5 +19.7% dd90 -11.9% | write-down paths  2.1% (0.02/yr) | cap-refused 0.0% | retail $1→$0.776 (min bucket $0.552)
+  sur=0.5 shape=1 base=+5% capB=1 dw=1 prem=1 kink=0.5 steep=10                  | vault med +37.5% p10 +20.4% p5 +19.9% dd90 -11.8% | write-down paths  2.1% (0.02/yr) | cap-refused 0.0% | retail $1→$0.774 (min bucket $0.552)
+  sur=0.5 shape=1 base=+0% capB=1 dw=1 prem=1.1 kink=0.6 steep=20                | vault med +37.9% p10 +22.1% p5 +21.1% dd90 -11.7% | write-down paths  2.1% (0.02/yr) | cap-refused 0.0% | retail $1→$0.772 (min bucket $0.548)
+
+  Best with x10 pinned at 2× (sur = 1):
+  sur=1 shape=2 base=+10% capB=0.25 dw=0.5 prem=1 kink=0.4 steep=10              | vault med +31.1% p10 +19.3% p5 +14.8% dd90 -20.0% | write-down paths  4.2% (0.04/yr) | cap-refused 0.2% | retail $1→$0.816 (min bucket $0.513)
+  sur=1 shape=2 base=+5% capB=0.25 dw=0.5 prem=1 kink=0.4 steep=10               | vault med +30.8% p10 +19.1% p5 +14.6% dd90 -20.1% | write-down paths  4.2% (0.04/yr) | cap-refused 0.2% | retail $1→$0.817 (min bucket $0.506)
+  sur=1 shape=2 base=+0% capB=0.25 dw=0.5 prem=1 kink=0.4 steep=10               | vault med +30.6% p10 +18.1% p5 +14.5% dd90 -17.4% | write-down paths  4.2% (0.04/yr) | cap-refused 0.3% | retail $1→$0.818 (min bucket $0.501)
+  sur=1 shape=2 base=+20% capB=0.25 dw=0.5 prem=1 kink=0.4 steep=10              | vault med +31.3% p10 +19.7% p5 +15.3% dd90 -20.0% | write-down paths  4.2% (0.04/yr) | cap-refused 0.2% | retail $1→$0.811 (min bucket $0.509)
+  sur=1 shape=2 base=+0% capB=0.25 dw=0.5 prem=1 kink=0.4 steep=20               | vault med +31.9% p10 +18.9% p5 +14.8% dd90 -19.4% | write-down paths  4.2% (0.04/yr) | cap-refused 0.2% | retail $1→$0.807 (min bucket $0.492)
+  sur=1 shape=2 base=+5% capB=0.25 dw=0.5 prem=1 kink=0.4 steep=20               | vault med +32.1% p10 +19.1% p5 +14.9% dd90 -19.4% | write-down paths  4.2% (0.04/yr) | cap-refused 0.2% | retail $1→$0.807 (min bucket $0.492)
+  sur=1 shape=2 base=+20% capB=0.25 dw=0.5 prem=1 kink=0.4 steep=20              | vault med +32.8% p10 +19.7% p5 +15.5% dd90 -19.3% | write-down paths  4.2% (0.04/yr) | cap-refused 0.2% | retail $1→$0.803 (min bucket $0.499)
+  sur=1 shape=2 base=+10% capB=0.25 dw=0.5 prem=1 kink=0.4 steep=20              | vault med +32.2% p10 +19.3% p5 +15.1% dd90 -19.3% | write-down paths  4.2% (0.04/yr) | cap-refused 0.1% | retail $1→$0.806 (min bucket $0.493)
+
+── Stage 3: chosen setting on 32 paths per scenario (192 path-years)
+  sur=1 shape=2 base=+10% capB=0.25 dw=0.5 prem=1 kink=0.4 steep=10
+  per-bucket multiplier mult_p: 1.00 1.01 1.05 1.11 1.20 1.31 1.44 1.60 1.79 2.00
+  per-bucket cap (share of pool): +25% +13% +8% +6% +5% +4% +4% +3% +3% +3%
+  utilization weight w_p: 1.00 1.50 2.00 2.50 3.00 3.50 4.00 4.50 5.00 5.50
+  vault APY median +30.6%, p10 +18.8%, p5 +13.0%, worst -15.0%, 90th-pct drawdown -10.7%
+  write-downs: 4.2% of path-years, 0.057 events/yr, $23403 written off per year on average
+  opens refused by a bucket cap 0.2%, clipped 0.1%; average utilization +21%
+  per scenario:
+    base   vault med +29.6% p10 +23.3%  write-down paths 0%
+    bull   vault med +39.5% p10 +26.8%  write-down paths 0%
+    bear   vault med +25.9% p10 +14.9%  write-down paths 0%
+    mania  vault med +36.9% p10 +23.8%  write-down paths 0%
+    jumpy  vault med +20.5% p10  +2.7%  write-down paths 25%
+    btc14  vault med +33.6% p10 +25.9%  write-down paths 0%
+  per bucket (retail):
+    x1  $1→$1.021  win 46%  ≥2×  1.5%  median 0.99×  p95 1.56×  funding  +13.4%/yr  convexity   +0.0%/yr  paid/convexity —  share of claims +22%
+    x2  $1→$1.018  win 42%  ≥2×  5.4%  median 0.94×  p95 2.06×  funding +153.9%/yr  convexity +101.7%/yr  paid/convexity 1.51×  share of claims +18%
+    x3  $1→$0.980  win 36%  ≥2×  8.2%  median 0.83×  p95 2.45×  funding +431.5%/yr  convexity +293.8%/yr  paid/convexity 1.47×  share of claims +15%
+    x4  $1→$0.938  win 32%  ≥2× 10.2%  median 0.68×  p95 2.84×  funding +878.0%/yr  convexity +569.6%/yr  paid/convexity 1.54×  share of claims +12%
+    x5  $1→$0.875  win 27%  ≥2× 10.0%  median 0.52×  p95 2.91×  funding +1536.4%/yr  convexity +936.1%/yr  paid/convexity 1.64×  share of claims +9%
+    x6  $1→$0.805  win 22%  ≥2×  9.1%  median 0.44×  p95 2.90×  funding +2486.3%/yr  convexity +1386.8%/yr  paid/convexity 1.79×  share of claims +7%
+    x7  $1→$0.722  win 17%  ≥2×  8.1%  median 0.39×  p95 2.75×  funding +3692.3%/yr  convexity +1924.4%/yr  paid/convexity 1.92×  share of claims +6%
+    x8  $1→$0.644  win 13%  ≥2×  6.9%  median 0.34×  p95 2.55×  funding +5197.3%/yr  convexity +2564.4%/yr  paid/convexity 2.03×  share of claims +4%
+    x9  $1→$0.578  win 10%  ≥2×  5.9%  median 0.30×  p95 2.26×  funding +7110.9%/yr  convexity +3298.8%/yr  paid/convexity 2.16×  share of claims +3%
+    x10 $1→$0.505  win  8%  ≥2×  4.5%  median 0.26×  p95 1.79×  funding +9354.0%/yr  convexity +4144.4%/yr  paid/convexity 2.26×  share of claims +3%
+
+  Stress (chosen setting, 16 paths per scenario):
+    steep mix (most retail in x8-x10)     vault med +51.5% p10 +28.7% p5 +10.6% dd90 -15.7% | write-down paths 12.5% (0.21/yr) | cap-refused 1.5% | retail $1→$0.688 (min bucket $0.548)
+    gentle mix (most retail in x1-x3)     vault med +11.3% p10  +5.8% p5  +4.5% dd90  -4.6% | write-down paths  2.1% (0.05/yr) | cap-refused 1.1% | retail $1→$0.964 (min bucket $0.437)
+    400 open positions                    vault med +83.5% p10 +50.8% p5 +38.8% dd90 -16.0% | write-down paths  8.3% (0.14/yr) | cap-refused 0.2% | retail $1→$0.747 (min bucket $0.464)
+    800 open positions                    vault med +193.6% p10 +121.6% p5 +104.4% dd90 -20.5% | write-down paths 10.4% (0.20/yr) | cap-refused 0.3% | retail $1→$0.698 (min bucket $0.416)
+    100 open positions                    vault med +12.6% p10  +3.8% p5  -5.6% dd90  -7.4% | write-down paths  5.2% (0.07/yr) | cap-refused 0.2% | retail $1→$0.912 (min bucket $0.624)
+    $5k median ticket (whales)            vault med +647.4% p10 +422.6% p5 +365.7% dd90 -25.9% | write-down paths 11.5% (0.19/yr) | cap-refused 0.8% | retail $1→$0.658 (min bucket $0.357)
+    vault puts 80% in the pool            vault med +26.2% p10 +12.4% p5  +1.9% dd90 -13.8% | write-down paths  6.3% (0.07/yr) | cap-refused 0.1% | retail $1→$0.886 (min bucket $0.584)
+    no caps                               vault med +33.4% p10 +19.3% p5 +14.9% dd90 -10.9% | write-down paths  7.3% (0.10/yr) | cap-refused 0.0% | retail $1→$0.824 (min bucket $0.502)
+    no surcharge (sur 0)                  vault med +21.8% p10  +6.2% p5  -0.5% dd90 -16.7% | write-down paths 10.4% (0.22/yr) | cap-refused 0.4% | retail $1→$0.893 (min bucket $0.784)
+    no delta weight (dw 0)                vault med +22.8% p10 +13.4% p5  +7.6% dd90 -12.8% | write-down paths 14.6% (0.38/yr) | cap-refused 1.0% | retail $1→$0.901 (min bucket $0.615)
+    no x1 base fee                        vault med +32.2% p10 +18.6% p5 +14.5% dd90 -10.7% | write-down paths  6.3% (0.09/yr) | cap-refused 0.2% | retail $1→$0.829 (min bucket $0.512)
+    looser caps (capB 0.5)                vault med +32.5% p10 +19.3% p5 +14.9% dd90 -10.9% | write-down paths  7.3% (0.10/yr) | cap-refused 0.0% | retail $1→$0.825 (min bucket $0.505)
+    vol floor 60% (iv)                    vault med +28.5% p10 +14.0% p5  +9.3% dd90 -12.6% | write-down paths  9.4% (0.15/yr) | cap-refused 0.3% | retail $1→$0.851 (min bucket $0.584)
+    vol floor 100% (iv)                   vault med +40.0% p10 +26.6% p5 +21.6% dd90  -9.0% | write-down paths  4.2% (0.05/yr) | cap-refused 0.1% | retail $1→$0.780 (min bucket $0.433)
+    hedge slippage 0.3%                   vault med +29.2% p10 +17.5% p5 +12.1% dd90 -11.1% | write-down paths  6.3% (0.09/yr) | cap-refused 0.2% | retail $1→$0.826 (min bucket $0.514)
+
+  Contract defaults derived from this: see README.md. Runtime 272s.
+
+CHOSEN {"prem":1,"kink":0.4,"steep":10,"slope":1,"sur":1,"shape":2,"baseFee":0.1,"capB":0.25,"dw":0.5}

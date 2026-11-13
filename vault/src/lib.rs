@@ -1,9 +1,9 @@
 //! Uprise hedged vault ("Crab"): the Curve Short side, delta-hedged with the underlying (wNEAR on mainnet, BTC or wNEAR on testnet).
 //!
 //! Yield hunters deposit USDC and get vault shares. The vault is an ordinary account in the
-//! Uprise ledger: it opens Curve Short with part of its cash and holds `p × long claims` worth of
-//! the underlying (pro rata to its share of the short pool) so a price move barely changes its value. What is
-//! left is the funding that Curve Long pays.
+//! Uprise ledger: it opens Curve Short with part of its cash and holds `delta_claims = Σ p · C_p` worth
+//! of the underlying across all ten curve buckets (pro rata to its share of the short pool), so a price
+//! move barely changes its value. What is left is the funding that Curve Long pays.
 //!
 //! Pricing: deposits and withdrawals are queued and settle at the next `sync()`, which reads the
 //! ledger position, the market and both token balances in one round trip. Nobody can deposit at a
@@ -54,8 +54,8 @@ struct LedgerAccount {
 struct LedgerMarket {
     price: U128,
     price_fresh: bool,
-    power: u8,
-    long_claims: U128,
+    /// Σ p · C_eff,p over every bucket (the ledger's total asset exposure).
+    delta_claims: U128,
     short_shares: U128,
 }
 
@@ -102,12 +102,13 @@ pub struct Snapshot {
     pub asset: U128,
     /// Ledger oracle price, USDC 6 dp per 1 whole asset.
     pub price: U128,
-    pub power: u8,
+    /// The ledger's Σ p · C_eff,p (all buckets).
+    pub delta_claims: U128,
     /// Vault's Curve Short value and its free balance inside the ledger.
     pub short_value: U128,
     pub short_shares: U128,
     pub ledger_free: U128,
-    /// Hedge target: p × long claims × our share of the short pool, in USDC.
+    /// Hedge target: delta_claims × our share of the short pool, in USDC.
     pub hedge_target_usd: U128,
     /// Total value after this sync's deposits and withdrawals.
     pub nav: U128,
@@ -346,14 +347,14 @@ impl Contract {
         let hedge_target = if m.short_shares.0 == 0 {
             0
         } else {
-            mul_div(mul_div(m.long_claims.0, our_shares, m.short_shares.0), m.power as u128, 1)
+            mul_div(m.delta_claims.0, our_shares, m.short_shares.0)
         };
         self.snap = Snapshot {
             ts: now(),
             usdc: U128(cash),
             asset: asset,
             price: m.price,
-            power: m.power,
+            delta_claims: m.delta_claims,
             short_value: U128(short_value),
             short_shares: U128(our_shares),
             ledger_free: U128(free),
