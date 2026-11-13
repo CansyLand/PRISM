@@ -279,7 +279,10 @@ function renderPosition() {
     $("posPnl").textContent = `${v >= c ? "+" : "−"}${fmt(Math.abs(v - c))} · ×${(v / c).toFixed(2)}`; $("posPnl").className = "num " + (v >= c ? "pos" : "neg");
     // at today's rate the position pays v·f/365 a day, so it would melt away in about 365/f days
     const f = m.funding_rate_annual_bps / 1e4, days = f > 0 ? 365 / f : Infinity;
-    $("meltBar").style.width = Math.max(3, Math.min(100, (days / 180) * 100)) + "%";
+    // the bar is your position, not time: full = what you paid, it shrinks by the funding taken so far.
+    // Funding only lowers NF, so the share left is NF now / NF when you bought (remembered at buy).
+    const nf0 = Number(ls.get(`uprise.v1.nf.${live.accountId}`) || 0), left = nf0 ? Number(m.nf) / nf0 : null;
+    $("meltBar").parentElement.hidden = left == null; if (left != null) $("meltBar").style.width = Math.max(2, Math.min(100, left * 100)) + "%";
     $("meltNote").textContent = `Funding: ${fmt(v * f / 365)} per day (~${isFinite(days) ? Math.round(days) : "∞"} days)`;
   }
 }
@@ -377,7 +380,7 @@ $("buy").onclick = () => withBusy($("buy"), "Buying…", async () => {
   const a = amount();
   const had = live.state.ledgerAcc && BigInt(live.state.ledgerAcc.long_units) > 0n, pBuy = Number(live.state.market.price) / E6, key = `uprise.v1.entry.${live.accountId}`;
   await live.buy(BigInt(Math.floor(a * E6))); $("amt").value = "";
-  if (!had) ls.set(key, String(pBuy)); else localStorage.removeItem(key); // adding to a position: fall back to the estimate toast(`Bought ${fmt(a)} of Curve Long`); await liveRefresh();
+  if (!had) { ls.set(key, String(pBuy)); ls.set(`uprise.v1.nf.${live.accountId}`, String(live.state.market.nf)); } else { localStorage.removeItem(key); localStorage.removeItem(`uprise.v1.nf.${live.accountId}`); } // adding to a position: fall back to estimates toast(`Bought ${fmt(a)} of Curve Long`); await liveRefresh();
 });
 $("close").onclick = () => {
   if (mode === "demo") return demoClose("manual");
@@ -523,7 +526,7 @@ async function setMode(m) {
 
 function render() {
   const liveNoWallet = mode === "live" && !live?.connected;
-  $("liveStart").hidden = !liveNoWallet;
+  $("liveStart").hidden = !liveNoWallet; $("netTag").hidden = !(mode === "live" && live?.cfg?.testnet);
   $("tab-bull").classList.toggle("start-only", liveNoWallet); // Live without a wallet: just the start card
   $("balLabel").textContent = mode === "demo" ? "Play money" : live?.connected ? "Balance" : "Not signed in";
   if (mode === "demo") $("balance").textContent = fmt(demo.balance + (demo.position?.value || 0));
