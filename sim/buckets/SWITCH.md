@@ -1,5 +1,8 @@
 # Switching the app and ops to the bucketed ledger
 
+> **Status (2026-11-13):** done on this branch. The bucketed ledger and vault run on testnet as
+> `ledger-b` / `vault-b`. The app, `keeper.js` and `players.js` use them. The list below is what changed.
+
 On this branch the contracts support x¹–x¹⁰ in one ledger. Testnet still runs the single-power x³
 ledger, and the app wasn't changed. This list covers what has to change before a redeploy.
 

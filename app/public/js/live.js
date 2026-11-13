@@ -97,18 +97,22 @@ export class Live {
   cash() { return this.state.usdc + BigInt(this.state.ledgerAcc?.free || 0); }
 
   // ── trades ──
-  async buy(raw) {
+  /** Buy `raw` USDC of Curve Long at strength `power` (1..10): free ledger balance first, the rest from the wallet. */
+  async buy(raw, power) {
     const free = BigInt(this.state.ledgerAcc?.free || 0), c = this.cfg;
-    if (free >= raw) return this.call(c.ledger, "open_long", { amount: String(raw) });
-    if (free > 0n) await this.call(c.ledger, "open_long", { amount: String(free) });
-    return this.call(c.usdc, "ft_transfer_call", { receiver_id: c.ledger, amount: String(raw - free), msg: JSON.stringify({ action: "open_long" }) }, { deposit: 1n, tgas: 120 });
+    if (free >= raw) return this.call(c.ledger, "open_long", { power, amount: String(raw) });
+    if (free > 0n) await this.call(c.ledger, "open_long", { power, amount: String(free) });
+    return this.call(c.usdc, "ft_transfer_call", { receiver_id: c.ledger, amount: String(raw - free), msg: JSON.stringify({ action: "open_long", power }) }, { deposit: 1n, tgas: 120 });
   }
-  async closeAll() {
+  /** Close the `power` position (every position if omitted) and cash out to the wallet. */
+  async close(power) {
     const c = this.cfg;
-    await this.call(c.ledger, "close_long", {});
+    const held = (this.state.ledgerAcc?.longs || []).map((l) => l.power);
+    for (const p of power ? [power] : held) await this.call(c.ledger, "close_long", { power: p });
     const a = await this.view(c.ledger, "get_account", { account_id: this.accountId });
     if (a && BigInt(a.free) > 0n) await this.call(c.ledger, "withdraw", { amount: a.free }, { deposit: 1n });
   }
+  closeAll() { return this.close(); }
   vaultDeposit(raw) { return this.call(this.cfg.usdc, "ft_transfer_call", { receiver_id: this.cfg.vault, amount: String(raw), msg: "deposit" }, { deposit: 1n }); }
   vaultWithdraw(shares) { return this.call(this.cfg.vault, "request_withdraw", shares ? { shares: String(shares) } : {}, { tgas: 30 }); }
   faucet() { return post("/api/faucet", { account_id: this.accountId }); }

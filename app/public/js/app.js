@@ -33,14 +33,35 @@ document.querySelectorAll(".modal-bg").forEach((m) => m.addEventListener("click"
 
 // ── strength (curvature) selector ──
 const P = () => +$("p").value;
+// Live: one bucket per strength, x¹…x¹⁰, all open. Each has its own funding rate, max buy and position.
+const bucketOf = (p) => live?.state?.market?.buckets?.[p - 1];
+const heldLongs = () => (mode === "live" ? live?.state?.ledgerAcc?.longs || [] : []);
+const heldLong = (p) => heldLongs().find((l) => l.power === p);
+// rewrite only on change: the position card repaints several times a second and a replaced link would swallow taps
+const setHTML = (el, html) => { if (el.dataset.html !== html) { el.dataset.html = html; el.innerHTML = html; } };
+let browseBuy = false; // live: show the buy side even though the selected strength has a position (to add to it or pick another)
+const showsPosition = (p) => !!heldLong(p) && !browseBuy;
+// position face: the other strengths you hold (tap to switch) and a way back to the slider
+function renderOthers(p) {
+  const others = heldLongs().filter((l) => l.power !== p);
+  $("posOthers").hidden = mode !== "live";
+  setHTML($("posOthers"), (others.length ? "Also: " + others.map((l) => `<a href="#" data-pick="${l.power}">${pw(l.power)} ${fmt(Number(l.value) / E6)}</a>`).join(", ") + " · " : "") + `<a href="#" data-buy>+ buy another strength</a>`);
+}
 function renderStrength() {
-  const p = P(), name = mode === "live" ? (live?.cfg?.asset || "NEAR") : "the price";
+  const p = P();
   $("pLabel").textContent = pw(p);
-  const mismatch = mode === "live" && live?.cfg && p !== live.cfg.power;
-  $("pNote").textContent = mismatch ? `The live market offers ${pw(live.cfg.power)} right now. More strengths are coming.` : "";
-  $("pNote").hidden = !mismatch;
+  // positions in other strengths: one tap switches the slider to them
+  const others = heldLongs().filter((l) => l.power !== p);
+  setHTML($("pNote"), others.length ? "You also hold " + others.map((l) => `<a href="#" data-pick="${l.power}">${pw(l.power)} ${fmt(Number(l.value) / E6)}</a>`).join(", ") : "");
+  $("pNote").hidden = !others.length;
   showCurve(p); renderFunding(); paintSlider();
 }
+for (const id of ["pNote", "posOthers"]) $(id).addEventListener("click", (e) => {
+  const a = e.target.closest("[data-pick],[data-buy]"); if (!a) return;
+  e.preventDefault();
+  if (a.dataset.buy != null) { browseBuy = true; flip(false); renderStrength(); renderPreview(); return; }
+  browseBuy = false; $("p").value = a.dataset.pick; $("p").dispatchEvent(new Event("input"));
+});
 // the slim card follows the slider, or the open position (with a dot at today's price move)
 function showCurve(p, at = null) {
   curve.set(p, at);
@@ -51,6 +72,7 @@ $("p").addEventListener("input", () => {
   const p = P();
   if (p === 10 && lastP < 10) { const r = $("p").getBoundingClientRect(); supernova(r.left + r.width - 10, r.top + r.height / 2); }
   lastP = p; renderStrength(); renderPreview();
+  if (mode === "live" && live?.state?.market) { if (heldLong(p)) browseBuy = false; flip(showsPosition(p)); renderPosition(); }
 });
 // Funding at the top: what a Curve Long at this strength melts per day. Demo: the straight timer means it
 // loses 1/(days in the window) of its curve value every day. Live: the market's current funding rate.
@@ -59,8 +81,8 @@ function renderFunding() {
     const p = demo?.position?.p ?? P(), days = meltSeconds(p) / (CANDLE_MS / 1000);
     $("fundLbl").textContent = "funding"; $("fundRate").textContent = `−${(100 / days).toFixed(1)}% day`;
   } else {
-    const m = live?.state?.market; $("fundLbl").textContent = "funding";
-    $("fundRate").textContent = m ? `−${(m.funding_rate_annual_bps / 1e4 / 365 * 100).toFixed(2)}% day` : "—";
+    const b = bucketOf(P()); $("fundLbl").textContent = "funding";
+    $("fundRate").textContent = b ? `−${(b.funding_rate_annual_bps / 1e4 / 365 * 100).toFixed(2)}% day` : "—";
   }
 }
 
@@ -71,16 +93,16 @@ function renderPreview() {
   const a = amount(), p = P(), net = a * 0.997;
   let rows = [];
   if (a > 0) {
-    if (mode === "live" && live?.state?.market) { const f = live.state.market.funding_rate_annual_bps / 1e4; rows.push(["Funding now", `${fmt(net * f / 365)}/day (${Math.round(f * 100)}%/yr)`]); }
+    if (mode === "live" && bucketOf(p)) { const f = bucketOf(p).funding_rate_annual_bps / 1e4; rows.push(["Funding now", `${fmt(net * f / 365)}/day (${Math.round(f * 100)}%/yr)`]); }
   }
   $("preview").innerHTML = rows.map(([k, v]) => `<div class="kv"><span>${k}</span><span>${v}</span></div>`).join("");
-  const maxOpen = mode === "live" && live?.state?.market ? Number(live.state.market.max_long_open) / E6 : Infinity;
-  $("amtErr").hidden = !(a > maxOpen); if (a > maxOpen) $("amtErr").textContent = `Too big for the vault right now. Max ${fmt(Math.floor(maxOpen * 100) / 100)} per position.`;
+  // each strength has its own limit: 20% of the pool, and a cap on its share of the pool (tighter for steeper curves)
+  const maxOpen = mode === "live" && bucketOf(p) ? Number(bucketOf(p).max_open) / E6 : Infinity;
+  $("amtErr").hidden = !(a > maxOpen); if (a > maxOpen) $("amtErr").textContent = maxOpen < 1 ? `${pw(p)} is full right now. Try a gentler curve.` : `Too big for ${pw(p)} right now. Max ${fmt(Math.floor(maxOpen * 100) / 100)}.`;
   let err = "";
   if (mode === "live" && !live?.connected) err = "";
   else if (a > cash() + 1e-9) err = mode === "demo" ? "More than your play money." : "Not enough balance. Tap your balance to add money.";
-  else if (mode === "live" && p !== live?.cfg?.power) err = `Pick ${pw(live?.cfg?.power)} for the live market.`;
-  else if (mode === "live" && live?.state?.market && a > Number(live.state.market.max_long_open) / E6) err = `Largest buy right now is ${fmt(Number(live.state.market.max_long_open) / E6)}.`;
+  else if (mode === "live" && a > maxOpen) err = `Largest ${pw(p)} buy right now is ${fmt(Math.floor(maxOpen * 100) / 100)}.`;
   $("buyErr").textContent = err;
   $("buy").disabled = !a || !!err || busy || (mode === "live" && !live?.connected) || a > maxOpen;
   $("buy").textContent = a ? `Buy ${fmt(a, a % 1 ? 2 : 0)}` : "Buy";
@@ -267,21 +289,24 @@ function renderPosition() {
     $("chg").textContent = pct(px / q.entry - 1, 1) + " since you bought"; $("chg").className = "small num " + (px >= q.entry ? "pos" : "neg");
     $("balance").textContent = fmt(demo.balance + v);
   } else {
-    const a = live?.state?.ledgerAcc; if (!a || BigInt(a.long_units) === 0n) return;
-    const v = Number(a.long_value) / E6, c = Number(a.long_cost) / E6, m = live.state.market;
+    const p = P(), a = heldLong(p); if (!a || browseBuy) return;
+    renderOthers(p);
+    const v = Number(a.value) / E6, c = Number(a.cost) / E6, m = live.state.market, b = bucketOf(p);
     $("posFundRow").hidden = true; renderFunding();
-    $("posP").textContent = pw(m.power); $("posValue").textContent = fmt(v); $("posPaid").textContent = fmt(c);
-    const known = Number(ls.get(`uprise.v1.entry.${live.accountId}`) || 0), pNow = Number(m.price) / E6;
+    $("posP").textContent = pw(p); $("posValue").textContent = fmt(v); $("posPaid").textContent = fmt(c);
+    const known = Number(ls.get(`uprise.v1.entry.${live.accountId}.${p}`) || 0), pNow = Number(m.price) / E6;
     // estimate if we didn't see the buy: value ≈ cost × (P/E)^p  →  E ≈ P × (cost/value)^(1/p) (melt makes it a little high)
-    const entry = known || (v > 0 ? pNow * Math.pow(c * 0.997 / v, 1 / m.power) : 0);
+    const entry = known || (v > 0 ? pNow * Math.pow(c * 0.997 / v, 1 / p) : 0);
     $("posEntry").textContent = entry ? (known ? "" : "≈ ") + fmtP(entry) : "—"; $("posNow").textContent = fmtP(pNow);
-    showCurve(m.power, entry ? pNow / entry - 1 : null); // your dot on the curve, no ±10% markers
+    showCurve(p, entry ? pNow / entry - 1 : null); // your dot on the curve, no ±10% markers
     $("posPnl").textContent = `${v >= c ? "+" : "−"}${fmt(Math.abs(v - c))} · ×${(v / c).toFixed(2)}`; $("posPnl").className = "num " + (v >= c ? "pos" : "neg");
     // at today's rate the position pays v·f/365 a day, so it would melt away in about 365/f days
-    const f = m.funding_rate_annual_bps / 1e4, days = f > 0 ? 365 / f : Infinity;
+    const f = b.funding_rate_annual_bps / 1e4, days = f > 0 ? 365 / f : Infinity;
     // the bar is your position, not time: full = what you paid, it shrinks by the funding taken so far.
-    // Funding only lowers NF, so the share left is NF now / NF when you bought (remembered at buy).
-    const nf0 = Number(ls.get(`uprise.v1.nf.${live.accountId}`) || 0), left = nf0 ? Number(m.nf) / nf0 : null;
+    // Funding only lowers NF, so the share left is NF now / NF when you bought (remembered at buy, per strength).
+    // A rebase re-anchors the bucket (new ref price or unit scale): then the remembered NF no longer compares.
+    const nf0 = Number(ls.get(`uprise.v1.nf.${live.accountId}.${p}`) || 0), ref0 = ls.get(`uprise.v1.ref.${live.accountId}.${p}`);
+    const left = nf0 && ref0 === `${b.ref_price}/${b.scale}` ? Number(b.nf) / nf0 : null;
     $("meltBar").parentElement.hidden = left == null; if (left != null) $("meltBar").style.width = Math.max(2, Math.min(100, left * 100)) + "%";
     $("meltNote").textContent = `Funding: ${fmt(v * f / 365)} per day (~${isFinite(days) ? Math.round(days) : "∞"} days)`;
   }
@@ -356,10 +381,13 @@ async function liveRefresh() {
       if (now - lastCandleT >= GRAN[range]) { chart.candles.push([p, p, p, p]); lastCandleT = now; chart.draw(); } else chart.tick(p);
       $("px").textContent = fmtP(p);
     }
-    const has = live.state.ledgerAcc && BigInt(live.state.ledgerAcc.long_units) > 0n;
-    flip(has);
+    // first refresh with positions: show one you hold if the slider sits on an empty strength
+    const held = heldLongs();
+    if (held.length && !heldLong(P()) && !liveRefresh.picked) { $("p").value = held[0].power; renderStrength(); renderPreview(); }
+    liveRefresh.picked = true;
+    flip(showsPosition(P())); renderStrength();
     // no USDC anywhere yet: offer the ways to get some (once per session)
-    if (live.connected && !fundShown && Number(live.state.usdc || 0n) === 0 && Number(live.cash()) === 0 && Number(live.state.ledgerAcc?.long_units || 0) === 0) { fundShown = true; openFund(); }
+    if (live.connected && !fundShown && Number(live.state.usdc || 0n) === 0 && Number(live.cash()) === 0 && heldLongs().length === 0) { fundShown = true; openFund(); }
     if (live.kind === "device" && Number(live.cash()) > 0 && !ls.get("uprise.v1.backedUp") && !ls.get("uprise.v1.backupLater")) { modal("backup"); ls.set("uprise.v1.backupLater", "1"); }
     render();
   } catch (e) { console.warn(e); }
@@ -378,13 +406,16 @@ $("bSave").onclick = () => withBusy($("bSave"), "Saving…", async () => { await
 $("buy").onclick = () => withBusy($("buy"), "Buying…", async () => {
   if (mode === "demo") return demoBuy();
   const a = amount();
-  const had = live.state.ledgerAcc && BigInt(live.state.ledgerAcc.long_units) > 0n, pBuy = Number(live.state.market.price) / E6, key = `uprise.v1.entry.${live.accountId}`;
-  await live.buy(BigInt(Math.floor(a * E6))); $("amt").value = "";
-  if (!had) { ls.set(key, String(pBuy)); ls.set(`uprise.v1.nf.${live.accountId}`, String(live.state.market.nf)); } else { localStorage.removeItem(key); localStorage.removeItem(`uprise.v1.nf.${live.accountId}`); } // adding to a position: fall back to estimates toast(`Bought ${fmt(a)} of Curve Long`); await liveRefresh();
+  const p = P(), had = !!heldLong(p), pBuy = Number(live.state.market.price) / E6, b = bucketOf(p), sfx = `${live.accountId}.${p}`;
+  await live.buy(BigInt(Math.floor(a * E6)), p); $("amt").value = ""; browseBuy = false;
+  if (!had) { ls.set(`uprise.v1.entry.${sfx}`, String(pBuy)); ls.set(`uprise.v1.nf.${sfx}`, String(b.nf)); ls.set(`uprise.v1.ref.${sfx}`, `${b.ref_price}/${b.scale}`); }
+  else { for (const k of ["entry", "nf", "ref"]) localStorage.removeItem(`uprise.v1.${k}.${sfx}`); } // adding to a position: fall back to estimates
+  toast(`Bought ${fmt(a)} of ${pw(p)} Curve Long`); await liveRefresh();
 });
 $("close").onclick = () => {
   if (mode === "demo") return demoClose("manual");
-  withBusy($("close"), "Closing…", async () => { await live.closeAll(); toast("Closed and cashed out"); await liveRefresh(); });
+  const p = P();
+  withBusy($("close"), "Closing…", async () => { await live.close(p); toast(`Closed ${pw(p)} and cashed out`); await liveRefresh(); });
 };
 
 // ── CRAB ──
@@ -405,8 +436,9 @@ function renderCrab() {
     $("stakeCv").parentElement.hidden = true; $("sSince").textContent = "";
     if (!v || !m) return;
     const s = v.snapshot, nav = Number(s.nav) / E6, assetV = Number(v.hedge_value) / E6, usdcV = Math.max(0, nav - assetV);
-    const claims = Number(m.long_claims) / E6, share = Number(m.short_shares) > 0 ? Number(s.short_shares) / Number(m.short_shares) : 0;
-    const perYear = m.funding_rate_annual_bps / 1e4 * claims * share * 0.9;
+    // funding the longs pay per year, summed over the ten strengths, times our share of the short pool, minus the 10% protocol cut
+    const share = Number(m.short_shares) > 0 ? Number(s.short_shares) / Number(m.short_shares) : 0;
+    const perYear = (m.buckets || []).reduce((t, b) => t + Number(b.claims) / E6 * b.funding_rate_annual_bps / 1e4, 0) * share * 0.9;
     $("vYield").textContent = nav > 0 ? pct(perYear / nav, 1) : "—"; $("vTvl").textContent = fmt(nav, 0); $("vFund").textContent = fmt(perYear / 365) + "/day";
     const tot = Math.max(1e-9, usdcV + assetV);
     $("vBar").innerHTML = `<i style="width:${usdcV / tot * 100}%;background:var(--usdc)"></i><i style="width:${assetV / tot * 100}%;background:var(--near)"></i>`;
@@ -518,7 +550,7 @@ async function setMode(m) {
   if (m === "demo") { $("mkt").textContent = "Demo market"; $("mktNote").textContent = "Demo replay of real history"; $("assetLabel").textContent = "play money"; loadDemoChart(); flip(false); }
   else {
     try { await ensureLive(); } catch (e) { toast("Live mode can't reach the network: " + e.message, true); return setMode("demo"); }
-    $("assetLabel").textContent = `on ${live.cfg.asset}`; $("p").value = live.cfg.power; await loadLiveChart(); await liveRefresh();
+    $("assetLabel").textContent = `on ${live.cfg.asset}`; liveRefresh.picked = false; await loadLiveChart(); await liveRefresh();
   }
   if (tab === "stats") arena.start(mode, live);
   renderStrength(); render();

@@ -7,8 +7,10 @@
 // Every VAULT_SECS: sync the vault, then take up to MAX_STEPS bounded actions:
 //   1. pay queued withdrawals (pull free ledger cash, else close part of the short)
 //   2. bring free ledger cash home
-//   3. hedge toward p × long claims (buy or sell the asset on the swap)
-//   4. keep about SHORT_SHARE of the vault in Curve Short (needed before anyone can open a long)
+//   3. hedge toward delta_claims × our share (Σ p · C_p over all ten buckets; buy or sell the asset on the swap)
+//   4. keep about SHORT_SHARE of the vault in Curve Short (needed before anyone can open a long), but never at
+//      the hedge's expense: cash for the hedge gap, 25% headroom on the target and 5% of NAV stay out of the short,
+//      and short is closed when the hedge needs cash it doesn't have.
 import { account, view, call, loadDeployment, sleep, ONE_YOCTO, fmtUsd, ASSETS, spotPrice, balanceNear, faucetAccount, loadKeys, near } from "./lib.js";
 
 const d = loadDeployment();
@@ -81,28 +83,37 @@ function decide(v) {
   }
   // 2. free ledger cash home
   if (free > 1_000_000n) return ["pull", { amount: String(free) }, `pull ${fmtUsd(free)} from the ledger`];
-  // 3. hedge
+  // 3. hedge, to within 2% of the target (at least $5, at most the 1%-of-NAV tolerance)
+  let htol = target / 50n; if (htol < 5_000_000n) htol = 5_000_000n; if (htol > tol) htol = tol;
   const err = hedgeVal - target;
-  if (err < -tol && cash - owedW > 1_000_000n) {
+  if (err < -htol && cash - owedW > 1_000_000n) {
     let buy = -err; const room = cash - owedW; if (buy > room) buy = room;
     return ["hedge_buy", { usdc_amount: String(buy) }, `buy ${SYM} for ${fmtUsd(buy)} (hedge ${fmtUsd(hedgeVal)} → ${fmtUsd(target)})`];
   }
-  if (err > tol) {
+  if (err > htol) {
     const sell = err * UNIT / price;
     if (sell > 0n) return ["hedge_sell", { asset_amount: String(sell) }, `sell ${(Number(sell * 100000n / UNIT) / 1e5).toFixed(4)} ${SYM} (hedge ${fmtUsd(hedgeVal)} → ${fmtUsd(target)})`];
   }
-  // 4. short allocation
-  const wantShort = BigInt(Math.floor(Number(nav) * SHORT_SHARE));
-  const spare = cash - owedW - (target > hedgeVal ? target - hedgeVal : 0n) - nav / 20n; // keep 5% cash
-  if (shortVal + tol < wantShort && spare > 1_000_000n) {
-    let amt = wantShort - shortVal; if (amt > spare) amt = spare;
+  // 4. short allocation. The hedge comes first: a rally raises delta, so keep the gap, 25% headroom and 5% of NAV in cash.
+  const gap = target > hedgeVal ? target - hedgeVal : 0n, avail = cash - owedW;
+  const reserve = gap + target / 4n + nav / 20n;
+  let wantShort = BigInt(Math.floor(Number(nav) * SHORT_SHARE));
+  const room = nav - hedgeVal - reserve; // what can sit in the short without starving the hedge
+  if (room < wantShort) wantShort = room > 0n ? room : 0n;
+  const closeShort = (need, why) => {
+    let sh = shortShares * need / shortVal + 1n; if (sh > shortShares) sh = shortShares;
+    return ["deallocate", { shares: String(sh) }, `close short worth ~${fmtUsd(need)} ${why}`];
+  };
+  // The hedge is short of cash: close enough short to fund it now.
+  if (gap > htol && avail < gap && shortShares > 0n && shortVal > 0n) return closeShort(gap - avail + nav / 50n, "to fund the hedge");
+  if (shortVal + tol < wantShort && avail - reserve > 1_000_000n) {
+    let amt = wantShort - shortVal; if (amt > avail - reserve) amt = avail - reserve;
     return ["allocate", { amount: String(amt) }, `put ${fmtUsd(amt)} into Curve Short`];
   }
-  // Short far above target and the hedge needs cash: close some.
-  if (target > hedgeVal + tol && cash < target - hedgeVal && shortVal > wantShort && shortShares > 0n) {
-    const need = target - hedgeVal - cash;
-    let sh = shortShares * need / shortVal + 1n; if (sh > shortShares) sh = shortShares;
-    return ["deallocate", { shares: String(sh) }, `close short worth ~${fmtUsd(need)} to fund the hedge`];
+  // Short above its hedge-limited target while cash is below the reserve: trim it.
+  if (shortVal > wantShort + tol && avail + tol < reserve && shortShares > 0n && shortVal > 0n) {
+    let need = shortVal - wantShort; if (need > reserve - avail) need = reserve - avail;
+    return closeShort(need, "to keep cash for the hedge");
   }
   return null;
 }
@@ -157,7 +168,9 @@ async function main() {
     try {
       const p = await pushPrice();
       const m = await view(d.ledger, "get_market");
-      say(`${SYM} $${p.toFixed(SYM === "NEAR" ? 4 : 2)} · util ${(m.utilization_bps / 100).toFixed(1)}% · funding ${(m.funding_rate_annual_bps / 100).toFixed(1)}%/yr (σ ${(m.funding_vol_bps / 100).toFixed(0)}%) · claims ${fmtUsd(m.long_claims)} · pool ${fmtUsd(m.risk_pool)}`);
+      const held = (m.buckets || []).filter((b) => BigInt(b.claims) > 0n).map((b) => `x${b.power} ${fmtUsd(b.claims)}`).join(" ") || "none";
+      const rate = (p) => (m.buckets ? m.buckets[p - 1].funding_rate_annual_bps / 100 : m.funding_rate_annual_bps / 100).toFixed(0);
+      say(`${SYM} $${p.toFixed(SYM === "NEAR" ? 4 : 2)} · util ${(m.utilization_bps / 100).toFixed(1)}% (δ-weighted) · funding x1 ${rate(1)}% … x10 ${rate(10)}%/yr (σ ${(m.funding_vol_bps / 100).toFixed(0)}%) · claims ${fmtUsd(m.long_claims)} (${held}) · delta ${fmtUsd(m.delta_claims ?? 0)} · pool ${fmtUsd(m.risk_pool)}`);
     } catch (e) { say("price push failed:", String(e.message || e).slice(0, 200)); }
     if (once || Date.now() >= nextVault) {
       try { await vaultCycle(); } catch (e) { say("vault cycle failed:", String(e.message || e).slice(0, 200)); }

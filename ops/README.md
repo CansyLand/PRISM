@@ -5,6 +5,18 @@ rebalancing, and test players who trade against each other.
 
 ## What is deployed
 
+**Bucketed market (x¹–x¹⁰, branch `bucketed-strengths`).** `deployment.json` now points at the bucketed
+contracts `ledger-b`, `vault-b`, `swap-b`, with their own `keeper-b`, `relayer-b` and test players `rb1…rb6` /
+`hb1…hb3`. They share the USDC and wNEAR tokens with the old stack. `setup-buckets.js` creates them and is safe
+to re-run. The previous single-power x³ deployment (`ledger-near`, `vault-near`, …) is untouched; its file is kept as
+`deployment-x3.json`. To run its keeper or bots, copy that file back over `deployment.json`.
+
+The keeper hedges `delta_claims × vault share` (Σ p · C over all buckets) to within 2% of the target. It keeps the
+hedge gap, 25% headroom on the target and 5% of NAV in cash before it puts anything into Curve Short, and it closes
+short when the hedge needs cash it doesn't have.
+
+The single-power table below describes the x³ stack:
+
 `deployment.json` lists the live testnet accounts (no secrets). Keys are in `.keys.json`
 (gitignored, mode 600). The current deployment runs on **NEAR/USD** (like mainnet will) under
 `uprise-ir12p.testnet`; the earlier BTC deployment is kept in `deployment-btc.json`:

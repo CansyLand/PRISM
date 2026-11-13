@@ -71,14 +71,17 @@ export class Arena {
       const [accts, market, vault] = await Promise.all([L.view(L.cfg.ledger, "get_accounts", { from_index: 0, limit: 60 }), L.view(L.cfg.ledger, "get_market"), L.view(L.cfg.vault, "get_vault")]);
       const e6 = (x) => Number(x) / 1e6, s = vault.snapshot;
       const traders = accts.filter((a) => a.account_id !== L.cfg.vault);
-      this.retail = traders.slice(0, 40).map((a) => ({ id: a.account_id, bank: e6(a.free), value: e6(a.long_value), open: BigInt(a.long_units) > 0n, p: market.power, stake: e6(a.long_cost) }));
+      // one circle per trader; its curve is the strength holding most of its value (all ten buckets are live)
+      const topP = (a) => (a.longs || []).reduce((best, l) => (!best || Number(l.value) > Number(best.value) ? l : best), null)?.power || 1;
+      const circle = (a) => ({ id: a.account_id, bank: e6(a.free), value: e6(a.long_value), open: (a.longs || []).length > 0, p: topP(a), stake: e6(a.long_cost) });
+      this.retail = traders.slice(0, 40).map(circle);
       Object.assign(this.vault, { nav: e6(s.nav), usdc: e6(s.usdc) + e6(s.short_value) + e6(s.ledger_free), asset: e6(vault.hedge_value), owed: e6(market.long_claims), label: "Crab vault" });
       // the vault's depositors: you (always shown and marked) and everyone else as one circle
       const mine = L.accountId ? e6(L.state?.pos?.value || 0) + e6(L.state?.pos?.pending_deposit || 0) : 0; // includes a deposit still waiting for the next vault update
       this.hunters = mine > 0 ? [{ id: "you", value: mine, me: true }, { id: "others", value: Math.max(0, e6(s.nav) - mine) }] : [{ id: "depositors", value: e6(s.nav) }];
       // your own trader circle is always in the list, marked
-      if (L.accountId) { const me = this.retail.find((r) => r.id === L.accountId); if (me) me.me = true; else { const a = accts.find((x) => x.account_id === L.accountId); if (a) this.retail.unshift({ id: a.account_id, bank: e6(a.free), value: e6(a.long_value), open: BigInt(a.long_units) > 0n, p: market.power, stake: e6(a.long_cost), me: true }); } }
-      const share = Number(market.short_shares) > 0 ? Number(s.short_shares) / Number(market.short_shares) : 0, perYear = market.funding_rate_annual_bps / 1e4 * e6(market.long_claims) * share * 0.9;
+      if (L.accountId) { const me = this.retail.find((r) => r.id === L.accountId); if (me) me.me = true; else { const a = accts.find((x) => x.account_id === L.accountId); if (a) this.retail.unshift({ ...circle(a), me: true }); } }
+      const share = Number(market.short_shares) > 0 ? Number(s.short_shares) / Number(market.short_shares) : 0, perYear = (market.buckets || []).reduce((t, b) => t + e6(b.claims) * b.funding_rate_annual_bps / 1e4, 0) * share * 0.9;
       Object.assign(this.vault, { apy: e6(s.nav) > 0 ? perYear / e6(s.nav) : 0, perDay: perYear / 365, earned: null });
       this.layout();
       if (perYear > 0) this.emit(this.yieldC, this.hunters[0], "yield", Math.min(6, Math.max(1, Math.round(perYear / 365 / 10))));

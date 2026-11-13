@@ -137,7 +137,7 @@ const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://x");
   try {
     if (url.pathname === "/api/config") {
-      return json(res, 200, { network: d.network, testnet: TESTNET, power: d.power, asset: ASSET.symbol, assetDecimals: d.assetDecimals, usdc: d.usdc, assetToken: d.asset, ledger: d.ledger, vault: d.vault, swap: d.swap, relayer: relayer.accountId });
+      return json(res, 200, { network: d.network, testnet: TESTNET, powers: d.powers || [d.power], asset: ASSET.symbol, assetDecimals: d.assetDecimals, usdc: d.usdc, assetToken: d.asset, ledger: d.ledger, vault: d.vault, swap: d.swap, relayer: relayer.accountId });
     }
     if (url.pathname === "/api/rpc" && req.method === "POST") return rpcProxy(req, res);
     if (url.pathname === "/api/history") return json(res, 200, await history(url.searchParams.get("range") || "1d"));

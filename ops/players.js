@@ -2,8 +2,8 @@
 //   node players.js status                 # every player's balances and positions
 //   node players.js deposit h1 20000       # hunter h1 deposits $20,000 into the vault
 //   node players.js withdraw h1 [shares]   # hunter h1 queues a vault withdrawal (all if no shares)
-//   node players.js long r1 250            # retail r1 opens a $250 Curve Long
-//   node players.js close r1               # retail r1 closes its long and withdraws to its wallet
+//   node players.js long r1 250 [power]    # retail r1 opens a $250 Curve Long at x^power (random 1..10 if omitted)
+//   node players.js close r1 [power]       # retail r1 closes that bucket (all buckets if omitted) and withdraws
 //   node players.js run                    # random crowd: retail trades, hunters chase yield
 import { account, view, call, loadDeployment, sleep, ONE_YOCTO, usd, fmtUsd } from "./lib.js";
 
@@ -12,14 +12,25 @@ const who = (short) => (short.includes(".") ? short : `${short}.${d.master}`);
 const ts = () => new Date().toISOString().slice(11, 19);
 const say = (...a) => console.log(ts(), ...a);
 
-export async function openLong(id, dollars) {
-  await call(account(id), d.usdc, "ft_transfer_call",
-    { receiver_id: d.ledger, amount: String(usd(dollars)), msg: JSON.stringify({ action: "open_long" }) },
-    { deposit: ONE_YOCTO, tgas: 150 });
+const randomPower = () => 1 + Math.floor(Math.random() * 10);
+/** Largest open the bucket takes right now (20% of the pool, and the bucket's cap). */
+async function maxOpen(power) {
+  const m = await view(d.ledger, "get_market");
+  return Number(m.buckets[power - 1].max_open) / 1e6;
 }
-export async function closeLong(id) {
+export async function openLong(id, dollars, power = randomPower()) {
+  await call(account(id), d.usdc, "ft_transfer_call",
+    { receiver_id: d.ledger, amount: String(usd(dollars)), msg: JSON.stringify({ action: "open_long", power }) },
+    { deposit: ONE_YOCTO, tgas: 150 });
+  return power;
+}
+/** Close one bucket (or every bucket held), then withdraw the free balance. Returns USDC out (raw). */
+export async function closeLong(id, power) {
   const a = account(id);
-  const out = await call(a, d.ledger, "close_long", {}, { tgas: 100 });
+  const acc0 = await view(d.ledger, "get_account", { account_id: id });
+  const powers = power ? [power] : (acc0?.longs || []).map((l) => l.power);
+  let out = 0n;
+  for (const p of powers) out += BigInt(await call(a, d.ledger, "close_long", { power: p }, { tgas: 100 }));
   const acc = await view(d.ledger, "get_account", { account_id: id });
   if (acc && BigInt(acc.free) > 0n) await call(a, d.ledger, "withdraw", { amount: acc.free }, { deposit: ONE_YOCTO, tgas: 100 });
   return out;
@@ -34,7 +45,8 @@ export async function vaultWithdraw(id, shares) {
 async function status() {
   const m = await view(d.ledger, "get_market");
   const v = await view(d.vault, "get_vault");
-  console.log(`${d.assetSymbol || "BTC"} $${(Number(m.price) / 1e6).toFixed(4)} · p=${m.power} · pool ${fmtUsd(m.risk_pool)} · claims ${fmtUsd(m.long_claims)} · util ${(m.utilization_bps / 100).toFixed(1)}% · funding ${(m.funding_rate_annual_bps / 100).toFixed(1)}%/yr`);
+  console.log(`${d.assetSymbol || "BTC"} $${(Number(m.price) / 1e6).toFixed(4)} · pool ${fmtUsd(m.risk_pool)} · claims ${fmtUsd(m.long_claims)} · delta ${fmtUsd(m.delta_claims)} · util ${(m.utilization_bps / 100).toFixed(1)}% (δ-weighted)`);
+  console.log("  " + m.buckets.map((b) => `x${b.power} ${fmtUsd(b.claims)} @${(b.funding_rate_annual_bps / 100).toFixed(0)}%/yr`).join(" · "));
   console.log(`vault NAV ${fmtUsd(v.snapshot.nav)} · share ${(Number(v.share_price_e6) / 1e6).toFixed(5)} · hedge ${fmtUsd(v.hedge_value)} / target ${fmtUsd(v.snapshot.hedge_target_usd)}`);
   for (const id of [...d.retail, ...d.hunters]) {
     const [bal, acc, pos] = await Promise.all([
@@ -42,7 +54,7 @@ async function status() {
       view(d.ledger, "get_account", { account_id: id }),
       view(d.vault, "get_position", { account_id: id }),
     ]);
-    const long = acc && BigInt(acc.long_units) > 0n ? ` long ${fmtUsd(acc.long_value)} (paid ${fmtUsd(acc.long_cost)})` : "";
+    const long = acc?.longs?.length ? ` long ${acc.longs.map((l) => `x${l.power} ${fmtUsd(l.value)}`).join(", ")} (paid ${fmtUsd(acc.long_cost)})` : "";
     const vault = BigInt(pos.shares) > 0n || BigInt(pos.pending_deposit) > 0n ? ` vault ${fmtUsd(pos.value)}${BigInt(pos.pending_deposit) > 0n ? ` +${fmtUsd(pos.pending_deposit)} queued` : ""}` : "";
     console.log(`  ${id.split(".")[0].padEnd(3)} wallet ${fmtUsd(bal).padEnd(11)}${long}${vault}`);
   }
@@ -62,7 +74,7 @@ async function crowdTick(tick, opened) {
     const id = d.retail[Math.floor(Math.random() * d.retail.length)];
     try {
       const acc = await view(d.ledger, "get_account", { account_id: id });
-      const holding = acc && BigInt(acc.long_units) > 0n;
+      const holding = !!acc?.longs?.length;
       if (holding) {
         const age = (Date.now() - (opened.get(id) || 0)) / 60_000;
         const m = Number(acc.long_value) / Number(acc.long_cost);
@@ -73,9 +85,12 @@ async function crowdTick(tick, opened) {
       } else {
         const bal = Number(await view(d.usdc, "ft_balance_of", { account_id: id })) / 1e6;
         if (bal >= 20) {
-          const amt = Math.max(10, Math.round(Math.min(bal, 50 + Math.random() * 400)));
-          await openLong(id, amt); opened.set(id, Date.now());
-          say(`${id.split(".")[0]} opened a $${amt} Curve Long`);
+          const power = randomPower(), room = await maxOpen(power);
+          const amt = Math.round(Math.min(bal, 50 + Math.random() * 400, room * 0.95));
+          if (amt >= 5) {
+            await openLong(id, amt, power); opened.set(id, Date.now());
+            say(`${id.split(".")[0]} opened a $${amt} x${power} Curve Long`);
+          } else say(`${id.split(".")[0]} skipped x${power}: bucket full (max $${room.toFixed(0)})`);
         }
       }
     } catch (e) { say(id.split(".")[0], "trade failed:", String(e.message || e).slice(0, 160)); }
@@ -95,7 +110,7 @@ const [cmd, a, b] = process.argv.slice(2);
 if (cmd === "status") await status();
 else if (cmd === "deposit") { await vaultDeposit(who(a), Number(b)); console.log("queued"); }
 else if (cmd === "withdraw") { await vaultWithdraw(who(a), b); console.log("queued"); }
-else if (cmd === "long") { await openLong(who(a), Number(b)); console.log("opened"); }
-else if (cmd === "close") { console.log("closed for", await closeLong(who(a))); }
+else if (cmd === "long") { console.log("opened x" + (await openLong(who(a), Number(b), process.argv[5] ? Number(process.argv[5]) : undefined))); }
+else if (cmd === "close") { console.log("closed for", fmtUsd(await closeLong(who(a), b ? Number(b) : undefined))); }
 else if (cmd === "run") await run();
 else if (cmd) console.log("unknown command");
