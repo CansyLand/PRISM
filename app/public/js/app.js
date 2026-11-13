@@ -177,10 +177,6 @@ function demoClose(why) {
   modal("result"); drawResult($("rChart"), trail, r.p, melted);
   $("rText").textContent = r.out > 0 ? (r.pnl <= 0 && why === "ended" ? "The replay ended, so the position was closed." : "")
     : `The price didn't rise fast enough before the ${pw(r.p)} timer ran out.`;
-  $("result").querySelector("[data-close]").onclick = () => {
-    modal("result", false); $("px").textContent = fmtP(chart.price()); $("chg").textContent = ""; render();
-    if (mode === "demo") { prefillDemo(); render(); pointAtLive(); } // after every demo trade
-  };
   render();
 }
 // result chart: the market as gray candles and your curve, both in % on ONE scale, so +45% vs +3000%
@@ -254,6 +250,13 @@ async function shareResult() {
   toast("Image saved. Attach it to your post.");
 }
 $("rShare").onclick = () => shareResult().catch((e) => toast(String(e.message || e), true));
+// the result card closes with "Next trade" or a tap on the gray around it: both refill $100 and show the hand (demo)
+function resultClosed() {
+  modal("result", false); $("px").textContent = fmtP(chart.price()); $("chg").textContent = ""; render();
+  if (mode === "demo") { prefillDemo(); render(); pointAtLive(); } // after every demo trade
+}
+$("result").querySelector("[data-close]").onclick = resultClosed;
+$("result").addEventListener("click", (e) => { if (e.target === $("result")) resultClosed(); });
 function pointAtLive() {
   const b = document.querySelector('[data-mode="live"]').getBoundingClientRect(), h = $("hand");
   h.style.left = b.left + b.width / 2 - 40 + "px"; h.style.top = b.bottom + 4 + "px";
