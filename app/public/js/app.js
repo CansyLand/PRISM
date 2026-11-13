@@ -576,7 +576,7 @@ function render() {
   if (mode === "live") await setMode("live"); else { mode = "demo"; await setMode("demo").catch(() => {}); loadDemoChart(); $("mkt").textContent = "Demo market"; }
   render();
   const intro = () => showOnboarding($("onboarding"), () => { ls.set("uprise.v1.onboarded", "1"); $("amt").focus(); });
-  $("helpBtn").onclick = () => (tab === "crab" ? modal("crabIntro") : intro());
+  $("howTrade").onclick = intro; // replays the intro slides
   $("crabHelp").onclick = () => modal("crabIntro");
   if (!ls.get("uprise.v1.onboarded")) intro();
 })();
