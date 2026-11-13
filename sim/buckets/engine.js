@@ -28,22 +28,25 @@ function nearPath(seed, days, o = {}) {
   const jumpsPerYear = o.jumps ?? 8, jumpSd = o.jumpSd ?? 0.12, jumpMean = o.jumpMean ?? 0;
   const wicksPerYear = o.wicks ?? 10, wickMax = o.wickMax ?? 0.25;
   const drift = o.drift ?? 0, P0 = o.P0 ?? 5;
-  const C = new Float64Array(days + 1), H = new Float64Array(days);
+  // spd = steps per day (1 = daily, 24 = hourly). jumpSpread = steps a jump is spread over (1 = a true gap).
+  const spd = o.spd ?? 1, jumpSpread = o.jumpSpread ?? 1, dt = DT / spd, n = days * spd;
+  const C = new Float64Array(n + 1), H = new Float64Array(n);
   C[0] = P0;
-  let wild = false;
-  for (let t = 0; t < days; t++) {
-    if (wild ? r.u() < pToCalm : r.u() < pToWild) wild = !wild;
+  let wild = false, jumpLeft = 0, jumpStep = 0;
+  for (let t = 0; t < n; t++) {
+    if (t % spd === 0 && (wild ? r.u() < pToCalm : r.u() < pToWild)) wild = !wild;
     const vol = wild ? volWild : volCalm;
-    const d = typeof drift === "function" ? drift(t) : drift;
-    let x = (d - vol * vol / 2) * DT + vol * Math.sqrt(DT) * r.g();
-    if (r.u() < jumpsPerYear * DT) x += jumpMean + jumpSd * r.g();
+    const d = typeof drift === "function" ? drift(Math.floor(t / spd)) : drift;
+    let x = (d - vol * vol / 2) * dt + vol * Math.sqrt(dt) * r.g();
+    if (r.u() < jumpsPerYear * dt) { jumpStep = (jumpMean + jumpSd * r.g()) / jumpSpread; jumpLeft = jumpSpread; }
+    if (jumpLeft > 0) { x += jumpStep; jumpLeft--; }
     C[t + 1] = C[t] * Math.exp(x);
-    // intraday high: brownian-bridge-ish excursion plus occasional wicks
-    let hi = Math.max(C[t], C[t + 1]) * Math.exp(Math.abs(r.g()) * vol * Math.sqrt(DT) * 0.5);
-    if (r.u() < wicksPerYear * DT) hi *= 1 + 0.05 + r.u() * (wickMax - 0.05);
+    // intra-step high: brownian-bridge-ish excursion plus occasional wicks
+    let hi = Math.max(C[t], C[t + 1]) * Math.exp(Math.abs(r.g()) * vol * Math.sqrt(dt) * 0.5);
+    if (r.u() < wicksPerYear * dt) hi *= 1 + 0.05 + r.u() * (wickMax - 0.05);
     H[t] = hi;
   }
-  return { C, H };
+  return { C, H, spd };
 }
 
 // Real BTC 2020-07..2023-03 daily OHLC, log-moves scaled by `k` (NEAR moves ~1.4× BTC). Window of `days` from `start`.
@@ -70,7 +73,7 @@ const MIXES = {
 const DEFAULTS = {
   // market
   iv: 0.8, rvWindow: 30, prem: 1.25, slope: 1, kink: 0.5, steep: 4,
-  sur: 1, shape: 1, baseFee: 0.1, capB: 0.5, capMax: 0.5, dw: 0.5,
+  sur: 1, shape: 1, baseFee: 0.1, capB: 0.5, capMax: 0.5, capExp: 1, dw: 0.5,
   maxOpen: 0.2, tradeFee: 0.001, cut: 0.1, minTicket: 10,
   // vault
   V: 1e6, s: 0.5, borrow: 0.06, slip: 0.0005,
@@ -79,12 +82,13 @@ const DEFAULTS = {
 };
 
 const multOf = (cfg, p) => 1 + cfg.sur * Math.pow((p - 1) / 9, cfg.shape);
-const capOf = (cfg, p) => Math.min(cfg.capMax, cfg.capB / p);
+const capOf = (cfg, p) => Math.min(cfg.capMax, cfg.capB / Math.pow(p, cfg.capExp ?? 1));
 const weightOf = (cfg, p) => 1 + cfg.dw * (p - 1);
 
 function run(path, cfgIn, seed) {
   const cfg = { ...DEFAULTS, ...cfgIn };
   const P = path.C, HI = path.H, D = P.length, r = rng(seed);
+  const spd = path.spd || 1, DT = 1 / 365 / spd; // steps per day; everything below is per step
   const mix = MIXES[cfg.mix], wsum = mix.reduce((a, b) => a + b, 0);
   const pickP = () => { let x = r.u() * wsum; for (let i = 0; i < 10; i++) { x -= mix[i]; if (x <= 0) return i + 1; } return 10; };
   const P0 = P[0];
@@ -110,7 +114,7 @@ function run(path, cfgIn, seed) {
     const px = P[t];
     // ── arrivals ──
     if (t < D - 1) {
-      const n = r.pois(cfg.N / cfg.H);
+      const n = r.pois(cfg.N / cfg.H / spd);
       for (let i = 0; i < n; i++) {
         const p = pickP();
         let amt = Math.min(250000, Math.max(cfg.minTicket, Math.exp(Math.log(cfg.T) + r.g())));
@@ -123,7 +127,7 @@ function run(path, cfgIn, seed) {
         if (amt > room) { amt = room; st.clippedCap++; }
         const fee = amt * cfg.tradeFee, net = amt - fee, units = net / (NF[p] * idx(px, p));
         U[p] += units; R += net; st.protocol += fee; st.opens++;
-        lots.push({ p, units, amt, t0: t, exit: t + Math.max(1, Math.ceil(-Math.log(Math.max(1e-9, r.u())) * cfg.H)), tp: 0.3 + r.u() * 3, sl: 0.4 + r.u() * 0.55 });
+        lots.push({ p, units, amt, t0: t, exit: t + Math.max(1, Math.ceil(-Math.log(Math.max(1e-9, r.u())) * cfg.H * spd)), tp: 0.3 + r.u() * 3, sl: 0.4 + r.u() * 0.55 });
       }
     }
     // ── exits ──
@@ -156,9 +160,9 @@ function run(path, cfgIn, seed) {
     K -= trade * px + cost; q = target; st.hedgeCost += cost;
     // ── funding ──
     if (t > 0) rets.push(Math.log(P[t] / P[t - 1]));
-    if (rets.length > cfg.rvWindow) rets.shift();
+    if (rets.length > cfg.rvWindow * spd) rets.shift();
     let sig = cfg.iv;
-    if (rets.length >= 10) { let s2 = 0; for (const x of rets) s2 += x * x; sig = Math.max(sig, Math.min(3, Math.sqrt(s2 / rets.length * 365))); }
+    if (rets.length >= 10) { let s2 = 0; for (const x of rets) s2 += x * x; sig = Math.max(sig, Math.min(3, Math.sqrt(s2 / rets.length * 365 * spd))); }
     const m = cfg.prem + cfg.slope * u + cfg.steep * Math.max(0, u - cfg.kink) / (1 - cfg.kink);
     const before = C;
     for (let p = 1; p <= 10; p++) {
@@ -182,7 +186,7 @@ function run(path, cfgIn, seed) {
       }
     }
   }
-  const years = (D - 1) / 365;
+  const years = (D - 1) / 365 / spd;
   const apy = Math.pow(Math.max(nav / shares, 1e-9), 1 / years) - 1;
   return { apy, mdd: st.mdd, st, done, years, avgU: st.sumU / D };
 }

@@ -171,6 +171,54 @@ The model has no deposits or withdrawals chasing yield. In practice the high APY
 pulls capital in, and the losses at high ratios push it out. That moves the market toward the
 band, but only as fast as LPs react.
 
+## Keeping the vault out of losing years
+
+The scripts are `diagnose.js`, `nodrawdown.js` and `hedgefreq.js`; each writes a matching
+`*-results.txt`.
+
+**Where the losing years come from.** Every losing vault year in the search is in the `jumpy`
+scenario. A jump that lands between two re-hedges costs bucket p about `(1+J)^p − 1 − pJ`, while
+funding charges about `p(p−1)/2 · J²`. For x¹⁰ and a +40% jump that is about 23.9× the position
+against 7.2×. The losses grow with vault size, because utilization falls and m(u) drops to its
+floor:
+
+| Vault size | Losing years (current defaults, daily re-hedge) |
+|---|---|
+| $0.5M | 0 of 48 |
+| $1M | 2 of 48 |
+| $2M | 3 of 48 |
+| $5M | 5 of 48 |
+
+**How often the keeper re-hedges matters most.** These runs use the jumpy scenario only, 12 paths
+each, with 200 open positions:
+
+| Setting | Re-hedge | Jumps | $1M vault: median / worst / max drawdown | $5M vault: median / worst |
+|---|---|---|---|---|
+| Current defaults | Daily | Instant gaps | +26.0% / −15.0% / −40% | −0.2% / −30.0% |
+| Current defaults | Hourly | Instant gaps | +8.3% / −14.3% / −43% | −1.2% / −5.1% |
+| Current defaults | Hourly | Over 6 hours | +24.4% / **+15.2%** / −2% | +3.0% / **+2.1%** |
+| Safe pick (below) | Daily | Instant gaps | +28.6% / −6.3% / −26% | +6.7% / −27.1% |
+| Safe pick | Hourly | Instant gaps | +21.4% / −8.4% / −33% | +5.1% / −3.1% |
+| Safe pick | Hourly | Over 6 hours | +30.1% / +28.2% / −2% | +7.6% / +6.3% |
+
+If a big move takes hours and the keeper follows it, the current defaults have no losing year, even
+in the stress scenario. Only true gaps hurt. A true gap is a move between two oracle prints, a time
+when the keeper is down, or a swap venue too thin to hedge into.
+
+**Parameters that protect against true gaps** (576 settings, all four vault sizes):
+
+- No single lever is enough. Raising m(0) to 2× alone gets p5 to +2.8%, but retail drops to $0.68.
+- The combination that works is caps that shrink as `1/p²` instead of `1/p`, plus more funding at
+  the steep end. The best p5 ≥ 0 setting for retail, validated on 32 paths per scenario:
+  - `util_mult_base_bps` 12500 (m(0) = 1.25×)
+  - surcharge `1 + 3·((p−1)/9)²`: 1.00, 1.04, 1.15, 1.33, 1.59, 1.93, 2.33, 2.81, 3.37, 4.00 (x¹⁰ pays 4× its convexity)
+  - caps `0.25/p²`: x¹ 25%, x² 6.25%, x³ 2.8%, x⁵ 1%, x¹⁰ 0.25% of the pool
+- **Result:** vault p5 is +43% / +27% / +16% / +6% at $0.5M / $1M / $2M / $5M.
+- **Cost to retail:** payback falls from $0.85 to $0.71 per $1, and x¹⁰ returns about $0.30.
+- **Still not zero:** the worst single year at $2–5M is −22% to −27% with daily hedging.
+- "Never a losing year at any size" passed on 8 paths but failed on 32. With daily hedging, a large
+  vault can't be fully protected against true gaps by parameters alone.
+
 ## Remaining risks
 
 1. **Jump and gap risk at high p.** All write-downs in the search come from the `jumpy` scenario

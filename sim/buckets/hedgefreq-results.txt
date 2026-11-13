@@ -1,0 +1,18 @@
+Jumpy scenario, 12 one-year paths each, 200 open positions.
+
+current defaults, vault $1M:
+  daily              median  +26.0% p10   -7.2% worst  -15.0% losing years 2/12  max drawdown -40.3%  write-down years 4
+  hourly, gap jumps  median   +8.3% p10  -11.0% worst  -14.3% losing years 4/12  max drawdown -43.0%  write-down years 2
+  hourly, 6h jumps   median  +24.4% p10  +15.8% worst  +15.2% losing years 0/12  max drawdown -2.0%  write-down years 0
+current defaults, vault $5M:
+  daily              median   -0.2% p10  -13.9% worst  -30.0% losing years 7/12  max drawdown -35.8%  write-down years 1
+  hourly, gap jumps  median   -1.2% p10   -4.5% worst   -5.1% losing years 8/12  max drawdown -8.8%  write-down years 0
+  hourly, 6h jumps   median   +3.0% p10   +2.2% worst   +2.1% losing years 0/12  max drawdown -0.6%  write-down years 0
+p5-safe pick, vault $1M:
+  daily              median  +28.6% p10  +10.3% worst   -6.3% losing years 1/12  max drawdown -26.3%  write-down years 1
+  hourly, gap jumps  median  +21.4% p10   -4.5% worst   -8.4% losing years 2/12  max drawdown -33.2%  write-down years 0
+  hourly, 6h jumps   median  +30.1% p10  +28.3% worst  +28.2% losing years 0/12  max drawdown -1.6%  write-down years 0
+p5-safe pick, vault $5M:
+  daily              median   +6.7% p10   +0.7% worst  -27.1% losing years 1/12  max drawdown -32.1%  write-down years 1
+  hourly, gap jumps  median   +5.1% p10   +2.5% worst   -3.1% losing years 1/12  max drawdown -11.1%  write-down years 0
+  hourly, 6h jumps   median   +7.6% p10   +6.3% worst   +6.3% losing years 0/12  max drawdown -0.4%  write-down years 0

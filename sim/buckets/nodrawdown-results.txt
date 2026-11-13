@@ -1,0 +1,66 @@
+No-drawdown search: 576 settings × vault $0.5M/$1M/$2M/$5M (≈ 4×, 8×, 15×, 38× open retail) × 6 scenarios × 8 paths.
+Fixed: base fee 10%, kink 40%, steepness 10, 200 open positions. "p5 min" / "worst" = the vault's 5th-percentile / worst year at the worst of the four sizes.
+
+Current defaults:
+  prem=1 sur=1 shape=2 capB=0.25 capExp=1 iv=0.8 dw=0.5          | p5 min   -8.1% worst  -23.1% dd90 max  -20.0% write-down ≤ 8.3% | medians +84.9% / +31.1% / +12.3% / +4.1% | retail $1→$0.852
+
+── A. p5 ≥ 0 at every size (loses money in < 1 year in 20): 391 settings. Best for retail:
+  prem=1 sur=3 shape=3 capB=0.25 capExp=2 iv=0.8 dw=0.5          | p5 min   +0.3% worst  -17.4% dd90 max  -11.3% write-down ≤ 2.1% | medians +38.8% / +25.3% / +14.5% / +6.3% | retail $1→$0.831
+  prem=1.25 sur=2 shape=3 capB=0.25 capExp=2 iv=0.8 dw=0.5       | p5 min   +0.6% worst  -15.5% dd90 max   -9.4% write-down ≤ 4.2% | medians +40.6% / +26.4% / +15.5% / +6.7% | retail $1→$0.814
+  prem=1 sur=2 shape=3 capB=0.25 capExp=2 iv=1 dw=0.5            | p5 min   +0.7% worst  -22.6% dd90 max  -10.7% write-down ≤ 2.1% | medians +41.8% / +27.1% / +15.9% / +7.0% | retail $1→$0.810
+  prem=1.5 sur=1 shape=2 capB=0.25 capExp=2 iv=0.8 dw=0.5        | p5 min   +0.7% worst  -19.6% dd90 max  -14.7% write-down ≤ 4.2% | medians +43.2% / +28.5% / +16.9% / +7.4% | retail $1→$0.800
+  prem=1 sur=3 shape=3 capB=0.25 capExp=2 iv=0.8 dw=1            | p5 min   +0.7% worst   -9.6% dd90 max  -13.3% write-down ≤ 2.1% | medians +53.5% / +28.9% / +15.7% / +6.6% | retail $1→$0.793
+  prem=1.5 sur=1 shape=3 capB=0.25 capExp=2 iv=0.8 dw=1          | p5 min   +0.1% worst  -15.6% dd90 max  -10.1% write-down ≤ 2.1% | medians +53.6% / +28.9% / +15.9% / +6.9% | retail $1→$0.793
+  prem=1.25 sur=2 shape=3 capB=0.25 capExp=2 iv=0.8 dw=1         | p5 min   +0.9% worst  -11.2% dd90 max  -10.9% write-down ≤ 2.1% | medians +53.8% / +30.3% / +16.4% / +6.9% | retail $1→$0.783
+  prem=1.25 sur=2 shape=2 capB=0.25 capExp=2 iv=0.8 dw=0.5       | p5 min   +3.4% worst  -10.9% dd90 max  -10.6% write-down ≤ 4.2% | medians +47.3% / +30.5% / +18.5% / +8.1% | retail $1→$0.777
+  prem=1 sur=2 shape=2 capB=0.25 capExp=2 iv=1 dw=0.5            | p5 min   +3.2% worst  -17.2% dd90 max  -10.0% write-down ≤ 2.1% | medians +48.5% / +31.7% / +18.7% / +8.0% | retail $1→$0.776
+  prem=1 sur=2 shape=3 capB=0.25 capExp=2 iv=1 dw=1              | p5 min   +1.3% worst   -8.2% dd90 max   -8.8% write-down ≤ 2.1% | medians +57.5% / +31.6% / +17.5% / +7.4% | retail $1→$0.776
+  prem=1 sur=3 shape=3 capB=0.25 capExp=2 iv=1 dw=0.5            | p5 min   +4.2% worst   -6.3% dd90 max   -8.4% write-down ≤ 2.1% | medians +51.5% / +33.0% / +19.6% / +8.3% | retail $1→$0.766
+  prem=1.5 sur=2 shape=3 capB=0.25 capExp=2 iv=0.8 dw=0.5        | p5 min   +4.3% worst   -7.8% dd90 max  -11.8% write-down ≤ 2.1% | medians +50.1% / +32.6% / +19.1% / +8.3% | retail $1→$0.765
+
+── B. No losing year at all, at any size: 98 settings. Best for retail:
+  prem=1.25 sur=3 shape=2 capB=0.25 capExp=2 iv=0.8 dw=0.5       | p5 min   +2.4% worst   +0.7% dd90 max   -8.1% write-down ≤ 2.1% | medians +60.3% / +38.0% / +22.2% / +9.7% | retail $1→$0.727
+  prem=1.5 sur=2 shape=2 capB=0.25 capExp=2 iv=0.8 dw=0.5        | p5 min   +6.0% worst   +0.7% dd90 max  -10.0% write-down ≤ 2.1% | medians +58.8% / +37.0% / +21.7% / +9.4% | retail $1→$0.727
+  prem=1.5 sur=2 shape=2 capB=0.25 capExp=2 iv=0.8 dw=1          | p5 min   +6.3% worst   +1.2% dd90 max  -10.0% write-down ≤ 2.1% | medians +69.6% / +40.0% / +22.6% / +9.6% | retail $1→$0.708
+  prem=1.25 sur=3 shape=2 capB=0.25 capExp=2 iv=0.8 dw=1         | p5 min   +6.3% worst   +0.9% dd90 max  -10.5% write-down ≤ 2.1% | medians +69.9% / +40.9% / +22.8% / +9.6% | retail $1→$0.706
+  prem=2 sur=1 shape=2 capB=0.25 capExp=2 iv=0.8 dw=1            | p5 min   +4.5% worst   +1.1% dd90 max   -9.5% write-down ≤ 2.1% | medians +69.9% / +41.3% / +23.6% / +10.1% | retail $1→$0.694
+  prem=1.5 sur=2 shape=2 capB=0.25 capExp=2 iv=1 dw=0.5          | p5 min   +8.5% worst   +0.1% dd90 max   -9.2% write-down ≤ 0.0% | medians +74.4% / +46.3% / +26.0% / +11.3% | retail $1→$0.670
+  prem=2 sur=2 shape=2 capB=0.25 capExp=2 iv=0.8 dw=0.5          | p5 min   +8.5% worst   +0.0% dd90 max   -8.2% write-down ≤ 0.0% | medians +76.7% / +47.2% / +27.5% / +11.8% | retail $1→$0.655
+  prem=1.25 sur=3 shape=2 capB=0.5 capExp=2 iv=1 dw=0.5          | p5 min   +7.9% worst   +0.0% dd90 max   -8.0% write-down ≤ 2.1% | medians +107.3% / +55.8% / +28.5% / +11.2% | retail $1→$0.655
+  prem=1.5 sur=2 shape=2 capB=0.25 capExp=2 iv=1 dw=1            | p5 min   +8.6% worst   +0.3% dd90 max   -7.9% write-down ≤ 0.0% | medians +84.3% / +47.9% / +26.8% / +11.4% | retail $1→$0.655
+  prem=1.5 sur=3 shape=3 capB=0.5 capExp=2 iv=1 dw=0.5           | p5 min   +8.4% worst   +0.6% dd90 max   -7.6% write-down ≤ 2.1% | medians +104.8% / +56.7% / +28.3% / +11.4% | retail $1→$0.654
+  prem=1.25 sur=3 shape=2 capB=0.25 capExp=1.5 iv=1 dw=0.5       | p5 min   +6.9% worst   +0.3% dd90 max   -8.7% write-down ≤ 2.1% | medians +111.0% / +58.4% / +28.5% / +11.3% | retail $1→$0.651
+  prem=2 sur=1 shape=2 capB=0.25 capExp=2 iv=1 dw=0.5            | p5 min   +8.9% worst   +0.7% dd90 max   -8.1% write-down ≤ 0.0% | medians +79.7% / +49.8% / +28.0% / +11.8% | retail $1→$0.650
+
+── C. No losing year and 90th-pct intra-year drawdown ≤ 10%: 95 settings. Best for retail:
+  prem=1.25 sur=3 shape=2 capB=0.25 capExp=2 iv=0.8 dw=0.5       | p5 min   +2.4% worst   +0.7% dd90 max   -8.1% write-down ≤ 2.1% | medians +60.3% / +38.0% / +22.2% / +9.7% | retail $1→$0.727
+  prem=1.5 sur=2 shape=2 capB=0.25 capExp=2 iv=0.8 dw=0.5        | p5 min   +6.0% worst   +0.7% dd90 max  -10.0% write-down ≤ 2.1% | medians +58.8% / +37.0% / +21.7% / +9.4% | retail $1→$0.727
+  prem=1.5 sur=2 shape=2 capB=0.25 capExp=2 iv=0.8 dw=1          | p5 min   +6.3% worst   +1.2% dd90 max  -10.0% write-down ≤ 2.1% | medians +69.6% / +40.0% / +22.6% / +9.6% | retail $1→$0.708
+  prem=2 sur=1 shape=2 capB=0.25 capExp=2 iv=0.8 dw=1            | p5 min   +4.5% worst   +1.1% dd90 max   -9.5% write-down ≤ 2.1% | medians +69.9% / +41.3% / +23.6% / +10.1% | retail $1→$0.694
+  prem=1.5 sur=2 shape=2 capB=0.25 capExp=2 iv=1 dw=0.5          | p5 min   +8.5% worst   +0.1% dd90 max   -9.2% write-down ≤ 0.0% | medians +74.4% / +46.3% / +26.0% / +11.3% | retail $1→$0.670
+  prem=2 sur=2 shape=2 capB=0.25 capExp=2 iv=0.8 dw=0.5          | p5 min   +8.5% worst   +0.0% dd90 max   -8.2% write-down ≤ 0.0% | medians +76.7% / +47.2% / +27.5% / +11.8% | retail $1→$0.655
+  prem=1.25 sur=3 shape=2 capB=0.5 capExp=2 iv=1 dw=0.5          | p5 min   +7.9% worst   +0.0% dd90 max   -8.0% write-down ≤ 2.1% | medians +107.3% / +55.8% / +28.5% / +11.2% | retail $1→$0.655
+  prem=1.5 sur=2 shape=2 capB=0.25 capExp=2 iv=1 dw=1            | p5 min   +8.6% worst   +0.3% dd90 max   -7.9% write-down ≤ 0.0% | medians +84.3% / +47.9% / +26.8% / +11.4% | retail $1→$0.655
+
+── One lever at a time from the current defaults:
+  prem 1.25    p5 min   -6.8% worst  -18.3% dd90 max  -17.4% write-down ≤ 6.3% | medians +91.0% / +38.7% / +17.0% / +6.0% | retail $1→$0.800
+  prem 1.5     p5 min   -1.3% worst  -14.6% dd90 max  -21.8% write-down ≤ 4.2% | medians +100.7% / +44.3% / +20.6% / +7.6% | retail $1→$0.756
+  prem 2       p5 min   +2.8% worst   -7.5% dd90 max  -13.2% write-down ≤ 4.2% | medians +113.4% / +53.1% / +26.0% / +10.1% | retail $1→$0.684
+  sur 2        p5 min   -4.1% worst  -17.6% dd90 max  -14.2% write-down ≤ 6.3% | medians +94.2% / +40.7% / +17.4% / +6.4% | retail $1→$0.788
+  sur 3        p5 min   -0.4% worst  -12.7% dd90 max  -17.6% write-down ≤ 4.2% | medians +103.3% / +45.2% / +21.3% / +7.9% | retail $1→$0.744
+  shape 3      p5 min   -9.4% worst  -26.8% dd90 max  -27.2% write-down ≤ 10.4% | medians +80.5% / +28.0% / +10.8% / +3.2% | retail $1→$0.871
+  capExp 1.5   p5 min   -8.0% worst  -24.9% dd90 max  -21.1% write-down ≤ 8.3% | medians +63.4% / +27.2% / +11.3% / +3.9% | retail $1→$0.868
+  capExp 2     p5 min  -10.4% worst  -21.7% dd90 max  -13.6% write-down ≤ 2.1% | medians +23.9% / +15.1% / +8.6% / +3.8% | retail $1→$0.914
+  iv 100%      p5 min   -4.0% worst  -18.5% dd90 max  -19.7% write-down ≤ 4.2% | medians +92.4% / +39.8% / +16.8% / +6.0% | retail $1→$0.796
+  dw 1         p5 min   -7.6% worst  -18.7% dd90 max  -14.1% write-down ≤ 2.1% | medians +101.4% / +42.6% / +15.1% / +4.6% | retail $1→$0.799
+
+── Pick, validated on 32 paths per scenario:
+  prem=1.25 sur=3 shape=2 capB=0.25 capExp=2 iv=0.8 dw=0.5       | p5 min   +5.9% worst  -27.1% dd90 max   -6.1% write-down ≤ 2.1% | medians +60.3% / +38.0% / +22.2% / +9.3% | retail $1→$0.714
+  surcharge mult_p: 1.00 1.04 1.15 1.33 1.59 1.93 2.33 2.81 3.37 4.00
+  caps: 25.00% 6.25% 2.78% 1.56% 1.00% 0.69% 0.51% 0.39% 0.31% 0.25%
+  vault $0.5M: median +60.3% p5 +43.0% worst +6.8% dd90 -6.1% max dd -30.6% write-down years 2.1% retail $1→$0.72; per bucket 1.02 0.99 0.94 0.84 0.71 0.58 0.48 0.40 0.34 0.28
+  vault $1M: median +38.0% p5 +26.6% worst -6.3% dd90 -4.6% max dd -26.3% write-down years 0.5% retail $1→$0.71; per bucket 1.02 1.01 0.96 0.87 0.74 0.63 0.51 0.41 0.35 0.29
+  vault $2M: median +22.2% p5 +15.7% worst -22.2% dd90 -3.0% max dd -33.9% write-down years 0.5% retail $1→$0.71; per bucket 1.02 1.01 0.98 0.89 0.77 0.65 0.54 0.43 0.36 0.30
+  vault $5M: median +9.3% p5 +5.9% worst -27.1% dd90 -1.6% max dd -32.1% write-down years 0.5% retail $1→$0.72; per bucket 1.02 1.02 0.98 0.92 0.81 0.68 0.56 0.47 0.39 0.32
+
+PICK {"kink":0.4,"steep":10,"slope":1,"baseFee":0.1,"N":200,"prem":1.25,"sur":3,"shape":2,"capB":0.25,"capExp":2,"iv":0.8,"dw":0.5}
