@@ -9,7 +9,7 @@ Uprise runs on the `cansy` server (49.13.0.233, Ubuntu 24.04) as the Linux user 
 | Logs | `/home/uprise/logs/app.log`, `keeper.log`, `bots.log` |
 | Services | `uprise-app` (web + API on 127.0.0.1:8795), `uprise-keeper` (prices, vault hedging, gas top-ups), `uprise-bots` (testnet crowd) |
 | Web | nginx site `/etc/nginx/sites-available/uprise.parutkin.com`, TLS by certbot |
-| URL | https://uprise.parutkin.com |
+| URL | https://uprise.wtf (also www.uprise.wtf and uprise.parutkin.com) |
 
 ## Everyday commands
 
@@ -31,7 +31,9 @@ ssh cansy 'sudo -u uprise git -C /home/uprise/uprise pull && sudo systemctl rest
 
 If `ops/package.json` changed, also run `sudo -u uprise bash -c "cd /home/uprise/uprise/ops && npm ci"` before restarting.
 
-## Adding your own domain
+## Adding another domain
+
+`uprise.wtf` (DNS at Spaceship) is set up this way. For another domain:
 
 1. At your DNS provider, point the domain at the server: an `A` record to `49.13.0.233` and an `AAAA` record to `2a01:4f8:c014:1de6::1`, for both `example.com` and `www.example.com`.
 2. Wait until `dig +short example.com` shows `49.13.0.233`.
