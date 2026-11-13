@@ -426,12 +426,14 @@ $("close").onclick = () => {
 
 // ── CRAB ──
 let vMode = "dep";
+// desktop donut: USDC share in cobalt, the NEAR hedge in ink
+function paintDonut(usdc) { $("vDonut").style.setProperty("--u", (usdc * 100).toFixed(1) + "%"); $("vDonutPct").textContent = Math.round(usdc * 100) + "%"; }
 function renderCrab() {
   $("crabTag").textContent = mode === "demo" ? "demo" : live?.cfg?.testnet ? "live · testnet" : "live";
   if (mode === "demo") {
     const tvl = 250_000 + demo.vault.stake;
     $("vYield").textContent = "+18%"; $("vTvl").textContent = fmt(tvl, 0); $("vFund").textContent = "$124/day";
-    $("vBar").innerHTML = `<i style="width:62%;background:var(--usdc)"></i><i style="width:38%;background:var(--near)"></i>`;
+    $("vBar").innerHTML = `<i style="width:62%;background:var(--usdc)"></i><i style="width:38%;background:var(--near)"></i>`; paintDonut(0.62);
     $("stakeCv").parentElement.hidden = false; drawStake($("stakeCv"), demo.vault.hist, demo.vault.cost);
     const mo = demo.vault.days / 30.44; $("sSince").textContent = mo >= 1 ? `${mo.toFixed(mo < 10 ? 1 : 0)} months in` : "";
     $("vHedge").textContent = "";
@@ -447,7 +449,7 @@ function renderCrab() {
     const perYear = (m.buckets || []).reduce((t, b) => t + Number(b.claims) / E6 * b.funding_rate_annual_bps / 1e4, 0) * share * 0.9;
     $("vYield").textContent = nav > 0 ? pct(perYear / nav, 1) : "—"; $("vTvl").textContent = fmt(nav, 0); $("vFund").textContent = fmt(perYear / 365) + "/day";
     const tot = Math.max(1e-9, usdcV + assetV);
-    $("vBar").innerHTML = `<i style="width:${usdcV / tot * 100}%;background:var(--usdc)"></i><i style="width:${assetV / tot * 100}%;background:var(--near)"></i>`;
+    $("vBar").innerHTML = `<i style="width:${usdcV / tot * 100}%;background:var(--usdc)"></i><i style="width:${assetV / tot * 100}%;background:var(--near)"></i>`; paintDonut(usdcV / tot);
     $("vHedge").textContent = `${live.cfg.asset} balance ${fmt(assetV, 0)} of ${fmt(Number(s.hedge_target_usd) / E6, 0)} target. Rebalanced by the keeper, updated ${v.snapshot_age_secs}s ago.`;
     const pos = st.pos;
     if (pos) {
@@ -565,7 +567,8 @@ async function setMode(m) {
 function render() {
   const liveNoWallet = mode === "live" && !live?.connected;
   $("liveStart").hidden = !liveNoWallet; $("netTag").hidden = !(mode === "live" && live?.cfg?.testnet);
-  $("tab-bull").classList.toggle("start-only", liveNoWallet); // Live without a wallet: just the start card
+  const host = tab === "crab" ? $("tab-crab") : $("tab-bull"); if ($("liveStart").parentElement !== host) host.prepend($("liveStart"));
+  $("tab-bull").classList.toggle("start-only", liveNoWallet); $("tab-crab").classList.toggle("start-only", liveNoWallet); // Live without a wallet: just the start card
   $("balLabel").textContent = mode === "demo" ? "Play money" : live?.connected ? "Balance" : "Not signed in";
   if (mode === "demo") $("balance").textContent = fmt(demo.balance + (demo.position?.value || 0));
   else $("balance").textContent = live?.connected ? fmt(Number(live.cash()) / E6) : "—";
@@ -583,6 +586,6 @@ function render() {
   render();
   const intro = () => showOnboarding($("onboarding"), () => { ls.set("uprise.v1.onboarded", "1"); $("amt").focus(); });
   $("howTrade").onclick = intro; // replays the intro slides
-  $("crabHelp").onclick = () => modal("crabIntro");
+  $("crabHelp").onclick = $("crabHelp2").onclick = () => modal("crabIntro");
   if (!ls.get("uprise.v1.onboarded")) intro();
 })();

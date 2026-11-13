@@ -314,3 +314,17 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; } input, sele
   /* onboarding: bigger stage */
   .ob { max-width: 760px; } .ob-cv { max-height: 520px; min-height: 360px; } .ob-title { font-size: 40px; }
 }
+/* no focus border on inputs (all sizes) */
+input:focus, input:focus-visible, select:focus, select:focus-visible, textarea:focus { outline: none; } .field:focus-within { box-shadow: none !important; }
+/* signed out on Yield: only the start card */
+#tab-crab.start-only > :not(#liveStart) { display: none !important; } #tab-crab.start-only #liveStart { margin: 28px 0; padding: 24px 18px; }
+/* Live/Testnet label and the desktop-only extras */
+.lbl-d, .how-d, .donut-wrap { display: none; }
+.donut { --u: 62%; width: 210px; height: 210px; border-radius: 50%; background: conic-gradient(var(--usdc) 0 var(--u), var(--near) var(--u) 100%); display: grid; place-items: center; }
+.donut > div { width: 128px; height: 128px; border-radius: 50%; background: var(--panel); display: grid; place-content: center; text-align: center; }
+.donut b { font-size: 30px; font-weight: 700; } .donut small { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+@media (min-width: 1000px) {
+  .lbl-m, .sub-how .how, #vBar { display: none; } .lbl-d { display: inline; } .how-d { display: inline-block; margin-left: 8px; vertical-align: 3px; }
+  .donut-wrap { display: flex; justify-content: center; margin: 18px 0 8px; } #tab-crab .legend { justify-content: center; }
+  #tab-crab.start-only { grid-template-columns: minmax(0, 1fr); } #tab-crab > #liveStart { grid-column: 1 / -1; max-width: 520px; justify-self: center; width: 100%; }
+}
