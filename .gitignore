@@ -21,3 +21,5 @@ demo/
 app/.server-state.json
 app/.backup-key
 ops/meteor-account.txt
+app/.analytics.jsonl
+app/.analytics-pass

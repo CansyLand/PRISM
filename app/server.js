@@ -14,6 +14,7 @@
 //   GET  /api/history?range=5m|1h|1d|1w candles for the asset (Coinbase)
 //   GET  /api/vault-history          vault share price samples
 //   GET  /api/holders                the vault's largest depositors (read from its storage)
+//   POST /api/t, GET /analytics      visitor tracking (app/track.js)
 //   POST /api/deposit-address {account_id, asset, amount}  mainnet: 1Click deposit address → USDC to this account
 import http from "node:http";
 import fs from "node:fs";
@@ -21,6 +22,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
+import { track } from "./track.js";
 import { account, view, call, loadDeployment, usd, near, balanceNear, faucetAccount, sleep, RPCS, ASSETS, decodeSignedDelegate, provider } from "../ops/lib.js";
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -170,6 +172,7 @@ async function onboard(id) {
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://x");
   try {
+    if (await track(req, res, url)) return; // visitor tracking + /analytics dashboard
     if (url.pathname === "/api/config") {
       return json(res, 200, { network: d.network, testnet: TESTNET, powers: d.powers || [d.power], asset: ASSET.symbol, assetDecimals: d.assetDecimals, usdc: d.usdc, assetToken: d.asset, ledger: d.ledger, vault: d.vault, swap: d.swap, relayer: relayer.accountId });
     }

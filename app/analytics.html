@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Uprise Analytics</title>
+<link rel="icon" href="/brand/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+:root {
+  --bg: #f6f4f0; --panel: #fff; --ink: #1d1530; --muted: #6d6680; --line: #e6e1da; --soft: #f1eee8;
+  --accent: #3557ff; --accent-soft: rgba(53,87,255,.12); --rose: #e8467c; --ok: #1f9d55;
+  --font: "Inter Tight", system-ui, sans-serif; --head: "Space Grotesk", var(--font); --mono: "JetBrains Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg: #13101c; --panel: #1c1828; --ink: #f1eef8; --muted: #9a93ad; --line: #2c2740; --soft: #241f33; --accent: #7d93ff; --accent-soft: rgba(125,147,255,.16); --rose: #ff6f9b; --ok: #4ccf86; }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.45 var(--font); -webkit-font-smoothing: antialiased; }
+.wrap { max-width: 1280px; margin: 0 auto; padding: 20px 16px 60px; }
+header { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-bottom: 18px; }
+h1 { font: 700 22px var(--head); margin: 0; letter-spacing: -.01em; }
+h2 { font: 600 13px var(--head); margin: 0 0 10px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.live { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; padding: 4px 10px; border-radius: 99px; background: var(--panel); border: 1px solid var(--line); }
+.live i { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 0 var(--ok); animation: pulse 2s infinite; }
+@keyframes pulse { 70% { box-shadow: 0 0 0 7px transparent; } }
+.seg { margin-left: auto; display: flex; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 3px; }
+.seg button { border: 0; background: none; color: var(--muted); font: 600 13px var(--font); padding: 6px 12px; border-radius: 7px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.muted { color: var(--muted); } .small { font-size: 12px; } .mono { font-family: var(--mono); font-size: 12px; }
+.kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.kpi, .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; }
+.kpi { padding: 14px; } .kpi small { color: var(--muted); font-weight: 600; font-size: 12px; } .kpi b { display: block; font: 700 26px var(--head); margin-top: 2px; font-variant-numeric: tabular-nums; }
+.card { padding: 16px; min-width: 0; }
+.grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); margin-bottom: 14px; }
+.wide { grid-column: 1 / -1; }
+.bars .row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; padding: 5px 8px; position: relative; border-radius: 6px; }
+.bars .row::before { content: ""; position: absolute; inset: 0; width: var(--w); background: var(--accent-soft); border-radius: 6px; }
+.bars .row > * { position: relative; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .bars .row b { font-variant-numeric: tabular-nums; }
+.empty { color: var(--muted); font-size: 13px; padding: 6px 0; }
+svg text { fill: var(--muted); font: 11px var(--font); }
+.funnel { display: grid; gap: 8px; }
+.funnel .st { display: grid; grid-template-columns: 110px 1fr 90px; align-items: center; gap: 10px; }
+.funnel .bar { height: 26px; border-radius: 6px; background: var(--accent); min-width: 2px; }
+.funnel .st:nth-child(n+3) .bar { background: var(--rose); }
+.funnel b { font-variant-numeric: tabular-nums; } .funnel span.muted { text-align: right; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; color: var(--muted); font-weight: 600; font-size: 12px; padding: 6px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+.scroll { overflow-x: auto; }
+a { color: var(--accent); text-decoration: none; } a:hover { text-decoration: underline; }
+.pill { display: inline-block; padding: 1px 7px; border-radius: 99px; background: var(--soft); font-size: 11px; font-weight: 600; margin: 1px 2px 1px 0; white-space: nowrap; }
+.pill.bad { background: rgba(232,70,124,.14); color: var(--rose); } .pill.good { background: rgba(31,157,85,.14); color: var(--ok); }
+details.sess { border-bottom: 1px solid var(--line); } details.sess:last-child { border-bottom: 0; }
+details.sess summary { cursor: pointer; padding: 9px 4px; display: grid; grid-template-columns: 120px 70px minmax(0, 1fr) auto; gap: 10px; align-items: center; list-style: none; }
+details.sess summary::-webkit-details-marker { display: none; }
+details.sess summary:hover { background: var(--soft); border-radius: 8px; }
+.tl { margin: 0 4px 12px 14px; border-left: 2px solid var(--line); padding-left: 12px; font-size: 12.5px; }
+.tl div { padding: 2px 0; } .tl .t { color: var(--muted); font-family: var(--mono); font-size: 11.5px; margin-right: 8px; }
+.trunc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 640px) { details.sess summary { grid-template-columns: 1fr auto; } details.sess summary .hide-m { display: none; } .seg { margin-left: 0; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Uprise analytics</h1>
+    <span class="live"><i></i><span id="online">0</span>&nbsp;online now</span>
+    <span class="muted small" id="updated"></span>
+    <div class="seg" id="range">
+      <button data-d="1">24h</button><button data-d="7" aria-pressed="true">7 days</button><button data-d="30">30 days</button><button data-d="0">All</button>
+    </div>
+  </header>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="grid">
+    <div class="card wide"><h2>Per day</h2><div id="chart"></div></div>
+    <div class="card"><h2>Funnel (visitors)</h2><div class="funnel" id="funnel"></div></div>
+    <div class="card"><h2>Where they came from</h2><div class="bars" id="refs"></div></div>
+    <div class="card"><h2>Campaigns (utm / ref)</h2><div class="bars" id="utms"></div></div>
+    <div class="card"><h2>Time per tab / page</h2><div class="bars" id="tabs"></div></div>
+    <div class="card"><h2>Pages viewed</h2><div class="bars" id="pages"></div></div>
+    <div class="card"><h2>Actions</h2><div class="bars" id="acts"></div></div>
+    <div class="card"><h2>Clicks</h2><div class="bars" id="clicks"></div></div>
+    <div class="card"><h2>Devices · browsers</h2><div class="bars" id="devices"></div><div class="bars" id="browsers" style="margin-top:10px"></div></div>
+    <div class="card"><h2>Time zones · languages</h2><div class="bars" id="zones"></div><div class="bars" id="langs" style="margin-top:10px"></div></div>
+  </div>
+
+  <div class="card" style="margin-bottom:14px"><h2>Wallets</h2><div class="scroll"><table id="wallets"></table></div></div>
+  <div class="card" style="margin-bottom:14px"><h2>Recent sessions</h2><div id="sessions"></div></div>
+  <div class="card"><h2>Browser errors</h2><div class="scroll"><table id="errors"></table></div></div>
+</div>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
+const dur = (s) => (s < 60 ? `${s}s` : s < 3600 ? `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, "0")}s` : `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m`);
+const ago = (t) => { const s = Math.round((Date.now() - t) / 1000); return s < 60 ? "just now" : s < 3600 ? `${Math.floor(s / 60)} min ago` : s < 86400 ? `${Math.floor(s / 3600)} h ago` : new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric" }); };
+const when = (t) => new Date(t).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+const clock = (t) => new Date(t).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+const short = (a) => (a && a.length > 24 ? a.slice(0, 8) + "…" + a.slice(-6) : a);
+let days = 7, net = "testnet";
+try { days = Number(localStorage.getItem("ua.days") ?? 7); } catch {}
+
+function bars(el, rows, fmt = (n) => n.toLocaleString()) {
+  if (!rows.length) { $(el).innerHTML = '<div class="empty">Nothing yet</div>'; return; }
+  const max = Math.max(...rows.map((r) => r[1]));
+  $(el).innerHTML = rows.map(([k, n]) => `<div class="row" style="--w:${(n / max) * 100}%"><span title="${esc(k)}">${esc(k || "(none)")}</span><b>${fmt(n)}</b></div>`).join("");
+}
+function chart(rows) {
+  const W = Math.max(320, $("chart").clientWidth), H = 190, pad = { l: 34, r: 8, t: 10, b: 26 }, n = rows.length || 1;
+  const max = Math.max(1, ...rows.map((r) => r.visitors)), bw = (W - pad.l - pad.r) / n, y = (v) => pad.t + (H - pad.t - pad.b) * (1 - v / max);
+  const ticks = [0, Math.ceil(max / 2), max].filter((v, i, a) => a.indexOf(v) === i);
+  const every = Math.ceil(n / Math.floor((W - 40) / 52));
+  let s = `<svg width="100%" viewBox="0 0 ${W} ${H}" role="img" aria-label="Visitors and wallets per day">`;
+  for (const t of ticks) s += `<line x1="${pad.l}" x2="${W - pad.r}" y1="${y(t)}" y2="${y(t)}" stroke="var(--line)"/><text x="${pad.l - 6}" y="${y(t) + 4}" text-anchor="end">${t}</text>`;
+  rows.forEach((r, i) => {
+    const x = pad.l + i * bw, w = Math.max(2, Math.min(36, bw * 0.7)), cx = x + bw / 2;
+    s += `<rect x="${cx - w / 2}" y="${y(r.visitors)}" width="${w}" height="${y(0) - y(r.visitors)}" rx="3" fill="var(--accent)"><title>${r.day}: ${r.visitors} visitors · ${r.sessions} sessions · ${r.views} views · ${r.wallets} wallets · ${dur(r.sec)} active</title></rect>`;
+    if (r.wallets) s += `<rect x="${cx - w / 2}" y="${y(r.wallets)}" width="${w}" height="${y(0) - y(r.wallets)}" rx="3" fill="var(--rose)"><title>${r.day}: ${r.wallets} wallets</title></rect>`;
+    if (i % every === 0) s += `<text x="${cx}" y="${H - 8}" text-anchor="middle">${new Date(r.day).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</text>`;
+  });
+  s += `</svg><div class="small muted" style="margin-top:4px"><span class="pill" style="background:var(--accent);color:#fff">visitors</span> <span class="pill" style="background:var(--rose);color:#fff">wallets active</span> hover a bar for details</div>`;
+  $("chart").innerHTML = s;
+}
+const ACT = { createDevice: "created wallet", connectWallet: "connected wallet", faucet: "got test USDC", buy: "bought", close: "closed", vaultDeposit: "vault deposit", vaultWithdraw: "vault withdraw", send: "sent USDC", backup: "saved recovery email", recoverFinish: "restored wallet", disconnect: "signed out" };
+function line(e) {
+  const d = e.d || {};
+  if (e.t === "view") return `viewed <b>${esc(e.p)}</b>${d.ref ? ` <span class="muted">from ${esc(d.ref)}</span>` : ""}`;
+  if (e.t === "click") return `clicked <b>${esc(d.el)}</b>${d.tab ? ` <span class="muted">on ${esc(d.tab)} · ${esc(d.mode || "")}</span>` : ""}`;
+  if (e.t === "wallet") return d.acct ? `wallet <b class="mono">${esc(short(d.acct))}</b> <span class="pill">${esc(d.kind)}</span>` : "wallet signed out";
+  if (e.t === "act") return `<span class="pill ${d.ok ? "good" : "bad"}">${d.ok ? "ok" : "failed"}</span> ${esc(ACT[d.act] || d.act)}${d.usd ? ` <b>$${d.usd.toLocaleString()}</b>` : ""}${d.power ? ` x${d.power}` : ""}${d.err ? ` <span class="muted">${esc(d.err)}</span>` : ""}`;
+  if (e.t === "error") return `<span class="pill bad">error</span> ${esc(d.msg)} <span class="muted">${esc(d.src || "")}</span>`;
+  return esc(e.t);
+}
+function render(r) {
+  $("online").textContent = r.online; $("updated").textContent = "updated " + new Date(r.now).toLocaleTimeString();
+  const t = r.totals;
+  $("kpis").innerHTML = [["Visitors", t.visitors], ["Sessions", t.sessions], ["Page views", t.views], ["Wallets", t.wallets], ["Avg. time", dur(t.avgSec)], ["Median time", dur(t.medianSec)], ["Returning", t.returning], ["Bounced", Math.round(t.bounce * 100) + "%"]]
+    .map(([k, v]) => `<div class="kpi"><small>${k}</small><b>${typeof v === "number" ? v.toLocaleString() : v}</b></div>`).join("");
+  chart(r.perDay);
+  const f0 = r.funnel[0][1] || 1, names = { visit: "Visited", live: "Opened Live", wallet: "Has a wallet", funded: "Got USDC", traded: "Traded / deposited" };
+  $("funnel").innerHTML = r.funnel.map(([k, n]) => `<div class="st"><span>${names[k]}</span><div class="bar" style="width:${(n / f0) * 100}%"></div><span class="muted"><b style="color:var(--ink)">${n}</b> · ${Math.round((n / f0) * 100)}%</span></div>`).join("");
+  bars("refs", r.refs); bars("utms", r.utms); bars("tabs", r.tabs, dur); bars("pages", r.pages); bars("clicks", r.clicks);
+  bars("acts", r.acts.map(([k, n]) => [k.replace(/^\w+/, (m) => ACT[m] || m), n])); bars("devices", r.devices); bars("browsers", r.browsers); bars("zones", r.zones); bars("langs", r.langs);
+  const nb = (a) => `https://${r.wallets.find((w) => w.id === a)?.net === "mainnet" ? "" : "testnet."}nearblocks.io/address/${encodeURIComponent(a)}`;
+  $("wallets").innerHTML = r.wallets.length ? `<tr><th>Account</th><th>Type</th><th>First seen</th><th>Last seen</th><th>From</th><th>Time on site</th><th>Volume</th><th>Actions</th></tr>` + r.wallets.map((w) =>
+    `<tr><td class="mono"><a href="${nb(w.id)}" target="_blank" rel="noopener" title="${esc(w.id)}">${esc(short(w.id))}</a></td><td><span class="pill">${esc(w.kind === "device" ? "custodial" : w.kind || "?")}</span></td><td>${when(w.first)}</td><td>${ago(w.last)}</td><td>${esc(w.ref || "")}${w.utm ? `<br><span class="small muted">${esc(w.utm)}</span>` : ""}</td><td>${dur(w.sec)}</td><td>${w.volume ? "$" + Math.round(w.volume).toLocaleString() : ""}</td><td>${Object.entries(w.acts).map(([k, n]) => `<span class="pill ${k.endsWith("✗") ? "bad" : ""}">${esc((ACT[k.split(" ")[0]] || k.split(" ")[0]) + (k.endsWith("✗") ? " ✗" : ""))}${n > 1 ? " ×" + n : ""}</span>`).join("")}</td></tr>`).join("") : '<tr><td class="empty">No wallets yet</td></tr>';
+  const open = new Set([...document.querySelectorAll("details.sess[open]")].map((d) => d.dataset.id));
+  $("sessions").innerHTML = r.sessions.length ? r.sessions.map((s) => `<details class="sess" data-id="${esc(s.id)}" ${open.has(s.id) ? "open" : ""}><summary>
+      <span>${ago(s.end)}</span><span><b>${dur(s.sec)}</b></span>
+      <span class="trunc hide-m">${esc(s.ref || "")} · ${esc(s.device || "")} · ${esc(s.browser || "")} · ${esc(s.tz || "")}${s.visits > 1 ? ` · <span class="pill">visit ${s.visits}</span>` : ""}${s.wallets.map((w) => ` <span class="pill mono">${esc(short(w))}</span>`).join("")}</span>
+      <span class="muted small">${s.views} view${s.views === 1 ? "" : "s"} · ${s.events.length} events</span></summary>
+      <div class="tl">${s.events.map((e) => `<div><span class="t">${clock(e.at)}</span>${line(e)}</div>`).join("")}<div class="muted small">visitor ${esc(s.v)} · ${esc(s.ip || "")} · ${esc(s.lang || "")}</div></div></details>`).join("") : '<div class="empty">No sessions yet</div>';
+  $("errors").innerHTML = r.errors.length ? `<tr><th>When</th><th>Page</th><th>Error</th></tr>` + r.errors.map((e) => `<tr><td>${when(e.at)}</td><td>${esc(e.p)}</td><td>${esc(e.msg)} <span class="muted small">${esc(e.src || "")}</span></td></tr>`).join("") : '<tr><td class="empty">No errors</td></tr>';
+}
+async function load() {
+  try { const r = await fetch("/api/analytics?days=" + days, { cache: "no-store" }); if (r.ok) render(await r.json()); } catch {}
+}
+document.querySelectorAll("#range button").forEach((b) => {
+  b.setAttribute("aria-pressed", Number(b.dataset.d) === days);
+  b.onclick = () => { days = Number(b.dataset.d); try { localStorage.setItem("ua.days", days); } catch {} document.querySelectorAll("#range button").forEach((x) => x.setAttribute("aria-pressed", x === b)); load(); };
+});
+load(); setInterval(load, 15_000);
+let rt; addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(load, 200); });
+</script>
+</body>
+</html>

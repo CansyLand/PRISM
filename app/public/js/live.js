@@ -12,6 +12,7 @@ const WS = "10.1.4";
 
 export class Live {
   async init() {
+    window.uprise = this; // read by /t.js (visitor tracking)
     this.cfg = await fetch("/api/config").then((r) => r.json());
     this.provider = new JsonRpcProvider({ url: location.origin + "/api/rpc" }, { retries: 4, wait: 500 });
     this.kind = ls.get(KIND); this.accountId = null; this.state = {};
