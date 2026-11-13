@@ -175,6 +175,7 @@ function demoClose(why) {
   lastResult = { pts: trail.slice(), p: r.p, melted, out: r.out, mult: m, move: exitPx / r.entry - 1 };
   $("result").querySelector(".modal").className = "modal r-card " + (r.out > 0 && m >= 1 ? "win" : "lose");
   modal("result"); drawResult($("rChart"), trail, r.p, melted);
+  if (mode === "demo" && scrollY > 0) window.scrollTo({ top: 0, behavior: "smooth" }); // behind the card, so the Live toggle is in view for the hand
   $("rText").textContent = r.out > 0 ? (r.pnl <= 0 && why === "ended" ? "The replay ended, so the position was closed." : "")
     : `The price didn't rise fast enough before the ${pw(r.p)} timer ran out.`;
   render();
