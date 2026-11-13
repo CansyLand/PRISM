@@ -277,3 +277,40 @@ header.top { grid-template-columns: auto 1fr auto; } .wallet-btn { align-items: 
 /* no zooming on phones: no double-tap zoom, and inputs at 16px+ so iOS doesn't zoom in on focus */
 html { touch-action: manipulation; -webkit-text-size-adjust: 100%; } input, select, textarea { font-size: max(16px, 1em); }
 .modal.sheet { border-radius: 26px 26px 0 0; } /* bottom sheet: square bottom edge */
+
+/* ── desktop (≥1000px): trading-terminal layout. The phone layout above stays as it is. ── */
+@media (min-width: 1000px) {
+  .app { max-width: 1200px; padding: 18px 28px 40px; gap: 18px; }
+  /* top bar: logo | tabs (centered, see nav.tabs) | Demo/Live + balance */
+  header.top { grid-template-columns: auto 1fr auto auto; gap: 12px; min-height: 52px; }
+  header.top .mode { justify-self: end; grid-column: 3; } header.top .wallet-btn { grid-column: 4; }
+  nav.tabs { top: 22px; bottom: auto; left: 50%; transform: translateX(-50%); width: 420px; padding: 5px; z-index: 6; }
+  nav.tabs button, nav.tabs button.side, nav.tabs button.main { flex-direction: row; gap: 8px; padding: 9px 12px; font-size: 13px; }
+  nav.tabs .ico svg, nav.tabs button.main .ico svg { width: 20px; height: 20px; }
+  .ff { top: 84px; right: calc(50% - 570px); }
+
+  /* Trade: chart on the left, order panel (Curve Long, Your profit, Buy) on the right */
+  #tab-bull { display: grid; grid-template-columns: minmax(0, 1fr) 380px; grid-template-rows: auto auto 1fr; gap: 18px; align-items: start; }
+  #tab-bull > #liveStart { grid-column: 1 / -1; max-width: 520px; justify-self: center; width: 100%; }
+  #tab-bull > .chart-card { grid-column: 1; grid-row: 1 / span 3; }
+  #tab-bull > .buyrow { grid-column: 2; grid-row: 1; grid-template-columns: minmax(0, 1fr); gap: 18px; }
+  #tab-bull > .actcard { grid-column: 2; grid-row: 2; }
+  #candles { height: min(62vh, 640px); }
+  .cc-plot { min-height: 200px; }
+
+  /* Yield: vault overview left, your stake and deposit right */
+  #tab-crab { display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 18px; align-items: start; }
+  .stake-plot { height: 170px; }
+
+  /* Analytics: big canvas left, the legend right */
+  #tab-stats { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 18px; align-items: start; }
+  #arena { height: 620px; }
+
+  /* wallet: a drawer from the right instead of a bottom sheet */
+  .sheet-bg { align-items: stretch; justify-content: flex-end; }
+  .modal.sheet { width: 460px; max-width: 460px; height: 100dvh; max-height: 100dvh; border-radius: 26px 0 0 26px; padding: 26px 22px; }
+  .dep2 { grid-template-columns: minmax(0, 1fr); }
+
+  /* onboarding: bigger stage */
+  .ob { max-width: 760px; } .ob-cv { max-height: 520px; min-height: 360px; } .ob-title { font-size: 40px; }
+}
