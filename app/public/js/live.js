@@ -88,10 +88,10 @@ export class Live {
     const [market, vault, ledgerAcc, usdc, pos] = await Promise.all([
       this.view(c.ledger, "get_market"), this.view(c.vault, "get_vault"),
       me ? this.view(c.ledger, "get_account", { account_id: me }) : null,
-      me ? this.view(c.usdc, "ft_balance_of", { account_id: me }).catch(() => "0") : "0",
+      me ? this.view(c.usdc, "ft_balance_of", { account_id: me }).catch(() => null) : "0",
       me ? this.view(c.vault, "get_position", { account_id: me }) : null,
     ]);
-    this.state = { market, vault, ledgerAcc, usdc: BigInt(usdc || 0), pos };
+    this.state = { market, vault, ledgerAcc, usdc: BigInt(usdc || 0), usdcKnown: usdc != null, pos };
     return this.state;
   }
   cash() { return this.state.usdc + BigInt(this.state.ledgerAcc?.free || 0); }

@@ -345,8 +345,8 @@ input:focus, input:focus-visible, select:focus, select:focus-visible, textarea:f
 /* desktop footer: what Uprise is, the lab, GitHub and X */
 .foot { display: none; }
 @media (min-width: 1000px) {
-  .foot { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: auto; padding: 16px 4px 0; border-top: 1.5px solid var(--line); font-size: 14px; color: var(--ink); }
-  .foot a { color: var(--ink); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+  .foot { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: auto; padding: 16px 4px 0; border-top: 1.5px solid rgba(255,255,255,.45); font-size: 14px; color: #fff; }
+  .foot a { color: #fff; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
   .foot-links { display: flex; gap: 18px; } .foot-links a { display: inline-flex; align-items: center; gap: 7px; text-decoration: none; }
   .foot-links svg { width: 16px; height: 16px; }
 }

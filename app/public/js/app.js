@@ -397,10 +397,13 @@ async function liveRefresh() {
     // first refresh with positions: show one you hold if the slider sits on an empty strength
     const held = heldLongs();
     if (held.length && !heldLong(P()) && !liveRefresh.picked) { $("p").value = held[0].power; renderStrength(); renderPreview(); }
-    liveRefresh.picked = true;
+    if (live.connected) liveRefresh.picked = true; // wallets like Meteor reconnect a moment after the page loads
     flip(showsPosition(P())); renderStrength();
-    // no USDC anywhere yet: offer the ways to get some (once per session)
-    if (live.connected && !fundShown && Number(live.state.usdc || 0n) === 0 && Number(live.cash()) === 0 && heldLongs().length === 0) { fundShown = true; openFund(); }
+    // little or no money yet (under $100 across wallet, trading balance and vault, no open position): offer the
+    // ways to get some, once per session. Only when the USDC balance was actually read, so a failed RPC read
+    // doesn't count as an empty wallet.
+    const pos = live.state.pos, total = (Number(live.cash()) + Number(pos?.value || 0) + Number(pos?.pending_deposit || 0)) / E6;
+    if (live.connected && !fundShown && live.state.usdcKnown && total < 100 && heldLongs().length === 0) { fundShown = true; openFund(); }
     if (live.kind === "device" && Number(live.cash()) > 0 && !ls.get("uprise.v1.backedUp") && !ls.get("uprise.v1.backupLater")) { modal("backup"); ls.set("uprise.v1.backupLater", "1"); }
     render();
   } catch (e) { console.warn(e); }
@@ -592,7 +595,7 @@ async function setMode(m) {
   if (m === "demo") { $("mkt").textContent = "Demo market"; $("mktNote").textContent = "Demo replay of real history"; $("assetLabel").textContent = "play money"; loadDemoChart(); flip(false); }
   else {
     try { await ensureLive(); } catch (e) { toast("Live mode can't reach the network: " + e.message, true); return setMode("demo"); }
-    $("assetLabel").textContent = `on ${live.cfg.asset}`; liveRefresh.picked = false; await loadLiveChart(); await liveRefresh();
+    $("assetLabel").textContent = `on ${live.cfg.asset}`; liveRefresh.picked = false; await Promise.all([loadLiveChart(), liveRefresh()]); // positions don't wait for the chart
   }
   if (tab === "stats") arena.start(mode, live);
   renderStrength(); render();
