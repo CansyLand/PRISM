@@ -619,6 +619,30 @@ function render() {
   if (tab === "crab") renderCrab();
 }
 
+// ── mainnet waitlist: envelope on the chart. Its red badge goes once clicked; it wiggles now and then until you join. ──
+{
+  const btn = $("mailBtn"), form = $("joinForm"), done = $("joinDone");
+  const joined = () => ls.get("uprise.v1.waitlist");
+  const showDone = (place) => { done.textContent = `📬 You're #${place} in line. One email on mainnet day, that's it.`; done.hidden = false; form.hidden = true; };
+  if (ls.get("uprise.v1.mailSeen")) btn.classList.add("seen");
+  btn.onclick = () => {
+    btn.classList.add("seen"); ls.set("uprise.v1.mailSeen", "1");
+    const open = form.hidden && done.hidden; btn.setAttribute("aria-expanded", open);
+    if (!open) { form.hidden = done.hidden = true; return; }
+    if (joined()) return showDone(joined());
+    form.hidden = false; $("joinEmail").focus();
+  };
+  form.onsubmit = (e) => { e.preventDefault(); withBusy(form.querySelector(".join-go"), "", async () => {
+    $("joinErr").textContent = "";
+    const r = await fetch("/api/waitlist", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: $("joinEmail").value, source: mode }) }).then((x) => x.json());
+    if (!r.ok) { $("joinErr").textContent = r.error || "Couldn't save that, try again"; return; }
+    ls.set("uprise.v1.waitlist", String(r.place)); showDone(r.place);
+  }); };
+  btn.addEventListener("animationend", () => btn.classList.remove("wig"));
+  const wiggle = () => { if (!joined() && form.hidden && !document.hidden) { btn.classList.remove("wig"); void btn.offsetWidth; btn.classList.add("wig"); } setTimeout(wiggle, 4000 + Math.random() * 5000); };
+  setTimeout(wiggle, 2500);
+}
+
 // ── start ──
 (async () => {
   const snippets = await fetch("demo-snippets.json").then((r) => r.json());

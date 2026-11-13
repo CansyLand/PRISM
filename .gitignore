@@ -23,3 +23,4 @@ app/.backup-key
 ops/meteor-account.txt
 app/.analytics.jsonl
 app/.analytics-pass
+app/.waitlist.txt

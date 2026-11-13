@@ -15,6 +15,7 @@
 //   GET  /api/vault-history          vault share price samples
 //   GET  /api/holders                the vault's largest depositors (read from its storage)
 //   POST /api/t, GET /analytics      visitor tracking (app/track.js)
+//   POST /api/waitlist {email, source}   mainnet email list: one line per email in app/.waitlist.txt, returns {place}
 //   POST /api/deposit-address {account_id, asset, amount}  mainnet: 1Click deposit address → USDC to this account
 import http from "node:http";
 import fs from "node:fs";
@@ -58,6 +59,15 @@ const BACKUP_KEY = Buffer.from(process.env.BACKUP_KEY || (fs.existsSync(KEYFILE)
 const seal = (text) => { const iv = crypto.randomBytes(12), c = crypto.createCipheriv("aes-256-gcm", BACKUP_KEY, iv); const out = Buffer.concat([c.update(text, "utf8"), c.final()]); return [iv, c.getAuthTag(), out].map((b) => b.toString("base64")).join("."); };
 const open = (blob) => { const [iv, tag, out] = blob.split(".").map((s) => Buffer.from(s, "base64")); const dc = crypto.createDecipheriv("aes-256-gcm", BACKUP_KEY, iv); dc.setAuthTag(tag); return Buffer.concat([dc.update(out), dc.final()]).toString("utf8"); };
 const normEmail = (e) => String(e || "").trim().toLowerCase();
+// ── mainnet waitlist: a plain text file, "email<TAB>ISO time<TAB>source" per line. The line number is the place in line. ──
+const WAITLIST = path.join(DIR, ".waitlist.txt");
+const waitlist = new Map((fs.existsSync(WAITLIST) ? fs.readFileSync(WAITLIST, "utf8") : "").split("\n").filter(Boolean).map((l, i) => [l.split("\t")[0], i + 1]));
+function joinWaitlist(email, source) {
+  if (waitlist.has(email)) return { place: waitlist.get(email), already: true };
+  const place = waitlist.size + 1; waitlist.set(email, place);
+  fs.appendFileSync(WAITLIST, `${email}\t${new Date().toISOString()}\t${String(source || "").replace(/\s/g, "").slice(0, 20)}\n`, { mode: 0o600 });
+  return { place };
+}
 async function sendCode(email, code) {
   // SMTP is wired later on the real server. Until then the code goes to the server log.
   console.log(`[recovery] code for ${email}: ${code}`);
@@ -229,6 +239,12 @@ const server = http.createServer(async (req, res) => {
       if (String(code).trim() !== c.code) { c.tries++; save(); return json(res, 400, { error: "wrong code" }); }
       delete state.codes[e]; save();
       return json(res, 200, { ok: true, wallets: Object.entries(state.backups[e] || {}).map(([id, b]) => ({ account_id: id, secret: open(b.key) })) });
+    }
+    if (url.pathname === "/api/waitlist" && req.method === "POST") {
+      const { email, source } = await body(req, 2_000); const e = normEmail(email);
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e) || e.length > 200) return json(res, 400, { error: "that email doesn't look right" });
+      if (limited(req, "waitlist", 10, 3_600_000)) return json(res, 429, { error: "too many tries, try later" });
+      return json(res, 200, { ok: true, ...joinWaitlist(e, source) });
     }
     if (url.pathname === "/api/deposit-address" && req.method === "POST") {
       if (TESTNET) return json(res, 400, { error: "cross-chain deposits through NEAR Intents run on mainnet" });

@@ -66,9 +66,9 @@
   .c6 b i { font-style: normal; display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--crab); margin-right: 5px; vertical-align: 1px; animation: blink 1.4s infinite; }
   @keyframes blink { 50% { opacity: .25; } }
   /* 7 · envelope with dot */
-  .c7 { width: 34px; height: 34px; border-radius: 50%; background: var(--ink); color: var(--panel); display: grid; place-items: center; position: relative; padding: 0; }
+  .c7 { width: 34px; height: 34px; border-radius: 50%; background: var(--accent); color: #fff; display: grid; place-items: center; position: relative; padding: 0; }
   .c7 svg { width: 17px; height: 17px; }
-  .c7::after { content: "1"; position: absolute; top: -3px; right: -3px; min-width: 16px; height: 16px; border-radius: 99px; background: var(--down); color: #fff; font-size: 10px; font-weight: 800; display: grid; place-items: center; border: 2px solid var(--panel); }
+  .c7::after { content: "1"; position: absolute; top: -7px; right: -7px; min-width: 16px; height: 16px; border-radius: 99px; background: var(--down); color: #fff; font-size: 10px; font-weight: 800; display: grid; place-items: center; border: 2px solid var(--panel); }
   /* 8 · rubber stamp */
   .c8 { --r: 4deg; background: transparent; color: var(--down); border: 2px dashed var(--down); border-radius: 6px; padding: 4px 9px; font-weight: 800; font-size: 11.5px; letter-spacing: .08em; text-transform: uppercase; transform: rotate(var(--r)); }
   .c8.wig { animation: stamp .55s ease-out; }
@@ -77,6 +77,7 @@
   .c9 { display: inline-flex; align-items: stretch; border-radius: 99px; overflow: hidden; border: 1.5px solid var(--ink); background: var(--panel); padding: 0; font-weight: 700; font-size: 13px; }
   .c9 span { padding: 6px 10px; } .c9 b { background: var(--ink); color: var(--panel); padding: 6px 10px; }
   .i9.open .join { display: none; } .i9.open .c9 { display: none; }
+  .c7.seen::after { display: none; }
   .i9 .inl { display: none; margin-left: auto; flex: 1; max-width: 190px; border: 1.5px solid var(--ink); border-radius: 99px; overflow: hidden; background: var(--panel); }
   .i9.open:not(.sent) .inl { display: flex; animation: drop .25s ease-out; }
   .i9 .inl input { flex: 1; min-width: 0; border: 0; background: transparent; padding: 6px 10px; outline: none; font-size: 13px; }
@@ -115,7 +116,7 @@ document.getElementById("grid").innerHTML = ideas.map(([t, why, btn], i) => `
   </section></div>`).join("");
 
 document.querySelectorAll(".idea").forEach((el) => {
-  el.querySelector(".cta").onclick = () => { el.classList.add("open"); el.querySelector("input").focus(); };
+  el.querySelector(".cta").onclick = (e) => { e.currentTarget.classList.add("seen"); el.classList.add("open"); el.querySelector("input").focus(); };
   el.querySelectorAll("form").forEach((f) => (f.onsubmit = (e) => { e.preventDefault(); el.classList.add("sent"); }));
 });
 // wiggle: each button on its own random 4–9 s timer, never while it's open

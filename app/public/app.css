@@ -354,3 +354,21 @@ input:focus, input:focus-visible, select:focus, select:focus-visible, textarea:f
 
 /* visually hidden, still read by search engines and screen readers */
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* mainnet waitlist: cobalt envelope on the right of the chart's time-frame row, opens an email field in the card */
+.chart-bar { display: flex; align-items: center; gap: 8px; margin-top: 8px; } .chart-bar .chips { margin-top: 0; }
+.mail-btn { margin-left: auto; flex: none; width: 34px; height: 34px; border-radius: 50%; border: 0; padding: 0; background: var(--accent); color: #fff; display: grid; place-items: center; position: relative; cursor: pointer; }
+.mail-btn svg { width: 17px; height: 17px; }
+.mail-btn::after { content: "1"; position: absolute; top: -7px; right: -7px; min-width: 16px; height: 16px; border-radius: 99px; background: var(--down); color: #fff; font-size: 10px; font-weight: 800; display: grid; place-items: center; border: 2px solid var(--panel); }
+.mail-btn.seen::after { display: none; }
+.mail-btn.wig { animation: mailwig .7s ease-in-out; }
+@keyframes mailwig { 0%,100% { transform: rotate(0); } 15% { transform: rotate(-9deg) scale(1.08); } 30% { transform: rotate(8deg) scale(1.08); } 45% { transform: rotate(-5deg); } 60% { transform: rotate(3deg); } 75% { transform: rotate(-1deg); } }
+@media (prefers-reduced-motion: reduce) { .mail-btn.wig { animation: none; } }
+.join { margin-top: 10px; animation: joinin .25s ease-out; }
+.join-q { margin: 0 0 6px; font-weight: 700; font-size: 13.5px; }
+.join-row { display: flex; gap: 6px; }
+.join-row input { flex: 1; min-width: 0; border: 1px solid var(--line); background: var(--panel2); border-radius: 10px; padding: 9px 11px; outline: none; font-size: 15px; }
+.join-row input:focus { border-color: var(--accent); }
+.join-go { border: 0; border-radius: 10px; background: var(--accent); color: #fff; font-weight: 800; padding: 0 16px; cursor: pointer; }
+.join-done { margin: 10px 0 0; font-weight: 700; font-size: 13.5px; animation: joinin .25s ease-out; }
+@keyframes joinin { from { opacity: 0; transform: translateY(-4px); } }
