@@ -8,6 +8,12 @@ import { css, fit, pw } from "./theme.js";
 import { crabIntro } from "./crabintro.js";
 
 const $ = (id) => document.getElementById(id);
+// No zooming on iPhone: Safari ignores user-scalable=no, so stop its pinch gestures and two-finger moves here.
+// (Double-tap zoom is already off through touch-action: manipulation in the CSS.)
+for (const ev of ["gesturestart", "gesturechange", "gestureend"]) document.addEventListener(ev, (e) => e.preventDefault(), { passive: false });
+document.addEventListener("touchmove", (e) => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+let lastTouchEnd = 0;
+document.addEventListener("touchend", (e) => { const now = Date.now(); if (now - lastTouchEnd < 300 && !e.target.closest("input, textarea, select")) e.preventDefault(); lastTouchEnd = now; }, { passive: false });
 const E6 = 1e6;
 const fmt = (v, d = 2) => (v < 0 ? "−" : "") + "$" + Math.abs(v).toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d });
 const pct = (v, d = 0) => (v >= 0 ? "+" : "−") + Math.abs(v * 100).toFixed(d) + "%";
