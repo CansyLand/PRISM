@@ -464,6 +464,9 @@ function renderCrab() {
   if (mode === "live" && !live?.connected) err = "Create or connect a wallet on the Bull tab first.";
   else if (vMode === "dep" && a > (mode === "demo" ? demo.balance : Number(live.state.usdc) / E6) + 1e-9) err = "More than you have.";
   $("vErr").textContent = err; $("vBtn").disabled = busy; $("vBtn").classList.toggle("soft", !a || !!err); $("vBtn").textContent = (vMode === "dep" ? "Deposit" : "Withdraw") + (a ? " " + fmt(a) : "");
+  // live: a deposit or withdrawal waits for the vault's next update (keeper, about every 45 s); show that on the button
+  const pos = mode === "live" ? live?.state?.pos : null, settling = pos && (Number(pos.pending_deposit) > 0 || Number(pos.pending_withdraw_shares) > 0);
+  if (settling && !busy) { $("vBtn").innerHTML = '<span class="spin"></span> Settling… about a minute'; $("vBtn").disabled = true; }
 }
 const vAmount = () => { const v = Number(String($("vAmt").value).replace(",", ".")); return isFinite(v) && v > 0 ? v : 0; };
 $("vAmt").addEventListener("input", renderCrab);
@@ -481,7 +484,7 @@ $("vBtn").onclick = () => {
 };
 const vSubmit = () => withBusy($("vBtn"), vMode === "dep" ? "Depositing…" : "Withdrawing…", async () => {
   const a = vAmount();
-  if (mode === "demo") { vMode === "dep" ? demo.vaultDeposit(a) : demo.vaultWithdraw(a); toast(vMode === "dep" ? `${fmt(a)} is now earning` : `${fmt(a)} back in your balance`); }
+  if (mode === "demo") { await new Promise((r) => setTimeout(r, 900)); /* a short beat so the spinner is seen */ vMode === "dep" ? demo.vaultDeposit(a) : demo.vaultWithdraw(a); toast(vMode === "dep" ? `${fmt(a)} is now earning` : `${fmt(a)} back in your balance`); }
   else if (vMode === "dep") { await live.vaultDeposit(BigInt(Math.floor(a * E6))); ls.set("uprise.v1.vaultIn", String(Number(ls.get("uprise.v1.vaultIn") || 0) + a)); toast(`Deposit of ${fmt(a)} queued`); }
   else { const pps = Number(live.state.vault.share_price_e6) / E6, all = a >= Number(live.state.pos.value) / E6 - 0.01; await live.vaultWithdraw(all ? null : Math.floor(a / pps * E6)); toast(`Withdrawal of ${fmt(a)} queued`); }
   $("vAmt").value = ""; if (mode === "live") await liveRefresh();
