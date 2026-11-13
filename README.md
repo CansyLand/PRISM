@@ -6,6 +6,25 @@
 
 **Try it:** [uprise.wtf](https://uprise.wtf). Start in Demo mode with play money; no wallet needed.
 
+## Try it in five minutes
+
+**Demo (play money, no wallet):**
+
+1. Open [uprise.wtf](https://uprise.wtf). Five intro slides explain the idea; tap **Next** or **Skip**. You land on 🐮 **Trade** with $1,000 of play money.
+2. Move the strength slider to x⁵, tap **50%**, then **Buy**. A real NEAR price rally replays in fast-forward: your position's value rises faster than the price, and the bar under it shrinks as the position melts.
+3. Slide to x¹⁰: confetti.
+4. Open 🦀 **Yield**: a $10,000 vault stake that grows a day per second while you watch.
+5. Open 📊 **Analytics**: coins flowing from traders to the vault and on to liquidity providers.
+
+**Live (NEAR testnet, real contracts):**
+
+1. Flip the switch at the top from **Demo** to **Live** (it says **Testnet** on desktop) and tap **Create custodial wallet**. You get a NEAR account with 1,000 test USDC. You need no NEAR for gas: the server relays every action as a meta-transaction.
+2. On **Trade**, pick x³, enter $50 and tap **Buy**. The card shows your position with its entry price, and a dashed line on the chart marks where you bought.
+3. On **Yield**, deposit $100. It shows "Settling…" until the vault's next update (about a minute), then your stake, and you appear in **Top holders**.
+4. On **Analytics**, your trader circle is marked **YOU**.
+
+Already use NEAR? **Connect NEAR wallet** works with Meteor, MyNearWallet and Intear; the wallet sheet has a **Get 1,000 test USDC** button for any testnet account.
+
 ## What it is, in plain words
 
 Uprise has two sides, and they need each other.
@@ -28,7 +47,7 @@ A live picture of where the yield comes from: traders on the left, the vault in 
 
 ## Behind the simple app
 
-It took a lot of math and many experiments to make this feel simple. Everything below can be opened and played with in the browser. The [lab](https://uprise.wtf/lab) collects them on one page.
+It took a lot of math and many experiments to make this feel simple. The simulators below run in the browser; open one and play. The [lab](https://uprise.wtf/lab) collects them on one page.
 
 ### Simulators: how the money moves
 
@@ -39,14 +58,6 @@ It took a lot of math and many experiments to make this feel simple. Everything 
 | [<img src="app/public/lab/curve-simulator.jpg" width="300">](https://uprise.wtf/sim/curve-simulator.html) | **[Who pays whom](https://uprise.wtf/sim/curve-simulator.html)**<br>Four traders and the exchange share one pool. Move time and price and watch where every dollar goes. |
 | [<img src="app/public/lab/two-sided-vault.jpg" width="300">](https://uprise.wtf/sim/two-sided-vault.html) | **[When does the vault earn?](https://uprise.wtf/sim/two-sided-vault.html)**<br>The two products in one pool, and when the yield vault makes money: when fees are above the volatility that really happens. |
 | [<img src="app/public/lab/volume-calculator.jpg" width="300">](https://uprise.wtf/sim/volume-calculator.html) | **[Volume calculator](https://uprise.wtf/sim/volume-calculator.html)**<br>How many traders and trades it takes to reach a trading volume, and what fees that brings. |
-
-### Design studies: how it should feel
-
-| | |
-|---|---|
-| [<img src="app/public/lab/design-languages.jpg" width="300">](https://uprise.wtf/styles.html) | **[17 design languages](https://uprise.wtf/styles.html)**<br>The same screen as neo-brutalism, glass, terminal, 8-bit, iOS liquid glass, screen print and more. Number 15 became the app. |
-| [<img src="app/public/lab/result-designs.jpg" width="300">](https://uprise.wtf/result-designs.html) | **[Result cards](https://uprise.wtf/result-designs.html)**<br>Three rounds of designs for the card after a trade. |
-| [<img src="app/public/lab/celebrations.jpg" width="300">](https://uprise.wtf/particles.html) | **[The x¹⁰ celebration](https://uprise.wtf/particles.html)**<br>Particle effects for maxing out the slider, on a screen that is already full of color. |
 
 ### Research and models
 
@@ -98,6 +109,14 @@ node app/server.js
 ```
 
 Then open `http://localhost:8787`. The testnet accounts and contracts are listed in [`ops/README.md`](ops/README.md).
+
+## Built at NEAR HACKATHON
+
+Uprise was built during [NEAR HACKATHON](https://nearhackathon.com) (2026): the first commit is from 2026-11-07, and there is no earlier code. The `perpetual` branch keeps the first idea from the same week, an order-book perpetual (PRISM).
+
+- **Contracts:** Rust with [near-sdk](https://github.com/near/near-sdk-rs) 5 and near-contract-standards (NEP-141 tokens), `uint` for 256-bit math.
+- **App and scripts:** [near-api-js](https://github.com/near/near-api-js), [NEAR Wallet Selector](https://github.com/near/wallet-selector) (Meteor, MyNearWallet, Intear), NEAR Intents 1Click API for cross-chain deposits. Price data from the public Coinbase (and Binance) APIs. Space Grotesk font.
+- **AI:** written with AI coding assistance (Claude Code).
 
 ## License
 

@@ -300,6 +300,8 @@ html { touch-action: manipulation; -webkit-text-size-adjust: 100%; } input, sele
 
   /* Yield: vault overview left, your stake and deposit right */
   #tab-crab { display: grid; grid-template-columns: minmax(0, 1fr) 420px; gap: 18px; align-items: start; }
+  /* the vault card and Top holders on the left, your stake on the right */
+  #tab-crab > section.card:not(#liveStart) { grid-column: 1; } #tab-crab > section.card:has(#stakeCv) { grid-column: 2; grid-row: span 2; }
   .stake-plot { height: 170px; }
 
   /* Analytics: big canvas left, the legend right */
@@ -327,4 +329,24 @@ input:focus, input:focus-visible, select:focus, select:focus-visible, textarea:f
   .lbl-m, .sub-how .how, #vBar { display: none; } .lbl-d { display: inline; } .how-d { display: inline-block; margin-left: 8px; vertical-align: 3px; }
   .donut-wrap { display: flex; justify-content: center; margin: 18px 0 8px; } #tab-crab .legend { justify-content: center; }
   #tab-crab.start-only { grid-template-columns: minmax(0, 1fr); } #tab-crab > #liveStart { grid-column: 1 / -1; max-width: 520px; justify-self: center; width: 100%; }
+}
+
+/* Yield → Top holders (live only): rank, name, share, value, with a thin bar for the share */
+.hlist { list-style: none; counter-reset: h; margin: 10px 0 0; padding: 0; display: grid; gap: 6px; }
+.hlist li { counter-increment: h; position: relative; display: grid; grid-template-columns: 22px minmax(0, 1fr) auto auto; gap: 10px; align-items: baseline; padding: 8px 0 10px; font-size: 15px; }
+.hlist li::before { content: counter(h); color: var(--muted); font-weight: 700; font-size: 13px; }
+.hlist li.none::before { content: none; } .hlist li.none { display: block; color: var(--muted); }
+.hlist .hn { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.hlist .hn em { font-style: normal; font-size: 10px; font-weight: 800; letter-spacing: .06em; background: var(--ink); color: var(--panel); padding: 2px 6px; border-radius: 999px; margin-left: 4px; vertical-align: 2px; }
+.hlist .hs { color: var(--muted); font-size: 13px; } .hlist b { font-weight: 700; text-align: right; min-width: 64px; }
+.hlist li i { position: absolute; left: 32px; bottom: 2px; height: 3px; border-radius: 3px; background: var(--ink); opacity: .25; max-width: calc(100% - 32px); }
+.hlist li.me i { background: var(--up); opacity: 1; }
+
+/* desktop footer: what Uprise is, the lab, GitHub and X */
+.foot { display: none; }
+@media (min-width: 1000px) {
+  .foot { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap; margin-top: auto; padding: 16px 4px 0; border-top: 1.5px solid var(--line); font-size: 14px; color: var(--ink); }
+  .foot a { color: var(--ink); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+  .foot-links { display: flex; gap: 18px; } .foot-links a { display: inline-flex; align-items: center; gap: 7px; text-decoration: none; }
+  .foot-links svg { width: 16px; height: 16px; }
 }

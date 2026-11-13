@@ -13,6 +13,7 @@
 //   POST /api/recover/finish {email, code}   returns the stored key(s)
 //   GET  /api/history?range=5m|1h|1d|1w candles for the asset (Coinbase)
 //   GET  /api/vault-history          vault share price samples
+//   GET  /api/holders                the vault's largest depositors (read from its storage)
 //   POST /api/deposit-address {account_id, asset, amount}  mainnet: 1Click deposit address → USDC to this account
 import http from "node:http";
 import fs from "node:fs";
@@ -130,6 +131,24 @@ async function sampleVault() {
 }
 setInterval(sampleVault, 60_000); sampleVault();
 
+// The vault's share holders. The contract has no list view, but every holder is a key in its `shares`
+// map (storage prefix 0x00, then the borsh account id; the value is u128 shares), so we read the raw state.
+let holdersCache = { t: 0, v: null };
+async function holders() {
+  if (holdersCache.v && Date.now() - holdersCache.t < 30_000) return holdersCache.v;
+  const [st, v] = await Promise.all([provider.query({ request_type: "view_state", finality: "final", account_id: d.vault, prefix_base64: "AA==" }), view(d.vault, "get_vault")]);
+  const total = BigInt(v.total_shares), nav = BigInt(v.snapshot.nav);
+  const list = st.values.map(({ key, value }) => {
+    const k = Buffer.from(key, "base64"), b = Buffer.from(value, "base64");
+    const id = k.subarray(5, 5 + k.readUInt32LE(1)).toString("utf8");
+    const shares = b.readBigUInt64LE(0) + (b.readBigUInt64LE(8) << 64n);
+    return { account_id: id, value: total > 0n ? Number((shares * nav) / total) / 1e6 : 0 };
+  }).filter((h) => h.value >= 0.01).sort((a, b) => b.value - a.value);
+  const tvl = Number(nav) / 1e6;
+  holdersCache = { t: Date.now(), v: { tvl, count: list.length, holders: list.slice(0, 10).map((h) => ({ ...h, share: tvl > 0 ? h.value / tvl : 0 })) } };
+  return holdersCache.v;
+}
+
 async function refillRelayer() {
   // Testnet only: when the relayer runs low, pull 10 NEAR from the public testnet faucet.
   if (!TESTNET || (await balanceNear(relayer.accountId)) > 3) return;
@@ -157,6 +176,7 @@ const server = http.createServer(async (req, res) => {
     if (url.pathname === "/api/rpc" && req.method === "POST") return rpcProxy(req, res);
     if (url.pathname === "/api/history") return json(res, 200, await history(url.searchParams.get("range") || "1d"));
     if (url.pathname === "/api/vault-history") return json(res, 200, state.vault.slice(-2_000));
+    if (url.pathname === "/api/holders") return json(res, 200, await holders());
     if (url.pathname === "/api/relay" && req.method === "POST") {
       if (limited(req, "relay", 60, 600_000)) return json(res, 429, { error: "too many transactions, slow down" });
       const { signed_delegate } = await body(req, 20_000);

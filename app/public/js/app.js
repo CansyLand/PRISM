@@ -123,6 +123,12 @@ $("p").addEventListener("input", paintSlider); paintSlider();
 // ── DEMO: fast-forward replay ──
 // One continuous market: each trade plays the next history snippet scaled to start at the last price.
 let playing = null, trail = []; // { stop }, samples { m: market move, v: position move } while open
+// Live: the entry price of the position on screen, kept across chart reloads (5M/1H/1D/1W)
+let liveMark = { price: 0, label: "" };
+function setLiveMark(price, known = true) {
+  const label = price ? `your entry ${known ? "" : "≈ "}${fmtP(price)}` : "";
+  liveMark = { price, label }; if (mode === "live") chart.mark(price || null, label);
+}
 function loadDemoChart() { chart.set(demo.history()); chart.mark(null); $("px").textContent = fmtP(chart.price()); $("chg").textContent = ""; }
 async function demoBuy() {
   const a = amount(), p = P();
@@ -295,7 +301,7 @@ function renderPosition() {
     $("chg").textContent = pct(px / q.entry - 1, 1) + " since you bought"; $("chg").className = "small num " + (px >= q.entry ? "pos" : "neg");
     $("balance").textContent = fmt(demo.balance + v);
   } else {
-    const p = P(), a = heldLong(p); if (!a || browseBuy) return;
+    const p = P(), a = heldLong(p); if (!a || browseBuy) { setLiveMark(0); return; }
     renderOthers(p);
     const v = Number(a.value) / E6, c = Number(a.cost) / E6, m = live.state.market, b = bucketOf(p);
     $("posFundRow").hidden = true; renderFunding();
@@ -304,6 +310,7 @@ function renderPosition() {
     // estimate if we didn't see the buy: value ≈ cost × (P/E)^p  →  E ≈ P × (cost/value)^(1/p) (melt makes it a little high)
     const entry = known || (v > 0 ? pNow * Math.pow(c * 0.997 / v, 1 / p) : 0);
     $("posEntry").textContent = entry ? (known ? "" : "≈ ") + fmtP(entry) : "—"; $("posNow").textContent = fmtP(pNow);
+    setLiveMark(entry, known); // dashed line on the chart where you bought
     showCurve(p, entry ? pNow / entry - 1 : null); // your dot on the curve, no ±10% markers
     $("posPnl").textContent = `${v >= c ? "+" : "−"}${fmt(Math.abs(v - c))} · ×${(v / c).toFixed(2)}`; $("posPnl").className = "num " + (v >= c ? "pos" : "neg");
     // at today's rate the position pays v·f/365 a day, so it would melt away in about 365/f days
@@ -347,7 +354,7 @@ function stopStream() { try { stream?.close(); } catch {} stream = null; }
 const GRAN = { "5m": 5, "1h": 60, "1d": 300, "1w": 3600 }; // seconds per candle
 async function loadLiveChart() {
   startStream();
-  try { const rows = await fetch(`/api/history?range=${range}`).then((r) => r.json()); chart.set(rows.slice(-70)); lastCandleT = rows.length ? rows[rows.length - 1][0] : 0; chart.mark(null); } catch {}
+  try { const rows = await fetch(`/api/history?range=${range}`).then((r) => r.json()); chart.set(rows.slice(-70)); lastCandleT = rows.length ? rows[rows.length - 1][0] : 0; chart.mark(liveMark.price, liveMark.label); } catch {}
   $("mkt").textContent = `${live.cfg.asset} / USD`; $("mktNote").textContent = live.cfg.testnet ? "Live · testnet" : "Live";
 }
 // ── "Add USDC to start": bridge, swap (scan the wallet's tokens), or testnet USDC ──
@@ -431,7 +438,24 @@ const costKey = () => `uprise.v1.vaultIn.${live?.accountId}`;
 const vaultCost = () => { const r = ls.get(costKey()); return r != null ? Number(r) : Number(live?.state?.pos?.shares || 0) / E6; };
 // desktop donut: USDC share in cobalt, the NEAR hedge in ink
 function paintDonut(usdc) { $("vDonut").style.setProperty("--u", (usdc * 100).toFixed(1) + "%"); $("vDonutPct").textContent = Math.round(usdc * 100) + "%"; }
+// Live only: the vault's largest depositors (the server reads them from the vault's storage)
+let holdersAt = 0;
+const esc = (t) => String(t).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
+const shortId = (id) => /^[0-9a-f]{64}$/.test(id) ? id.slice(0, 6) + "…" + id.slice(-4) : id.replace(/\.testnet$/, "");
+async function renderHolders() {
+  const card = $("holdersCard"); card.hidden = mode !== "live"; if (card.hidden || Date.now() - holdersAt < 20_000) return;
+  holdersAt = Date.now();
+  try {
+    const h = await (await fetch("/api/holders")).json(); if (mode !== "live") return;
+    $("hCount").textContent = h.count === 1 ? "1 depositor" : `${h.count} depositors`;
+    $("hList").innerHTML = h.holders.map((x) => {
+      const me = x.account_id === live?.accountId, n = esc(shortId(x.account_id));
+      return `<li${me ? ' class="me"' : ""}><span class="hn" title="${esc(x.account_id)}">${n}${me ? ' <em>YOU</em>' : ""}</span><span class="hs">${x.share < 0.001 ? "<0.1" : (x.share * 100).toFixed(x.share < 0.1 ? 1 : 0)}%</span><b>${fmt(x.value, 0)}</b><i style="width:${Math.max(1, x.share * 100).toFixed(1)}%"></i></li>`;
+    }).join("") || '<li class="none">No deposits yet.</li>';
+  } catch { holdersAt = 0; }
+}
 function renderCrab() {
+  renderHolders();
   $("crabTag").textContent = mode === "demo" ? "demo" : live?.cfg?.testnet ? "live · testnet" : "live";
   if (mode === "demo") {
     const tvl = 250_000 + demo.vault.stake;
