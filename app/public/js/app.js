@@ -257,8 +257,18 @@ function resultClosed() {
 }
 $("result").querySelector("[data-close]").onclick = resultClosed;
 $("result").addEventListener("click", (e) => { if (e.target === $("result")) resultClosed(); });
+// if the Live toggle is scrolled out of view (phones), glide up to the top first, then show the hand
 function pointAtLive() {
-  const b = document.querySelector('[data-mode="live"]').getBoundingClientRect(), h = $("hand");
+  const live = document.querySelector('[data-mode="live"]');
+  if (live.getBoundingClientRect().top < 0 && scrollY > 0) {
+    let shown = false; const go = () => { if (!shown) { shown = true; showHand(live); } };
+    window.addEventListener("scrollend", go, { once: true }); setTimeout(go, 700); // scrollend isn't in every browser
+    return window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+  showHand(live);
+}
+function showHand(live) {
+  const b = live.getBoundingClientRect(), h = $("hand");
   h.style.left = b.left + b.width / 2 - 40 + "px"; h.style.top = b.bottom + 4 + "px";
   h.hidden = true; void h.offsetWidth; h.hidden = false; // restart the bob each time
   clearTimeout(pointAtLive.t); pointAtLive.t = setTimeout(() => (h.hidden = true), 9000);
