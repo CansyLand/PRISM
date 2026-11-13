@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How Uprise works: power perpetuals with no liquidation</title>
+<meta name="description" content="What a power perpetual is, why a wick can't liquidate an Uprise position, how the melt (funding) works and how the Crab Vault earns yield. Plain-language guide and FAQ.">
+<link rel="canonical" href="https://uprise.wtf/learn">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Uprise">
+<meta property="og:url" content="https://uprise.wtf/learn">
+<meta property="og:title" content="How Uprise works: power perpetuals with no liquidation">
+<meta property="og:description" content="Same trade, two endings: a 10× perp gets wicked out, an Uprise curve rides the rally. Here's how.">
+<meta property="og:image" content="https://uprise.wtf/og/og-two-endings.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@CansyLand">
+<meta name="twitter:image" content="https://uprise.wtf/og/og-two-endings.jpg">
+<link rel="icon" href="brand/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap">
+<style>
+  :root { --bg: #f77fa6; --card: #e4f36b; --ink: #1d1530; --cobalt: #3557ff; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: "Space Grotesk", system-ui, sans-serif; }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 28px 20px 60px; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  header a.back { background: var(--ink); color: var(--card); text-decoration: none; font-weight: 700; padding: 10px 16px; border-radius: 999px; }
+  h1 { font-size: clamp(32px, 6vw, 52px); letter-spacing: -.03em; line-height: 1.05; margin: 26px 0 12px; }
+  .lead { font-size: 19px; line-height: 1.5; margin: 0 0 6px; }
+  h2 { font-size: 26px; letter-spacing: -.01em; margin: 0 0 10px; }
+  section { background: var(--card); border-radius: 22px; padding: 22px 24px; margin-top: 18px; }
+  section.blue { background: var(--cobalt); color: #fff; } section.blue a { color: #fff; }
+  p, li { font-size: 16.5px; line-height: 1.6; } p { margin: 0 0 10px; } p:last-child { margin-bottom: 0; }
+  ul { margin: 0 0 10px; padding-left: 20px; }
+  a { color: var(--cobalt); font-weight: 700; }
+  img.scene { width: 100%; border-radius: 16px; display: block; margin: 12px 0 4px; }
+  table { border-collapse: collapse; width: 100%; font-size: 15.5px; margin: 8px 0 10px; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 7px 10px; border-bottom: 1.5px solid rgba(29,21,48,.15); } th { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; }
+  details { border-top: 1.5px solid rgba(29,21,48,.15); padding: 12px 0; } details:first-of-type { border-top: 0; }
+  summary { font-weight: 700; font-size: 17px; cursor: pointer; }
+  details p { margin-top: 8px; }
+  .cta { display: inline-block; background: var(--ink); color: var(--card); text-decoration: none; padding: 14px 22px; border-radius: 999px; margin-top: 6px; }
+  .small { font-size: 14px; opacity: .8; }
+</style>
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    { "@type": "Question", "name": "What is Uprise?", "acceptedAnswer": { "@type": "Answer", "text": "Uprise is a trading app on NEAR for betting that a price will rise, without a liquidation price. You pick a strength from x¹ to x¹⁰ and your position grows faster the more the price goes up. It runs on NEAR testnet as a beta, and has a demo mode with play money." } },
+    { "@type": "Question", "name": "What is a power perpetual?", "acceptedAnswer": { "@type": "Answer", "text": "A power perpetual is a position whose value follows the price raised to a power. At strength x³, a 10% price rise makes the position worth about 33% more; at x⁵ about 61% more. It has no expiry date and no liquidation price." } },
+    { "@type": "Question", "name": "Can I get liquidated on Uprise?", "acceptedAnswer": { "@type": "Answer", "text": "No. An Uprise position has no liquidation price, so a sudden dip or wick can't close it. If the price falls, your position is worth less, and it recovers if the price comes back, as long as you still hold it." } },
+    { "@type": "Question", "name": "What does the melt (funding) cost?", "acceptedAnswer": { "@type": "Answer", "text": "Instead of a liquidation price, a position melts a little every moment. This is the funding. Steeper strengths melt faster, and the rate rises when more of the vault is in use. The melt is what you pay for growing faster than the price with no liquidation." } },
+    { "@type": "Question", "name": "Where does the Crab Vault yield come from?", "acceptedAnswer": { "@type": "Answer", "text": "The Crab Vault takes the other side of every Curve Long. The funding that melts traders' positions flows to the vault: 90% to depositors, 10% to the exchange. The vault holds NEAR alongside its USDC and rebalances, so price moves mostly cancel out and what remains is the funding." } },
+    { "@type": "Question", "name": "Do I need NEAR for gas?", "acceptedAnswer": { "@type": "Answer", "text": "No. If you create a wallet in the app, Uprise pays the transaction fees through NEAR meta-transactions (NEP-366). If you connect Meteor, MyNearWallet or Intear, you approve each transaction in your wallet." } },
+    { "@type": "Question", "name": "Is Uprise live with real money?", "acceptedAnswer": { "@type": "Answer", "text": "Not yet. Uprise runs on NEAR testnet with test USDC, and the app gives every new wallet 1,000 test USDC. Demo mode needs no wallet at all." } },
+    { "@type": "Question", "name": "What can I lose?", "acceptedAnswer": { "@type": "Answer", "text": "Up to what you put in. If the price falls, a steeper strength falls faster: at x³ a 10% drop costs about 27%, at x⁵ about 41%. And the melt keeps reducing the position over time, so a price that goes sideways also costs you." } }
+  ]
+}
+</script>
+<script defer src="/t.js"></script>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <a href="/"><img src="brand/logo-uprise.svg" alt="Uprise" height="34"></a>
+    <a class="back" href="/">Open the app →</a>
+  </header>
+
+  <h1>Power perpetuals on NEAR, with no liquidation</h1>
+  <p class="lead">Uprise lets you bet on a price rising with up to ten times the curve of the price itself, and a sudden dip can't knock you out. This page explains how that works, what it costs, and who earns from it.</p>
+
+  <section>
+    <h2>Same trade, two endings</h2>
+    <p>With normal leverage, say a 10× long, a short wick below your liquidation price closes the position and you lose everything, even when the price comes right back a minute later. With Uprise, the same wick only moves your position's value for a moment. There is no price at which it gets closed.</p>
+    <img class="scene" src="og/og-two-endings.jpg" alt="A 10× perp liquidated at $0.00 next to an Uprise position that rides the same rally" width="1200" height="630" loading="lazy">
+  </section>
+
+  <section>
+    <h2>The Curve Long: a power perpetual</h2>
+    <p>On the 🐮 Trade tab you buy a <b>Curve Long</b> and choose its strength, from x¹ to x¹⁰. The value follows the price to that power: x¹ moves like the price, x¹⁰ ten times as steeply. This kind of position is called a <b>power perpetual</b>.</p>
+    <table>
+      <tr><th>NEAR moves</th><th>x¹</th><th>x³</th><th>x⁵</th></tr>
+      <tr><td>+10%</td><td>+10%</td><td>+33%</td><td>+61%</td></tr>
+      <tr><td>+25%</td><td>+25%</td><td>+95%</td><td>+205%</td></tr>
+      <tr><td>−10%</td><td>−10%</td><td>−27%</td><td>−41%</td></tr>
+    </table>
+    <p class="small">Before the melt. Steeper strengths win more on the way up and lose more on the way down.</p>
+  </section>
+
+  <section>
+    <h2>Why a wick can't liquidate you</h2>
+    <p>Uprise positions have no liquidation price. A dip lowers the value, and if the price comes back before you sell, so does your position. Dips, wicks and crashes can't close it for you.</p>
+    <p>All positions share one pool. If traders' claims ever exceeded the pool, everyone would be paid pro rata, so the contract can never owe more than it holds.</p>
+  </section>
+
+  <section>
+    <h2>The price you pay is time: the melt</h2>
+    <p>Instead of a liquidation price, each position slowly <b>melts</b>: it loses a little value every moment. This is the <b>funding</b>. Steeper strengths melt faster, and the rate rises as more of the vault is in use. The position never expires on a date, it fades out gradually, which is why we call it a <b>continuous-expiry</b> power perpetual.</p>
+    <p>So a Curve Long is a bet that the price rises <i>within a time window</i>. A price that goes sideways costs you the melt.</p>
+  </section>
+
+  <section class="blue">
+    <h2>The Crab Vault: earn what traders pay</h2>
+    <p>On the 🦀 Yield tab you can be on the other side. Liquidity providers deposit USDC into the Crab Vault, which takes the opposite side of every Curve Long. The melt from traders' positions flows into the vault: 90% to depositors, 10% to the exchange.</p>
+    <p>The vault holds NEAR alongside its USDC and rebalances automatically, so price moves mostly cancel out. What's left is the funding. It's the same idea as the "Crab" strategy on Ethereum. The 📊 Analytics tab shows the money moving between traders, the vault and depositors live.</p>
+  </section>
+
+  <section>
+    <h2>Start in a minute</h2>
+    <ul>
+      <li><b>Demo:</b> open <a href="/">uprise.wtf</a>. You get $1,000 of play money and a replay of real NEAR price history. No wallet needed.</li>
+      <li><b>Live on NEAR testnet:</b> switch to Live and tap <b>Create custodial wallet</b>. You get a NEAR account with 1,000 test USDC, and Uprise pays the gas through meta-transactions (NEP-366).</li>
+      <li><b>Already on NEAR?</b> Connect Meteor, MyNearWallet or Intear. The wallet sheet has a button for 1,000 test USDC.</li>
+      <li><b>From another chain:</b> cross-chain deposits through NEAR Intents (mainnet).</li>
+    </ul>
+    <a class="cta" href="/">Try Uprise →</a>
+  </section>
+
+  <section>
+    <h2>FAQ</h2>
+    <details open><summary>What is Uprise?</summary><p>A trading app on NEAR for betting that a price will rise, without a liquidation price. You pick a strength from x¹ to x¹⁰ and your position grows faster the more the price goes up. It runs on NEAR testnet as a beta, with a demo mode that uses play money.</p></details>
+    <details><summary>What is a power perpetual?</summary><p>A position whose value follows the price raised to a power. At x³, a 10% rise makes it worth about 33% more; at x⁵ about 61% more. It has no expiry date and no liquidation price.</p></details>
+    <details><summary>Can I get liquidated on Uprise?</summary><p>No. A dip or wick can't close an Uprise position. If the price falls your position is worth less, and it recovers if the price comes back while you still hold it.</p></details>
+    <details><summary>What does the melt (funding) cost?</summary><p>A position melts a little every moment. Steeper strengths melt faster, and the rate rises when more of the vault is in use. The app shows the current funding per day on your position before and after you buy.</p></details>
+    <details><summary>Where does the Crab Vault yield come from?</summary><p>From the melt of traders' positions: 90% goes to vault depositors, 10% to the exchange. The vault hedges with NEAR, so price moves mostly cancel out.</p></details>
+    <details><summary>Do I need NEAR for gas?</summary><p>No. Wallets created in the app are gas-free: Uprise relays every action as a meta-transaction. Meteor, MyNearWallet and Intear users approve each transaction in their wallet.</p></details>
+    <details><summary>Is Uprise live with real money?</summary><p>Not yet. It runs on NEAR testnet with test USDC, and every new wallet gets 1,000 test USDC. Demo mode needs no wallet at all.</p></details>
+    <details><summary>What can I lose?</summary><p>Up to what you put in. A steeper strength falls faster when the price drops (x³: about −27% on a 10% drop, x⁵: about −41%), and the melt reduces the position over time.</p></details>
+  </section>
+
+  <p class="small" style="margin-top:22px">The math, simulators and research behind Uprise are in the <a href="/lab">Uprise lab</a>. Code on <a href="https://github.com/CansyLand/Uprise">GitHub</a>. Testnet beta, not financial advice.</p>
+</div>
+</body>
+</html>

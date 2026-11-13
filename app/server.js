@@ -239,10 +239,10 @@ const server = http.createServer(async (req, res) => {
     // static
     // /sim/… serves the simulators from the repo's sim/ folder (read-only, html/js/json/css only); everything else is app/public
     const isSim = url.pathname.startsWith("/sim/"), root = isSim ? SIM : PUB;
-    const p = path.normalize(url.pathname === "/" ? "/index.html" : url.pathname === "/lab" ? "/lab.html" : isSim ? url.pathname.slice(4) : url.pathname);
+    const p = path.normalize(url.pathname === "/" ? "/index.html" : ["/lab", "/learn"].includes(url.pathname) ? url.pathname + ".html" : isSim ? url.pathname.slice(4) : url.pathname);
     const file = path.join(root, p);
     if (!file.startsWith(root) || (isSim && ![".html", ".js", ".json", ".css"].includes(path.extname(file))) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); return res.end("not found"); }
-    const type = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".json": "application/json" }[path.extname(file)] || "application/octet-stream";
+    const type = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".json": "application/json", ".txt": "text/plain; charset=utf-8", ".xml": "application/xml" }[path.extname(file)] || "application/octet-stream";
     res.writeHead(200, { "Content-Type": type, "Cache-Control": "no-cache" });
     fs.createReadStream(file).pipe(res);
   } catch (e) {

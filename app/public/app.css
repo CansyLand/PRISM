@@ -351,3 +351,6 @@ input:focus, input:focus-visible, select:focus, select:focus-visible, textarea:f
   .foot-links svg { width: 16px; height: 16px; }
   .foot-txt { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; } .foot-logo { height: 16px; width: auto; }
 }
+
+/* visually hidden, still read by search engines and screen readers */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }

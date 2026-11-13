@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /analytics
+
+Sitemap: https://uprise.wtf/sitemap.xml
