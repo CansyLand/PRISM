@@ -413,7 +413,7 @@ async function liveRefresh() {
 setInterval(() => { if (!document.hidden) liveRefresh(); }, 8000);
 document.querySelectorAll("#ranges .chip").forEach((b) => (b.onclick = () => { range = b.dataset.r; document.querySelectorAll("#ranges .chip").forEach((x) => x.setAttribute("aria-pressed", x === b)); loadLiveChart(); }));
 
-$("createWallet").onclick = () => withBusy($("createWallet"), "Creating your wallet…", async () => { await live.createDevice(); if (live.cfg.testnet) fundShown = true; /* a new testnet wallet comes with 1,000 USDC */ toast(live.cfg.testnet ? "Wallet ready: 1,000 test USDC added" : "Wallet ready. Add money to start."); await liveRefresh(); });
+$("createWallet").onclick = () => withBusy($("createWallet"), "Creating your wallet…", async () => { await live.createDevice(); toast(live.cfg.testnet ? "Wallet ready: 1,000 test USDC added" : "Wallet ready. Add money to start."); await liveRefresh(); });
 $("connectWallet").onclick = () => withBusy($("connectWallet"), "Opening wallets…", async () => { await live.connectWallet(false); });
 $("restoreBtn").onclick = () => modal("restore");
 $("rSend").onclick = () => withBusy($("rSend"), "Sending…", async () => { await live.recoverStart($("rEmail").value); toast("If that email has a wallet, a code is on its way"); });
