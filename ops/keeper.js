@@ -11,7 +11,7 @@
 //   4. keep about SHORT_SHARE of the vault in Curve Short (needed before anyone can open a long), but never at
 //      the hedge's expense: cash for the hedge gap, 25% headroom on the target and 5% of NAV stay out of the short,
 //      and short is closed when the hedge needs cash it doesn't have.
-import { account, view, call, loadDeployment, sleep, ONE_YOCTO, fmtUsd, ASSETS, spotPrice, balanceNear, faucetAccount, loadKeys, near } from "./lib.js";
+import { account, view, call, loadDeployment, sleep, ONE_YOCTO, fmtUsd, ASSETS, spotPrice, balanceNear, faucetAccount, loadKeys, near, provider } from "./lib.js";
 
 const d = loadDeployment();
 if (!d) throw new Error("run setup.js first");
@@ -146,17 +146,19 @@ const FLOORS = [[d.keeper, 2], [d.ledger, 3], [d.vault, 1.5], [d.relayer || d.fa
 async function refuel() {
   for (const [id, floor] of FLOORS) {
     if (!id) continue;
-    const bal = await balanceNear(id).catch(() => floor);
+    // what counts is the NEAR left after paying for storage (contracts lock 1 NEAR per 100 kB of state)
+    const a = await provider.viewAccount({ accountId: id }).catch(() => null);
+    const bal = a ? Number(BigInt(a.amount) - BigInt(a.storage_usage) * 10n ** 19n) / 1e24 : floor;
     if (bal >= floor) continue;
     try {
       const tmp = `uprise-tmp-${Math.random().toString(36).slice(2, 8)}.testnet`;
       await faucetAccount(tmp); await sleep(3000);
       await account(tmp).deleteAccount(id);
-      say(`gas: ${id} was ${bal} NEAR, +~10 NEAR from the testnet faucet`);
+      say(`gas: ${id} had ${bal.toFixed(3)} free NEAR, +~10 NEAR from the testnet faucet`);
     } catch (e) {
       say(`gas: faucet refused for ${id} (${String(e.message || e).slice(0, 80)})`);
       if (loadKeys()[d.master] && (await balanceNear(d.master)) > 8) { await account(d.master).transfer({ receiverId: id, amount: near(5) }); say(`gas: ${id} +5 NEAR from the master account`); }
-      else say(`gas: ${id} is low (${bal} NEAR) and nothing could top it up`);
+      else say(`gas: ${id} is low (${bal.toFixed(3)} free NEAR) and nothing could top it up`);
     }
   }
 }
