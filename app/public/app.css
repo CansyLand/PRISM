@@ -349,4 +349,5 @@ input:focus, input:focus-visible, select:focus, select:focus-visible, textarea:f
   .foot a { color: #fff; font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
   .foot-links { display: flex; gap: 18px; } .foot-links a { display: inline-flex; align-items: center; gap: 7px; text-decoration: none; }
   .foot-links svg { width: 16px; height: 16px; }
+  .foot-txt { display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; } .foot-logo { height: 16px; width: auto; }
 }

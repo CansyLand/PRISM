@@ -404,6 +404,8 @@ async function liveRefresh() {
     // doesn't count as an empty wallet.
     const pos = live.state.pos, total = (Number(live.cash()) + Number(pos?.value || 0) + Number(pos?.pending_deposit || 0)) / E6;
     if (live.connected && !fundShown && live.state.usdcKnown && total < 100 && heldLongs().length === 0) { fundShown = true; openFund(); }
+    // money arrived (e.g. the test USDC of a new wallet landed a moment late): close the card again
+    else if (!$("fundModal").hidden && (total >= 100 || heldLongs().length)) modal("fundModal", false);
     if (live.kind === "device" && Number(live.cash()) > 0 && !ls.get("uprise.v1.backedUp") && !ls.get("uprise.v1.backupLater")) { modal("backup"); ls.set("uprise.v1.backupLater", "1"); }
     render();
   } catch (e) { console.warn(e); }
@@ -411,7 +413,7 @@ async function liveRefresh() {
 setInterval(() => { if (!document.hidden) liveRefresh(); }, 8000);
 document.querySelectorAll("#ranges .chip").forEach((b) => (b.onclick = () => { range = b.dataset.r; document.querySelectorAll("#ranges .chip").forEach((x) => x.setAttribute("aria-pressed", x === b)); loadLiveChart(); }));
 
-$("createWallet").onclick = () => withBusy($("createWallet"), "Creating your wallet…", async () => { await live.createDevice(); toast(live.cfg.testnet ? "Wallet ready: 1,000 test USDC added" : "Wallet ready. Add money to start."); await liveRefresh(); });
+$("createWallet").onclick = () => withBusy($("createWallet"), "Creating your wallet…", async () => { await live.createDevice(); if (live.cfg.testnet) fundShown = true; /* a new testnet wallet comes with 1,000 USDC */ toast(live.cfg.testnet ? "Wallet ready: 1,000 test USDC added" : "Wallet ready. Add money to start."); await liveRefresh(); });
 $("connectWallet").onclick = () => withBusy($("connectWallet"), "Opening wallets…", async () => { await live.connectWallet(false); });
 $("restoreBtn").onclick = () => modal("restore");
 $("rSend").onclick = () => withBusy($("rSend"), "Sending…", async () => { await live.recoverStart($("rEmail").value); toast("If that email has a wallet, a code is on its way"); });
