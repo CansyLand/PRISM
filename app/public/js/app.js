@@ -74,13 +74,15 @@ function renderPreview() {
     if (mode === "live" && live?.state?.market) { const f = live.state.market.funding_rate_annual_bps / 1e4; rows.push(["Funding now", `${fmt(net * f / 365)}/day (${Math.round(f * 100)}%/yr)`]); }
   }
   $("preview").innerHTML = rows.map(([k, v]) => `<div class="kv"><span>${k}</span><span>${v}</span></div>`).join("");
+  const maxOpen = mode === "live" && live?.state?.market ? Number(live.state.market.max_long_open) / E6 : Infinity;
+  $("amtErr").hidden = !(a > maxOpen); if (a > maxOpen) $("amtErr").textContent = `Too big for the vault right now. Max ${fmt(Math.floor(maxOpen * 100) / 100)} per position.`;
   let err = "";
   if (mode === "live" && !live?.connected) err = "";
   else if (a > cash() + 1e-9) err = mode === "demo" ? "More than your play money." : "Not enough balance. Tap your balance to add money.";
   else if (mode === "live" && p !== live?.cfg?.power) err = `Pick ${pw(live?.cfg?.power)} for the live market.`;
   else if (mode === "live" && live?.state?.market && a > Number(live.state.market.max_long_open) / E6) err = `Largest buy right now is ${fmt(Number(live.state.market.max_long_open) / E6)}.`;
   $("buyErr").textContent = err;
-  $("buy").disabled = !a || !!err || busy || (mode === "live" && !live?.connected);
+  $("buy").disabled = !a || !!err || busy || (mode === "live" && !live?.connected) || a > maxOpen;
   $("buy").textContent = a ? `Buy ${fmt(a, a % 1 ? 2 : 0)}` : "Buy";
 }
 $("amt").addEventListener("input", renderPreview);
@@ -267,15 +269,18 @@ function renderPosition() {
   } else {
     const a = live?.state?.ledgerAcc; if (!a || BigInt(a.long_units) === 0n) return;
     const v = Number(a.long_value) / E6, c = Number(a.long_cost) / E6, m = live.state.market;
-    showCurve(m.power); $("posFundRow").hidden = true; renderFunding();
+    $("posFundRow").hidden = true; renderFunding();
     $("posP").textContent = pw(m.power); $("posValue").textContent = fmt(v); $("posPaid").textContent = fmt(c);
     const known = Number(ls.get(`uprise.v1.entry.${live.accountId}`) || 0), pNow = Number(m.price) / E6;
     // estimate if we didn't see the buy: value ≈ cost × (P/E)^p  →  E ≈ P × (cost/value)^(1/p) (melt makes it a little high)
     const entry = known || (v > 0 ? pNow * Math.pow(c * 0.997 / v, 1 / m.power) : 0);
     $("posEntry").textContent = entry ? (known ? "" : "≈ ") + fmtP(entry) : "—"; $("posNow").textContent = fmtP(pNow);
+    showCurve(m.power, entry ? pNow / entry - 1 : null); // your dot on the curve, no ±10% markers
     $("posPnl").textContent = `${v >= c ? "+" : "−"}${fmt(Math.abs(v - c))} · ×${(v / c).toFixed(2)}`; $("posPnl").className = "num " + (v >= c ? "pos" : "neg");
-    const f = m.funding_rate_annual_bps / 1e4; $("meltBar").style.width = Math.max(4, Math.min(100, (1 - f / 10) * 100)) + "%";
-    $("meltNote").textContent = `Funding: ${fmt(v * f / 365)} per day (${Math.round(f * 100)}% a year), paid to the Crab vault.`;
+    // at today's rate the position pays v·f/365 a day, so it would melt away in about 365/f days
+    const f = m.funding_rate_annual_bps / 1e4, days = f > 0 ? 365 / f : Infinity;
+    $("meltBar").style.width = Math.max(3, Math.min(100, (days / 180) * 100)) + "%";
+    $("meltNote").textContent = `Funding: ${fmt(v * f / 365)} per day (~${isFinite(days) ? Math.round(days) : "∞"} days)`;
   }
 }
 
@@ -287,10 +292,28 @@ async function ensureLive() {
   live.onChange = () => { render(); liveRefresh(); };
   return live;
 }
-let range = "1d", lastCandleT = 0;
-const GRAN = { "1h": 60, "1d": 300, "1w": 3600 };
+let range = "1d", lastCandleT = 0, streamAt = 0, stream = null, pxPaint = 0;
+// Live chart: Coinbase's public ticker stream moves the candles several times a second. Trades still use the
+// on-chain price (the keeper writes it every 15 s), so this only makes the chart feel live.
+function startStream() {
+  if (stream || mode !== "live") return;
+  try {
+    stream = new WebSocket("wss://ws-feed.exchange.coinbase.com");
+    stream.onopen = () => stream.send(JSON.stringify({ type: "subscribe", product_ids: [`${live?.cfg?.asset || "NEAR"}-USD`], channels: ["ticker"] }));
+    stream.onmessage = (e) => {
+      const m = JSON.parse(e.data); if (m.type !== "ticker" || mode !== "live") return;
+      const p = Number(m.price), now = Date.now() / 1000; streamAt = Date.now();
+      if (now - lastCandleT >= GRAN[range]) { chart.candles.push([p, p, p, p]); lastCandleT = now; chart.draw(); } else chart.tick(p);
+      if (Date.now() - pxPaint > 250) { $("px").textContent = fmtP(p); pxPaint = Date.now(); }
+    };
+    stream.onclose = () => { stream = null; if (mode === "live") setTimeout(startStream, 3000); };
+  } catch { stream = null; }
+}
+function stopStream() { try { stream?.close(); } catch {} stream = null; }
+const GRAN = { "5m": 5, "1h": 60, "1d": 300, "1w": 3600 }; // seconds per candle
 async function loadLiveChart() {
-  try { const rows = await fetch(`/api/history?range=${range}`).then((r) => r.json()); chart.set(rows.slice(-70)); lastCandleT = rows.length ? rows[rows.length - 1][0] : 0; chart.mark(null); } catch {}
+  startStream();
+  try { const rows = await fetch(`/api/history?range=${range}`).then((r) => r.json()); chart.set(rows.slice(range === "5m" ? -6 : -70)); /* 5m: a few minute candles, then 5-second live ones */ lastCandleT = rows.length ? rows[rows.length - 1][0] : 0; chart.mark(null); } catch {}
   $("mkt").textContent = `${live.cfg.asset} / USD`; $("mktNote").textContent = live.cfg.testnet ? "Live · testnet" : "Live";
 }
 // ── "Add USDC to start": bridge, swap (scan the wallet's tokens), or testnet USDC ──
@@ -326,8 +349,10 @@ async function liveRefresh() {
   try {
     await live.refresh();
     const p = Number(live.state.market.price) / E6, now = Date.now() / 1000;
-    if (now - lastCandleT >= GRAN[range]) { chart.candles.push([p, p, p, p]); lastCandleT = now; chart.draw(); } else chart.tick(p);
-    $("px").textContent = fmtP(p);
+    if (Date.now() - streamAt > 10_000) { // no live Coinbase ticks: move the chart with the on-chain price instead
+      if (now - lastCandleT >= GRAN[range]) { chart.candles.push([p, p, p, p]); lastCandleT = now; chart.draw(); } else chart.tick(p);
+      $("px").textContent = fmtP(p);
+    }
     const has = live.state.ledgerAcc && BigInt(live.state.ledgerAcc.long_units) > 0n;
     flip(has);
     // no USDC anywhere yet: offer the ways to get some (once per session)
@@ -484,7 +509,7 @@ async function setMode(m) {
   $("hand").hidden = true;
   if (m === mode && (m === "demo" || live)) return;
   if (demo.position) demoClose("manual");
-  mode = m; ls.set("uprise.mode", m);
+  mode = m; ls.set("uprise.mode", m); if (m === "demo") stopStream();
   document.querySelectorAll("[data-mode]").forEach((x) => x.setAttribute("aria-selected", x.dataset.mode === m));
   $("ranges").hidden = m !== "live";
   if (m === "demo") { $("mkt").textContent = "Demo market"; $("mktNote").textContent = "Demo replay of real history"; $("assetLabel").textContent = "play money"; loadDemoChart(); flip(false); }

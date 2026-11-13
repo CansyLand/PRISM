@@ -29,7 +29,7 @@
     <section class="card" id="liveStart" hidden>
       <h2>Start in seconds</h2>
       <p class="hint">No wallet? We make one for you on this device. Already on NEAR? Connect your wallet; every transaction asks for your approval.</p>
-      <button class="btn" id="createWallet">Create my wallet</button>
+      <button class="btn" id="createWallet">Create custodial wallet</button>
       <button class="btn ghost" id="connectWallet" style="margin-top:8px">Connect NEAR wallet (Meteor, MyNearWallet, Intear)</button>
       <button class="link" id="restoreBtn">Lost your device? Restore with email</button>
       <p class="err" id="startErr"></p>
@@ -43,7 +43,7 @@
       <div class="px-row"><div class="price-big num" id="px">—</div><div class="fund" id="fund" title="What holding a Curve Long costs: it melts by this much of its value per day"><span id="fundLbl">funding</span> <span id="fundRate">—</span></div></div>
       <canvas id="candles" aria-label="Price chart"></canvas>
       <div class="chips" id="ranges" hidden>
-        <button class="chip" data-r="1h" aria-pressed="false">1H</button><button class="chip" data-r="1d" aria-pressed="true">1D</button><button class="chip" data-r="1w" aria-pressed="false">1W</button>
+        <button class="chip" data-r="5m" aria-pressed="false">5M</button><button class="chip" data-r="1h" aria-pressed="false">1H</button><button class="chip" data-r="1d" aria-pressed="true">1D</button><button class="chip" data-r="1w" aria-pressed="false">1W</button>
       </div>
     </section>
 
@@ -56,6 +56,7 @@
         <div class="ticks"><span>x¹</span><span>x⁵</span><span>x¹⁰</span></div>
         <p class="hint" id="pNote"></p>
         <label class="field"><span>$</span><input id="amt" inputmode="decimal" placeholder="0" aria-label="Amount"></label>
+        <p class="err" id="amtErr" hidden></p>
         <div class="chips"><button class="chip" data-a="25">25%</button><button class="chip" data-a="50">50%</button><button class="chip" data-a="75">75%</button><button class="chip" data-a="max">Max</button></div>
         <div class="rows" id="preview"></div>
       </div>

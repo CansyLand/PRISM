@@ -11,7 +11,7 @@
 //   POST /api/backup {account_id, email, secret}   store the device key encrypted, for email recovery
 //   POST /api/recover/start {email}  sends a 6-digit code (SMTP, or the server log until SMTP is set up)
 //   POST /api/recover/finish {email, code}   returns the stored key(s)
-//   GET  /api/history?range=1h|1d|1w candles for the asset (Coinbase)
+//   GET  /api/history?range=5m|1h|1d|1w candles for the asset (Coinbase)
 //   GET  /api/vault-history          vault share price samples
 //   POST /api/deposit-address {account_id, asset, amount}  mainnet: 1Click deposit address → USDC to this account
 import http from "node:http";
@@ -95,7 +95,7 @@ async function relay(b64) {
 // ── price history ──
 const cache = new Map();
 async function history(range) {
-  const g = { "1h": 60, "1d": 300, "1w": 3600 }[range] || 300;
+  const g = { "5m": 60, "1h": 60, "1d": 300, "1w": 3600 }[range] || 300; // 5m: seeded with 1-minute candles, then 5-second live candles in the app
   const hit = cache.get(g);
   if (hit && Date.now() - hit.t < 30_000) return hit.v;
   const r = await fetch(`https://api.exchange.coinbase.com/products/${ASSET.coinbase}/candles?granularity=${g}`, { headers: { "User-Agent": "uprise" } });

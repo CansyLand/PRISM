@@ -37,7 +37,7 @@ export class CurveCard {
     }
     // ±10% markers
     ctx.font = `700 10px ${css("--mono")}`;
-    for (const r of [0.1, -0.1]) {
+    for (const r of this.at == null ? [0.1, -0.1] : []) { // in a trade only your own dot is shown
       const v = f(r), up = r > 0; ctx.fillStyle = css(up ? "--up" : "--down");
       ctx.beginPath(); ctx.arc(X(r), Y(v), 3.5, 0, 7); ctx.fill();
       ctx.textAlign = up ? "right" : "left"; ctx.fillText(pctTxt(v), X(r) + (up ? -6 : 4), up ? Y(v) + 4 : Math.min(H - pb - 3, Y(v) + 15));
