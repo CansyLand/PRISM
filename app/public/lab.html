@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Uprise lab</title>
+<meta name="description" content="The simulators, models and design studies behind Uprise. Open them and play.">
+<link rel="icon" href="brand/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap">
+<style>
+  :root { --bg: #f77fa6; --card: #e4f36b; --ink: #1d1530; --cobalt: #3557ff; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: "Space Grotesk", system-ui, sans-serif; }
+  .wrap { max-width: 1160px; margin: 0 auto; padding: 28px 20px 60px; }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  header a.back { background: var(--ink); color: var(--card); text-decoration: none; font-weight: 700; padding: 10px 16px; border-radius: 999px; }
+  h1 { font-size: clamp(32px, 6vw, 56px); letter-spacing: -.03em; margin: 26px 0 8px; }
+  .lead { font-size: 18px; max-width: 760px; line-height: 1.5; margin: 0 0 8px; }
+  h2 { font-size: 24px; margin: 38px 0 12px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 18px; }
+  a.tile { display: flex; flex-direction: column; background: var(--card); border-radius: 22px; overflow: hidden; color: var(--ink); text-decoration: none; transition: transform .15s; }
+  a.tile:hover { transform: translateY(-3px); }
+  a.tile img { width: 100%; aspect-ratio: 16 / 10; object-fit: cover; object-position: top; display: block; background: var(--ink); }
+  a.tile div { padding: 14px 16px 18px; }
+  a.tile b { font-size: 18px; display: block; margin-bottom: 4px; }
+  a.tile p { margin: 0; font-size: 14px; line-height: 1.45; opacity: .85; }
+  a.tile span { display: inline-block; margin-top: 10px; font-weight: 700; color: var(--cobalt); font-size: 14px; }
+  .note { background: var(--card); border-radius: 22px; padding: 18px 20px; font-size: 15px; line-height: 1.5; }
+  .note a { color: var(--cobalt); font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <img src="brand/logo-uprise.svg" alt="Uprise" height="34">
+    <a class="back" href="/">Open the app →</a>
+  </header>
+  <h1>The lab</h1>
+  <p class="lead">Uprise looks simple: pick a strength, buy, watch it grow. Behind that are the models, simulators and design studies we built to get the math and the feel right. Open any of them and play.</p>
+
+  <h2>Simulators: how the money moves</h2>
+  <div class="grid">
+    <a class="tile" href="/sim/live.html"><img src="lab/live.jpg" alt="" loading="lazy"><div><b>Live market game</b><p>Traders buy curves with gold coins, liquidity providers fill the vault, funding drips from traders into the vault. Change any number while it runs.</p><span>Play →</span></div></a>
+    <a class="tile" href="/sim/btc-replay.html"><img src="lab/btc-replay.jpg" alt="" loading="lazy"><div><b>Replay real history</b><p>Open a Curve Long on any day of Bitcoin 2020–2023 and fast-forward to see what it would have paid, and how the pool holds up.</p><span>Play →</span></div></a>
+    <a class="tile" href="/sim/curve-simulator.html"><img src="lab/curve-simulator.jpg" alt="" loading="lazy"><div><b>Who pays whom</b><p>Four traders and the exchange share one pool. Move time and price and watch exactly where every dollar goes.</p><span>Play →</span></div></a>
+    <a class="tile" href="/sim/two-sided-vault.html"><img src="lab/two-sided-vault.jpg" alt="" loading="lazy"><div><b>When does the vault earn?</b><p>The two products in one pool, and the conditions under which the yield vault makes money: fees above the volatility that really happens.</p><span>Play →</span></div></a>
+    <a class="tile" href="/sim/volume-calculator.html"><img src="lab/volume-calculator.jpg" alt="" loading="lazy"><div><b>Volume calculator</b><p>How many traders and trades a month it takes to reach a trading volume, and what the fees would bring in.</p><span>Play →</span></div></a>
+  </div>
+
+  <h2>Design studies: how it should feel</h2>
+  <div class="grid">
+    <a class="tile" href="/styles.html"><img src="lab/design-languages.jpg" alt="" loading="lazy"><div><b>17 design languages</b><p>The same trading screen as neo-brutalism, glass, terminal, Swiss, 8-bit, luxury, iOS liquid glass, screen print and more. Number 15 became the app.</p><span>Look →</span></div></a>
+    <a class="tile" href="/result-designs.html"><img src="lab/result-designs.jpg" alt="" loading="lazy"><div><b>Result cards</b><p>Three rounds of designs for the card you see after a trade: how to make "your curve beat the market" obvious at a glance.</p><span>Look →</span></div></a>
+    <a class="tile" href="/particles.html"><img src="lab/celebrations.jpg" alt="" loading="lazy"><div><b>The x¹⁰ celebration</b><p>Particle effects for maxing out the slider, re-thought for a screen that is already full of color.</p><span>Look →</span></div></a>
+  </div>
+
+  <h2>Research</h2>
+  <div class="note">
+    The ideas come from published work on perpetual futures, power perpetuals and options that never expire: Paradigm's <i>Power Perpetuals</i> and <i>Everlasting Options</i>, Angeris et al.'s <i>A Primer on Perpetuals</i>, and more. The full reading list, with plain-language notes on why each paper mattered, is in
+    <a href="https://github.com/CansyLand/Uprise/blob/main/docs/RESEARCH.md">docs/RESEARCH.md</a>.
+    The Monte Carlo search that picked today's settings for all ten strengths is in
+    <a href="https://github.com/CansyLand/Uprise/blob/main/sim/buckets/README.md">sim/buckets</a>.
+  </div>
+</div>
+</body>
+</html>

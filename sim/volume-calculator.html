@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Volume Calculator</title>
+<style>
+  :root {
+    --bg: #0f0f0f;
+    --card: #1c1c1e;
+    --text: #f5f5f7;
+    --muted: #8e8e93;
+    --accent: #30d158;
+    --border: #2c2c2e;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    margin: 0;
+    padding: 16px 16px 40px;
+    line-height: 1.4;
+  }
+  h1 { font-size: 1.5rem; font-weight: 600; margin: 8px 0 4px; }
+  .subtitle { color: var(--muted); font-size: 0.95rem; margin-bottom: 24px; }
+  .field { margin-bottom: 22px; }
+  label {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    font-size: 0.9rem;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  .value { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
+  input[type="range"] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 6px;
+    border-radius: 3px;
+    background: #333;
+    outline: none;
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--accent);
+    cursor: pointer;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+  }
+  .result {
+    margin-top: 28px;
+    background: var(--card);
+    border-radius: 14px;
+    padding: 18px 16px;
+  }
+  .result-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 1rem;
+  }
+  .result-row:last-child { border-bottom: none; }
+  .big {
+    font-size: 1.35rem;
+    font-weight: 600;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+  .note { margin-top: 16px; font-size: 0.8rem; color: var(--muted); text-align: center; }
+</style>
+</head>
+<body>
+<h1>Volume Calculator</h1>
+<p class="subtitle">Estimate traders and trades for target volume</p>
+
+<div class="field">
+  <label>Target monthly volume <span class="value" id="targetVal">$10,000,000</span></label>
+  <input type="range" id="target" min="1000000" max="50000000" step="500000" value="10000000">
+</div>
+
+<div class="field">
+  <label>Average notional per trade <span class="value" id="avgVal">$5,000</span></label>
+  <input type="range" id="avgTrade" min="500" max="50000" step="500" value="5000">
+</div>
+
+<div class="field">
+  <label>Trades per trader / month <span class="value" id="tptVal">8</span></label>
+  <input type="range" id="tradesPerTrader" min="1" max="40" step="1" value="8">
+</div>
+
+<div class="field">
+  <label>Round-trip fee <span class="value" id="feeVal">0.10%</span></label>
+  <input type="range" id="fee" min="0.01" max="0.5" step="0.01" value="0.1">
+</div>
+
+<div class="result" id="out"></div>
+<p class="note">Volume counts opened notional. Adjust sliders to explore scenarios.</p>
+
+<script>
+const fmt = (n) => n.toLocaleString('en-US');
+const fmtUSD = (n) => '$' + Math.round(n).toLocaleString('en-US');
+
+function update() {
+  const target = +document.getElementById('target').value;
+  const avg = +document.getElementById('avgTrade').value;
+  const tpt = +document.getElementById('tradesPerTrader').value;
+  const feePct = +document.getElementById('fee').value / 100;
+
+  document.getElementById('targetVal').textContent = fmtUSD(target);
+  document.getElementById('avgVal').textContent = fmtUSD(avg);
+  document.getElementById('tptVal').textContent = tpt;
+  document.getElementById('feeVal').textContent = document.getElementById('fee').value + '%';
+
+  const totalTrades = target / avg;
+  const traders = totalTrades / tpt;
+  const revenue = target * feePct;
+
+  document.getElementById('out').innerHTML = `
+    <div class="result-row">Total trades / month <span class="big">${fmt(Math.round(totalTrades))}</span></div>
+    <div class="result-row">Active traders needed <span class="big">${fmt(Math.round(traders))}</span></div>
+    <div class="result-row">Est. monthly fee revenue <span class="big">${fmtUSD(revenue)}</span></div>
+  `;
+}
+
+['target','avgTrade','tradesPerTrader','fee'].forEach(id => {
+  document.getElementById(id).addEventListener('input', update);
+});
+update();
+</script>
+</body>
+</html>

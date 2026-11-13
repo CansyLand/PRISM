@@ -5,31 +5,23 @@ rebalancing, and test players who trade against each other.
 
 ## What is deployed
 
-**Bucketed market (x¹–x¹⁰, branch `bucketed-strengths`).** `deployment.json` now points at the bucketed
-contracts `ledger-b`, `vault-b`, `swap-b`, with their own `keeper-b`, `relayer-b` and test players `rb1…rb6` /
-`hb1…hb3`. They share the USDC and wNEAR tokens with the old stack. `setup-buckets.js` creates them and is safe
-to re-run. The previous single-power x³ deployment (`ledger-near`, `vault-near`, …) is untouched; its file is kept as
-`deployment-x3.json`. To run its keeper or bots, copy that file back over `deployment.json`.
-
-The keeper hedges `delta_claims × vault share` (Σ p · C over all buckets) to within 2% of the target. It keeps the
-hedge gap, 25% headroom on the target and 5% of NAV in cash before it puts anything into Curve Short, and it closes
-short when the hedge needs cash it doesn't have.
-
-The single-power table below describes the x³ stack:
-
-`deployment.json` lists the live testnet accounts (no secrets). Keys are in `.keys.json`
-(gitignored, mode 600). The current deployment runs on **NEAR/USD** (like mainnet will) under
-`uprise-ir12p.testnet`; the earlier BTC deployment is kept in `deployment-btc.json`:
+`deployment.json` lists the live testnet accounts (no secrets). Keys are in `.keys.json` (gitignored, mode 600). Everything lives under the master account `uprise-ir12p.testnet` and runs on **NEAR/USD**:
 
 | Account | Role |
 |---|---|
-| `usdc.…`, `wnear.…` | Mock USDC (6 dp) and mock wNEAR (24 dp). Open faucet: `mint(account_id, amount)` |
-| `swap-near.…` | Mock DEX: USDC↔wNEAR at the keeper's price, 5 bps fee, seeded with $5M + 1.4M NEAR |
-| `ledger-near.…` | Uprise ledger, NEAR/USD, power 3, pusher oracle (the keeper) |
-| `vault-near.…` | Hedged Crab vault (wNEAR hedge), keeper = `keeper.…` |
-| `keeper.…` | Pushes prices, syncs and rebalances the vault |
-| `faucet.…` | Relayer: pays gas for app users (meta-transactions) and creates new wallets |
-| `r1…r6`, `h1…h3` | Test retail players ($2k each) and yield hunters ($25k each) |
+| `ledger-b.…` | The market: ten Curve Long buckets x¹–x¹⁰ in one shared pool. The price comes from the keeper (pusher oracle). |
+| `vault-b.…` | The hedged 🦀 vault, the only Curve Short. It hedges `delta_claims × its share` (Σ p · C over all buckets) with wNEAR. |
+| `swap-b.…` | Mock DEX: USDC↔wNEAR at the keeper's price. |
+| `usdc.…`, `wnear.…` | Mock USDC (6 dp) and mock wNEAR (24 dp), shared with the older stacks. Open faucet: `mint(account_id, amount)`. |
+| `keeper-b.…` | Pushes prices, syncs and rebalances the vault. |
+| `relayer-b.…` | Pays gas for app users (meta-transactions) and creates new wallets. |
+| `rb1…rb6`, `hb1…hb3` | Test traders and liquidity providers (the bots). |
+
+The keeper hedges to within 2% of the target. Before it puts anything into Curve Short, it keeps 25% headroom on the hedge and 5% of the vault's value in cash, and it closes part of the short when the hedge needs cash it doesn't have.
+
+**In production** the keeper and the bots run on the server as the `uprise-keeper` and `uprise-bots` services (see [`../deploy/README.md`](../deploy/README.md)). Don't also run them locally, or prices get written twice.
+
+**Older deployments**, kept for history: `deployment-x3.json` is the single-strength x³ stack (`ledger-near`, `vault-near`, `keeper`, `faucet`, `r1…r6`, `h1…h3`), and `deployment-btc.json` the first BTC/USD stack. To use one, copy it over `deployment.json`.
 
 ## Run
 
@@ -49,9 +41,10 @@ node players.js run
 node players.js status
 ```
 
-- `keeper.js` pushes the live NEAR price (Coinbase, Binance fallback) every 15 s and runs a vault
-  cycle every 45 s: sync → pay queued withdrawals → bring free ledger cash home → hedge to
-  `p × claims` → keep about 50% of the vault in Curve Short.
+- `keeper.js` pushes the live NEAR price (Coinbase, Binance fallback) every 15 s. Every 45 s it runs a vault
+  cycle: sync, pay queued withdrawals, bring free cash home, hedge to `delta_claims`, then put spare cash into
+  Curve Short. Every 10 minutes it also tops up gas: when the keeper, the market, the vault or the relayer run low
+  on free testnet NEAR, it gets 10 NEAR from the testnet faucet (or 5 from the master account).
 - For stress tests, `PRICE_MODE=random VOL=1.5 PRICE_SECS=6 node keeper.js` drives a synthetic
   random walk where every push is one simulated hour. Switch back to live afterwards; the ledger's
   20% jump guard rejects a single bigger jump.
@@ -60,13 +53,13 @@ node players.js status
 ## Redeploy from scratch
 
 Build the wasm (see the root README), move `deployment.json` aside (keep `.keys.json`), then run
-`ASSET=NEAR node setup.js` (or `ASSET=BTC`). It pulls testnet NEAR from the public faucet, creates every account, deploys and
+`node setup-buckets.js` for the x¹–x¹⁰ market (or the older `ASSET=NEAR node setup.js` for a single-strength one). It pulls testnet NEAR from the public faucet, creates every account, deploys and
 initializes all contracts, seeds the swap, pushes the first price and funds the test players. Each
 step is skipped if it's already done, so it's safe to re-run after a failure.
 
 ## Testnet-only shortcuts (do not carry to mainnet)
 
 - Mock tokens with an open faucet, and a mock swap that trades at the keeper's own price.
-- The keeper is the price oracle (pusher mode). Mainnet uses Pyth.
+- The keeper is the price oracle (pusher mode). A mainnet launch would use Pyth (see `../archive/MAINNET.md`).
 - The app server gives every new device wallet 1,000 test USDC. Gas is sponsored on both networks.
 - `node make-snippets.js` regenerates the demo's chart snippets (`app/public/demo-snippets.json`).

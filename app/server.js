@@ -24,6 +24,7 @@ import { account, view, call, loadDeployment, usd, near, balanceNear, faucetAcco
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 const PUB = path.join(DIR, "public");
+const SIM = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "sim"); // simulators shown at /sim/…
 const PORT = Number(process.env.PORT || 8787); // HOST=127.0.0.1 behind a reverse proxy
 const d = loadDeployment();
 if (!d) throw new Error("ops/deployment.json missing: run ops/setup.js");
@@ -213,10 +214,12 @@ const server = http.createServer(async (req, res) => {
       return json(res, 200, await oneclick.depositQuote({ originAsset: asset, amount, refundTo: refund_to, relayer: account_id }));
     }
     // static
-    const p = path.normalize(url.pathname === "/" ? "/index.html" : url.pathname);
-    const file = path.join(PUB, p);
-    if (!file.startsWith(PUB) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); return res.end("not found"); }
-    const type = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png", ".json": "application/json" }[path.extname(file)] || "application/octet-stream";
+    // /sim/… serves the simulators from the repo's sim/ folder (read-only, html/js/json/css only); everything else is app/public
+    const isSim = url.pathname.startsWith("/sim/"), root = isSim ? SIM : PUB;
+    const p = path.normalize(url.pathname === "/" ? "/index.html" : url.pathname === "/lab" ? "/lab.html" : isSim ? url.pathname.slice(4) : url.pathname);
+    const file = path.join(root, p);
+    if (!file.startsWith(root) || (isSim && ![".html", ".js", ".json", ".css"].includes(path.extname(file))) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) { res.writeHead(404); return res.end("not found"); }
+    const type = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png", ".jpg": "image/jpeg", ".json": "application/json" }[path.extname(file)] || "application/octet-stream";
     res.writeHead(200, { "Content-Type": type, "Cache-Control": "no-cache" });
     fs.createReadStream(file).pipe(res);
   } catch (e) {
