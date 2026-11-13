@@ -93,6 +93,8 @@ function renderFunding() {
 }
 
 // ── amount + preview ──
+// demo starts with $100 typed in, so Buy is ready the moment the page opens
+const prefillDemo = () => { if (mode === "demo" && !demo?.position && !$("amt").value) { const c = Math.floor(cash()); if (c > 0) $("amt").value = String(Math.min(100, c)); } };
 const amount = () => { const v = Number(String($("amt").value).replace(",", ".")); return isFinite(v) && v > 0 ? v : 0; };
 function cash() { return mode === "demo" ? demo.balance : Number(live?.cash?.() ?? 0n) / E6; }
 function renderPreview() {
@@ -177,7 +179,7 @@ function demoClose(why) {
     : `The price didn't rise fast enough before the ${pw(r.p)} timer ran out.`;
   $("result").querySelector("[data-close]").onclick = () => {
     modal("result", false); $("px").textContent = fmtP(chart.price()); $("chg").textContent = ""; render();
-    if (demo.trades === 1 && mode === "demo") pointAtLive();
+    if (mode === "demo") { prefillDemo(); render(); pointAtLive(); } // after every demo trade
   };
   render();
 }
@@ -254,8 +256,9 @@ async function shareResult() {
 $("rShare").onclick = () => shareResult().catch((e) => toast(String(e.message || e), true));
 function pointAtLive() {
   const b = document.querySelector('[data-mode="live"]').getBoundingClientRect(), h = $("hand");
-  h.style.left = b.left + b.width / 2 - 40 + "px"; h.style.top = b.bottom + 4 + "px"; h.hidden = false;
-  setTimeout(() => (h.hidden = true), 9000);
+  h.style.left = b.left + b.width / 2 - 40 + "px"; h.style.top = b.bottom + 4 + "px";
+  h.hidden = true; void h.offsetWidth; h.hidden = false; // restart the bob each time
+  clearTimeout(pointAtLive.t); pointAtLive.t = setTimeout(() => (h.hidden = true), 9000);
 }
 // your vault stake over time: green area, dashed line = what you put in, the crab walks at the head
 function drawStake(cv, hist, cost) {
@@ -594,6 +597,7 @@ async function setMode(m) {
   mode = m; ls.set("uprise.mode", m); if (m === "demo") stopStream();
   document.querySelectorAll("[data-mode]").forEach((x) => x.setAttribute("aria-selected", x.dataset.mode === m));
   $("ranges").hidden = m !== "live";
+  $("amt").value = ""; prefillDemo();
   if (m === "demo") { $("mkt").textContent = "Demo market"; $("mktNote").textContent = "Demo replay of real history"; $("assetLabel").textContent = "play money"; loadDemoChart(); flip(false); }
   else {
     try { await ensureLive(); } catch (e) { toast("Live mode can't reach the network: " + e.message, true); return setMode("demo"); }
@@ -622,7 +626,7 @@ function render() {
   document.querySelectorAll("[data-mode]").forEach((x) => x.setAttribute("aria-selected", x.dataset.mode === mode));
   renderStrength();
   if (mode === "live") await setMode("live"); else { mode = "demo"; await setMode("demo").catch(() => {}); loadDemoChart(); $("mkt").textContent = "Demo market"; }
-  render();
+  prefillDemo(); render();
   const intro = () => showOnboarding($("onboarding"), () => { ls.set("uprise.v1.onboarded", "1"); $("amt").focus(); });
   $("howTrade").onclick = intro; // replays the intro slides
   $("crabHelp").onclick = $("crabHelp2").onclick = () => modal("crabIntro");
