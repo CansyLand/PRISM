@@ -426,6 +426,9 @@ $("close").onclick = () => {
 
 // ── CRAB ──
 let vMode = "dep";
+// vault cost basis, per wallet account (the old single key mixed all wallets in this browser)
+const costKey = () => `uprise.v1.vaultIn.${live?.accountId}`;
+const vaultCost = () => { const r = ls.get(costKey()); return r != null ? Number(r) : Number(live?.state?.pos?.shares || 0) / E6; };
 // desktop donut: USDC share in cobalt, the NEAR hedge in ink
 function paintDonut(usdc) { $("vDonut").style.setProperty("--u", (usdc * 100).toFixed(1) + "%"); $("vDonutPct").textContent = Math.round(usdc * 100) + "%"; }
 function renderCrab() {
@@ -453,8 +456,11 @@ function renderCrab() {
     $("vHedge").textContent = `${live.cfg.asset} balance ${fmt(assetV, 0)} of ${fmt(Number(s.hedge_target_usd) / E6, 0)} target. Rebalanced by the keeper, updated ${v.snapshot_age_secs}s ago.`;
     const pos = st.pos;
     if (pos) {
-      const val = Number(pos.value) / E6, cost = Number(ls.get("uprise.v1.vaultIn") || 0);
-      $("sValue").textContent = fmt(val); $("sEarned").textContent = cost ? (val - cost >= 0 ? "+" : "") + fmt(val - cost) : "—";
+      // cost basis per account (what you put in, less what you took out). Not stored on chain, so without a
+      // record from this browser we estimate it: vault shares started at $1, so shares ≈ dollars put in.
+      const val = Number(pos.value) / E6, shares = Number(pos.shares) / E6, rec = ls.get(costKey());
+      const cost = rec != null ? Number(rec) : shares, est = rec == null;
+      $("sValue").textContent = fmt(val); $("sEarned").textContent = shares > 0 ? (est ? "≈ " : "") + (val - cost >= 0 ? "+" : "−") + fmt(Math.abs(val - cost)) : "—";
       const pend = Number(pos.pending_deposit) / E6, pw = Number(pos.pending_withdraw_shares) * Number(v.share_price_e6) / E6 / E6;
       $("sPendRow").hidden = !(pend || pw); $("sPend").textContent = [pend ? `+${fmt(pend)} in` : "", pw ? `${fmt(pw)} out` : ""].filter(Boolean).join(" · ");
     }
@@ -485,8 +491,9 @@ $("vBtn").onclick = () => {
 const vSubmit = () => withBusy($("vBtn"), vMode === "dep" ? "Depositing…" : "Withdrawing…", async () => {
   const a = vAmount();
   if (mode === "demo") { await new Promise((r) => setTimeout(r, 900)); /* a short beat so the spinner is seen */ vMode === "dep" ? demo.vaultDeposit(a) : demo.vaultWithdraw(a); toast(vMode === "dep" ? `${fmt(a)} is now earning` : `${fmt(a)} back in your balance`); }
-  else if (vMode === "dep") { await live.vaultDeposit(BigInt(Math.floor(a * E6))); ls.set("uprise.v1.vaultIn", String(Number(ls.get("uprise.v1.vaultIn") || 0) + a)); toast(`Deposit of ${fmt(a)} queued`); }
-  else { const pps = Number(live.state.vault.share_price_e6) / E6, all = a >= Number(live.state.pos.value) / E6 - 0.01; await live.vaultWithdraw(all ? null : Math.floor(a / pps * E6)); toast(`Withdrawal of ${fmt(a)} queued`); }
+  else if (vMode === "dep") { const before = vaultCost(); await live.vaultDeposit(BigInt(Math.floor(a * E6))); ls.set(costKey(), String(before + a)); toast(`Deposit of ${fmt(a)} queued`); }
+  else { const pps = Number(live.state.vault.share_price_e6) / E6, val = Number(live.state.pos.value) / E6, all = a >= val - 0.01, before = vaultCost(); await live.vaultWithdraw(all ? null : Math.floor(a / pps * E6));
+    ls.set(costKey(), String(all ? 0 : before * (1 - a / val))); /* take out the same share of the cost basis */ toast(`Withdrawal of ${fmt(a)} queued`); }
   $("vAmt").value = ""; if (mode === "live") await liveRefresh();
 });
 let crabTimer = 0;
