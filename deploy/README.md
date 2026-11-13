@@ -37,14 +37,14 @@ If `ops/package.json` changed, also run `sudo -u uprise bash -c "cd /home/uprise
 
 1. At your DNS provider, point the domain at the server: an `A` record to `49.13.0.233` and an `AAAA` record to `2a01:4f8:c014:1de6::1`, for both `example.com` and `www.example.com`.
 2. Wait until `dig +short example.com` shows `49.13.0.233`.
-3. Add the names to the nginx site, then let certbot add the certificate and the HTTPS redirect:
+3. Add the names to both `server_name` lines of the nginx site (the https one and the plain-http redirect), then let certbot add the certificate:
 
 ```bash
-ssh cansy 'sudo sed -i "s/server_name uprise.parutkin.com;/server_name uprise.parutkin.com example.com www.example.com;/" /etc/nginx/sites-available/uprise.parutkin.com && sudo nginx -t && sudo systemctl reload nginx'
+ssh cansy 'sudo sed -i "s/server_name uprise.parutkin.com uprise.wtf www.uprise.wtf;/server_name uprise.parutkin.com uprise.wtf www.uprise.wtf example.com www.example.com;/g" /etc/nginx/sites-available/uprise.parutkin.com && sudo nginx -t && sudo systemctl reload nginx'
 ```
 
 ```bash
-ssh cansy 'sudo certbot --nginx -d uprise.parutkin.com -d example.com -d www.example.com --non-interactive --redirect --expand'
+ssh cansy 'sudo certbot --nginx -d uprise.parutkin.com -d uprise.wtf -d www.uprise.wtf -d example.com -d www.example.com --non-interactive --redirect --expand'
 ```
 
 Replace `example.com` with your domain. Nothing in the app needs to change: it works on any hostname.
