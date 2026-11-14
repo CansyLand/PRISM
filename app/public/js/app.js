@@ -6,8 +6,6 @@ import { Arena } from "./analytics.js";
 import { CurveCard } from "./curvecard.js";
 import { css, fit, pw } from "./theme.js";
 import { crabIntro } from "./crabintro.js";
-import { createTour } from "./tour.js";
-const tour = createTour({ onDone: () => ls.set("uprise.v1.toured", "1") });
 
 const $ = (id) => document.getElementById(id);
 // No zooming on iPhone: Safari ignores user-scalable=no, so stop its pinch gestures and two-finger moves here.
@@ -162,7 +160,6 @@ async function demoBuy() {
 function wickHint() { toast("Wick −20%! Dips like this liquidate leveraged perps. Your Curve Long is still open."); }
 function demoClose(why) {
   if (!demo.position) return;
-  tour.emit("closed");
   playing?.stop(); playing = null;
   chart.freeze();
   const exitPx = chart.price(), r = demo.close(exitPx);
@@ -257,7 +254,7 @@ $("rShare").onclick = () => shareResult().catch((e) => toast(String(e.message ||
 // the result card closes with "Next trade" or a tap on the gray around it: both refill $100 and show the hand (demo)
 function resultClosed() {
   modal("result", false); $("px").textContent = fmtP(chart.price()); $("chg").textContent = ""; render();
-  if (mode === "demo") { prefillDemo(); render(); if (tour.active) tour.emit("resultClosed"); else pointAtLive(); } // after every demo trade
+  if (mode === "demo") { prefillDemo(); render(); pointAtLive(); } // after every demo trade
 }
 $("result").querySelector("[data-close]").onclick = resultClosed;
 $("result").addEventListener("click", (e) => { if (e.target === $("result")) resultClosed(); });
@@ -597,7 +594,6 @@ $("xBtn").onclick = () => withBusy($("xBtn"), "Asking NEAR Intents…", async ()
 // ── tabs + mode ──
 document.querySelectorAll("nav.tabs button").forEach((b) => (b.onclick = () => setTab(b.dataset.tab)));
 function setTab(t) {
-  if (t !== tab) tour.emit("tab");
   tab = t; closeJoin();
   document.querySelectorAll("nav.tabs button").forEach((x) => x.setAttribute("aria-selected", x.dataset.tab === t));
   for (const k of ["bull", "crab", "stats"]) $("tab-" + k).hidden = k !== t;
@@ -609,7 +605,7 @@ function setTab(t) {
 }
 document.querySelectorAll("[data-mode]").forEach((b) => (b.onclick = () => setMode(b.dataset.mode)));
 async function setMode(m) {
-  $("hand").hidden = true; closeJoin(); if (m !== mode) tour.emit("mode");
+  $("hand").hidden = true; closeJoin();
   if (m === mode && (m === "demo" || live)) return;
   if (demo.position) demoClose("manual");
   mode = m; ls.set("uprise.mode", m); if (m === "demo") stopStream();
@@ -659,7 +655,7 @@ const closeJoin = () => { $("joinForm").hidden = $("joinDone").hidden = true; $(
     ls.set("uprise.v1.waitlist", String(r.place)); showDone(r.place);
   }); };
   btn.addEventListener("animationend", () => btn.classList.remove("wig"));
-  const wiggle = () => { if (!joined() && !tour.active && form.hidden && !document.hidden) { btn.classList.remove("wig"); void btn.offsetWidth; btn.classList.add("wig"); } setTimeout(wiggle, 4000 + Math.random() * 5000); };
+  const wiggle = () => { if (!joined() && form.hidden && !document.hidden) { btn.classList.remove("wig"); void btn.offsetWidth; btn.classList.add("wig"); } setTimeout(wiggle, 4000 + Math.random() * 5000); };
   setTimeout(wiggle, 2500);
 }
 
@@ -674,6 +670,5 @@ const closeJoin = () => { $("joinForm").hidden = $("joinDone").hidden = true; $(
   const intro = () => showOnboarding($("onboarding"), () => { ls.set("uprise.v1.onboarded", "1"); $("amt").focus(); });
   $("howTrade").onclick = intro; // replays the intro slides
   $("crabHelp").onclick = $("crabHelp2").onclick = () => modal("crabIntro");
-  // first visit: learn by doing (the slides stay one tap away under "How it works")
-  if (!ls.get("uprise.v1.onboarded") && !ls.get("uprise.v1.toured") && mode === "demo") { ls.set("uprise.v1.onboarded", "1"); setTimeout(() => tour.start(), 600); }
+  if (!ls.get("uprise.v1.onboarded")) intro();
 })();
