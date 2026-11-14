@@ -640,7 +640,18 @@ const closeJoin = () => { $("joinForm").hidden = $("joinDone").hidden = true; $(
 {
   const btn = $("mailBtn"), form = $("joinForm"), done = $("joinDone");
   const joined = () => ls.get("uprise.v1.waitlist");
-  const showDone = (place) => { done.textContent = `🔥 Spot #${place} is yours. We're building fast, and you'll be first to know when we launch.`; done.hidden = false; form.hidden = true; };
+  const doneText = (place) => `🔥 Spot #${place} is yours. We're building fast, and you'll be first to know when we launch.`;
+  const showDone = (place) => { done.textContent = doneText(place); done.hidden = false; form.hidden = true; };
+  // the waiting-list card under the footer (phones, Analytics) shares the same sign-up
+  const wlDone = (place) => { $("wlDone").textContent = doneText(place); $("wlDone").hidden = false; $("wlForm").hidden = true; $("wlCard").classList.add("in"); };
+  if (joined()) wlDone(joined());
+  const join = async (email, errEl) => {
+    errEl.textContent = "";
+    const r = await fetch("/api/waitlist", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, source: mode }) }).then((x) => x.json());
+    if (!r.ok) { errEl.textContent = r.error || "Couldn't save that, try again"; return 0; }
+    ls.set("uprise.v1.waitlist", String(r.place)); wlDone(r.place); return r.place;
+  };
+  $("wlForm").onsubmit = (e) => { e.preventDefault(); withBusy($("wlForm").querySelector(".wl-go"), "", () => join($("wlEmail").value, $("wlErr"))); };
   if (ls.get("uprise.v1.mailSeen")) btn.classList.add("seen");
   btn.onclick = () => {
     btn.classList.add("seen"); ls.set("uprise.v1.mailSeen", "1");
@@ -649,12 +660,7 @@ const closeJoin = () => { $("joinForm").hidden = $("joinDone").hidden = true; $(
     if (joined()) return showDone(joined());
     form.hidden = false; $("joinEmail").focus();
   };
-  form.onsubmit = (e) => { e.preventDefault(); withBusy(form.querySelector(".join-go"), "", async () => {
-    $("joinErr").textContent = "";
-    const r = await fetch("/api/waitlist", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: $("joinEmail").value, source: mode }) }).then((x) => x.json());
-    if (!r.ok) { $("joinErr").textContent = r.error || "Couldn't save that, try again"; return; }
-    ls.set("uprise.v1.waitlist", String(r.place)); showDone(r.place);
-  }); };
+  form.onsubmit = (e) => { e.preventDefault(); withBusy(form.querySelector(".join-go"), "", async () => { const place = await join($("joinEmail").value, $("joinErr")); if (place) showDone(place); }); };
   btn.addEventListener("animationend", () => btn.classList.remove("wig"));
   const wiggle = () => { if (!joined() && form.hidden && !document.hidden) { btn.classList.remove("wig"); void btn.offsetWidth; btn.classList.add("wig"); } setTimeout(wiggle, 4000 + Math.random() * 5000); };
   setTimeout(wiggle, 2500);
