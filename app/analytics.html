@@ -89,6 +89,7 @@ details.sess summary:hover { background: var(--soft); border-radius: 8px; }
     <div class="card"><h2>Time zones · languages</h2><div class="bars" id="zones"></div><div class="bars" id="langs" style="margin-top:10px"></div></div>
   </div>
 
+  <div class="card" style="margin-bottom:14px"><div style="display:flex;align-items:center;gap:10px;margin-bottom:10px"><h2 style="margin:0">Mainnet waitlist · <span id="wlCount">0</span> (all time)</h2><button id="wlCopy" class="pill" style="margin-left:auto;border:0;cursor:pointer;font:600 12px var(--font);padding:5px 10px">Copy all emails</button></div><div class="scroll"><table id="waitlist"></table></div></div>
   <div class="card" style="margin-bottom:14px"><h2>Wallets</h2><div class="scroll"><table id="wallets"></table></div></div>
   <div class="card" style="margin-bottom:14px"><h2>Recent sessions</h2><div id="sessions"></div></div>
   <div class="card"><h2>Browser errors</h2><div class="scroll"><table id="errors"></table></div></div>
@@ -101,7 +102,7 @@ const ago = (t) => { const s = Math.round((Date.now() - t) / 1000); return s < 6
 const when = (t) => new Date(t).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 const clock = (t) => new Date(t).toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 const short = (a) => (a && a.length > 24 ? a.slice(0, 8) + "…" + a.slice(-6) : a);
-let days = 7, net = "testnet";
+let days = 7, net = "testnet", wl = [];
 try { days = Number(localStorage.getItem("ua.days") ?? 7); } catch {}
 
 function bars(el, rows, fmt = (n) => n.toLocaleString()) {
@@ -154,6 +155,8 @@ function render(r) {
       <span class="trunc hide-m">${esc(s.ref || "")} · ${esc(s.device || "")} · ${esc(s.browser || "")} · ${esc(s.tz || "")}${s.visits > 1 ? ` · <span class="pill">visit ${s.visits}</span>` : ""}${s.wallets.map((w) => ` <span class="pill mono">${esc(short(w))}</span>`).join("")}</span>
       <span class="muted small">${s.views} view${s.views === 1 ? "" : "s"} · ${s.events.length} events</span></summary>
       <div class="tl">${s.events.map((e) => `<div><span class="t">${clock(e.at)}</span>${line(e)}</div>`).join("")}<div class="muted small">visitor ${esc(s.v)} · ${esc(s.ip || "")} · ${esc(s.lang || "")}</div></div></details>`).join("") : '<div class="empty">No sessions yet</div>';
+  wl = r.waitlist || []; $("wlCount").textContent = wl.length;
+  $("waitlist").innerHTML = wl.length ? `<tr><th>#</th><th>Email</th><th>Signed up</th><th>Where</th></tr>` + wl.map((w) => `<tr><td>${w.place}</td><td><a href="mailto:${esc(w.email)}">${esc(w.email)}</a></td><td>${w.at ? when(w.at) : ""}</td><td><span class="pill">${esc(w.source || "?")}</span></td></tr>`).join("") : '<tr><td class="empty">No signups yet</td></tr>';
   $("errors").innerHTML = r.errors.length ? `<tr><th>When</th><th>Page</th><th>Error</th></tr>` + r.errors.map((e) => `<tr><td>${when(e.at)}</td><td>${esc(e.p)}</td><td>${esc(e.msg)} <span class="muted small">${esc(e.src || "")}</span></td></tr>`).join("") : '<tr><td class="empty">No errors</td></tr>';
 }
 async function load() {
@@ -163,6 +166,7 @@ document.querySelectorAll("#range button").forEach((b) => {
   b.setAttribute("aria-pressed", Number(b.dataset.d) === days);
   b.onclick = () => { days = Number(b.dataset.d); try { localStorage.setItem("ua.days", days); } catch {} document.querySelectorAll("#range button").forEach((x) => x.setAttribute("aria-pressed", x === b)); load(); };
 });
+$("wlCopy").onclick = async () => { try { await navigator.clipboard.writeText(wl.map((w) => w.email).join("\n")); $("wlCopy").textContent = "Copied " + wl.length; setTimeout(() => ($("wlCopy").textContent = "Copy all emails"), 1500); } catch {} };
 load(); setInterval(load, 15_000);
 let rt; addEventListener("resize", () => { clearTimeout(rt); rt = setTimeout(load, 200); });
 </script>

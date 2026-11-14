@@ -12,6 +12,9 @@ const DIR = path.dirname(fileURLToPath(import.meta.url));
 const LOG = path.join(DIR, ".analytics.jsonl");
 const PASSFILE = path.join(DIR, ".analytics-pass");
 const PAGE = path.join(DIR, "analytics.html");
+const WAITLIST = path.join(DIR, ".waitlist.txt"); // written by server.js: "email<TAB>ISO time<TAB>source" per line, line number = place in line
+const readWaitlist = () => (fs.existsSync(WAITLIST) ? fs.readFileSync(WAITLIST, "utf8") : "").split("\n").filter(Boolean)
+  .map((l, i) => { const [email, at, source] = l.split("\t"); return { place: i + 1, email, at: Date.parse(at) || null, source: source || "" }; });
 const PASS = process.env.ANALYTICS_PASS || (fs.existsSync(PASSFILE) ? fs.readFileSync(PASSFILE, "utf8").trim() : (() => {
   const p = crypto.randomBytes(9).toString("base64url"); fs.writeFileSync(PASSFILE, p, { mode: 0o600 });
   console.log(`[analytics] no ANALYTICS_PASS set; generated one in ${PASSFILE}`); return p;
@@ -118,6 +121,7 @@ function report(days) {
       bounce: S.length ? S.filter((s) => s.sec < 10 && s.events.length <= 1).length / S.length : 0 },
     perDay: [...new Set(dayList)].map((k) => { const x = perDay[k]; return { day: k, visitors: x?.visitors.size || 0, sessions: x?.sessions.size || 0, views: x?.views || 0, sec: x?.sec || 0, wallets: x?.wallets.size || 0 }; }),
     funnel, pages: top(pages), refs: top(refs), utms: top(utms).filter(([k]) => k), devices: top(devices), browsers: top(browsers), zones: top(zones), langs: top(langs),
+    waitlist: readWaitlist().reverse(), // all time, newest first
     tabs: top(tabs), clicks: top(clicks, 25), acts: top(acts, 25), errors: errors.slice(-30).reverse(),
     wallets: [...wallets.values()].sort((a, b) => b.last - a.last).slice(0, 300),
     sessions: S.sort((a, b) => b.end - a.end).slice(0, 150).map((s) => ({ ...s, pages: [...s.pages], wallets: [...s.wallets], events: s.events.slice(-80), visits: visitors.get(s.v)?.sessions.size })),
