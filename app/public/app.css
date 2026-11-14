@@ -380,7 +380,7 @@ input:focus, input:focus-visible, select:focus, select:focus-visible, textarea:f
   .wl-form { display: flex; flex-direction: column; gap: 10px; margin-top: 18px; }
   .wl-form input { border: 0; border-radius: 14px; background: #fff; color: var(--ink); padding: 14px 14px; font-size: 16px; outline: none; }
   .wl-form input:focus { box-shadow: 0 0 0 3px var(--panel); }
-  .wl-go { border: 0; border-radius: 14px; background: var(--ink); color: var(--panel); font-weight: 800; font-size: 16px; padding: 14px; cursor: pointer; }
+  .wl-go { border: 0; border-radius: 14px; background: var(--panel); color: var(--ink); font-weight: 800; font-size: 16px; padding: 14px; cursor: pointer; }
   .wl-err { margin: 8px 0 0; min-height: 0; font-size: 13px; font-weight: 600; color: var(--panel); }
   .wl-err:empty { display: none; }
   .wl-done { margin: 16px 0 0; background: rgba(255,255,255,.14); border-radius: 14px; padding: 14px; font-weight: 700; font-size: 15px; line-height: 1.45; }
