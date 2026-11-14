@@ -595,6 +595,7 @@ $("xBtn").onclick = () => withBusy($("xBtn"), "Asking NEAR Intents…", async ()
 document.querySelectorAll("nav.tabs button").forEach((b) => (b.onclick = () => setTab(b.dataset.tab)));
 function setTab(t) {
   tab = t; closeJoin();
+  document.body.classList.toggle("on-stats", t === "stats"); // phones show the footer card under Analytics only
   document.querySelectorAll("nav.tabs button").forEach((x) => x.setAttribute("aria-selected", x.dataset.tab === t));
   for (const k of ["bull", "crab", "stats"]) $("tab-" + k).hidden = k !== t;
   if (t === "crab" && !ls.get("uprise.v1.crabSeen")) { modal("crabIntro"); ls.set("uprise.v1.crabSeen", "1"); }
